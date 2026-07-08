@@ -1,0 +1,144 @@
+version: '3.8'
+
+services:
+  # ============ PostgreSQL ============
+  postgres:
+    image: postgres:16-alpine
+    container_name: fluid-events-postgres
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: fluid_events
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fluid-network
+
+  # ============ Redis ============
+  redis:
+    image: redis:7-alpine
+    container_name: fluid-events-redis
+    volumes:
+      - redis_data:/data
+      - ./docker/redis/redis.conf:/usr/local/etc/redis/redis.conf
+    command: redis-server /usr/local/etc/redis/redis.conf
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fluid-network
+
+  # ============ Mailpit (Email Interceptor) ============
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: fluid-events-mailpit
+    ports:
+      - "1025:1025"  # SMTP
+      - "8025:8025"  # UI
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8025"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fluid-network
+
+  # ============ RustFS (S3-Compatible Storage) ============
+  rustfs:
+    image: rustfs/rustfs:latest
+    container_name: fluid-events-rustfs
+    environment:
+      RUST_LOG: info
+    volumes:
+      - rustfs_data:/data
+    ports:
+      - "9000:9000"  # S3 API
+      - "9001:9001"  # Console
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fluid-network
+
+  # ============ Backend NestJS ============
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+      target: development
+    container_name: fluid-events-api
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://user:password@postgres:5432/fluid_events?schema=public
+      REDIS_URL: redis://redis:6379
+      STORAGE_ENDPOINT: http://rustfs:9000
+      STORAGE_ACCESS_KEY: minioadmin
+      STORAGE_SECRET_KEY: minioadmin
+      STORAGE_BUCKET: fluid-events
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      APP_URL: http://localhost:3000
+      API_URL: http://localhost:4000
+    volumes:
+      - ./apps/api:/app
+      - /app/node_modules
+      - /app/dist
+    ports:
+      - "4000:4000"
+      - "9229:9229"  # Debug port
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rustfs:
+        condition: service_healthy
+    networks:
+      - fluid-network
+    command: npm run start:dev
+
+  # ============ Frontend Next.js ============
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+      target: development
+    container_name: fluid-events-web
+    environment:
+      NODE_ENV: development
+      NEXT_PUBLIC_API_URL: http://localhost:4000
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+    volumes:
+      - ./apps/web:/app
+      - /app/node_modules
+      - /app/.next
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    networks:
+      - fluid-network
+    command: npm run dev
+
+volumes:
+  postgres_data:
+  redis_data:
+  rustfs_data:
+
+networks:
+  fluid-network:
+    driver: bridge

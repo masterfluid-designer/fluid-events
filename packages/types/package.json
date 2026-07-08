@@ -1,0 +1,8 @@
+{
+  "name": "@fluid-events/types",
+  "version": "1.0.0",
+  "description": "Types partagés TypeScript",
+  "private": true,
+  "main": "index.ts",
+  "types": "index.ts"
+}
