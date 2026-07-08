@@ -6,8 +6,8 @@ services:
     image: postgres:16-alpine
     container_name: fluid-events-postgres
     environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
+      POSTGRES_USER: fluid_user
+      POSTGRES_PASSWORD: fluid_password_dev
       POSTGRES_DB: fluid_events
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -15,7 +15,7 @@ services:
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user"]
+      test: ["CMD-SHELL", "pg_isready -U fluid_user"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -40,7 +40,7 @@ services:
     networks:
       - fluid-network
 
-  # ============ Mailpit (Email Interceptor) ============
+  # ============ Mailpit (Email Interceptor - Dev Only) ============
   mailpit:
     image: axllent/mailpit:latest
     container_name: fluid-events-mailpit
@@ -55,7 +55,7 @@ services:
     networks:
       - fluid-network
 
-  # ============ RustFS (S3-Compatible Storage) ============
+  # ============ RustFS (S3-Compatible Storage - Dev) ============
   rustfs:
     image: rustfs/rustfs:latest
     container_name: fluid-events-rustfs
@@ -77,26 +77,36 @@ services:
   # ============ Backend NestJS ============
   api:
     build:
-      context: ./apps/api
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/api/Dockerfile
       target: development
     container_name: fluid-events-api
     environment:
       NODE_ENV: development
-      DATABASE_URL: postgresql://user:password@postgres:5432/fluid_events?schema=public
+      DATABASE_URL: postgresql://fluid_user:fluid_password_dev@postgres:5432/fluid_events?schema=public
       REDIS_URL: redis://redis:6379
       STORAGE_ENDPOINT: http://rustfs:9000
       STORAGE_ACCESS_KEY: minioadmin
       STORAGE_SECRET_KEY: minioadmin
       STORAGE_BUCKET: fluid-events
+      STORAGE_REGION: us-east-1
       SMTP_HOST: mailpit
       SMTP_PORT: "1025"
+      SMTP_FROM: noreply@fluid-events.dev
       APP_URL: http://localhost:3000
       API_URL: http://localhost:4000
+      JWT_SECRET: dev-jwt-secret-change-in-prod
+      JWT_EXPIRATION: 86400
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      LOG_LEVEL: debug
     volumes:
-      - ./apps/api:/app
+      - ./apps/api:/app/apps/api
+      - ./packages:/app/packages
+      - ./package.json:/app/package.json
+      - ./pnpm-lock.yaml:/app/pnpm-lock.yaml
       - /app/node_modules
-      - /app/dist
+      - /app/apps/api/dist
     ports:
       - "4000:4000"
       - "9229:9229"  # Debug port
@@ -109,13 +119,12 @@ services:
         condition: service_healthy
     networks:
       - fluid-network
-    command: npm run start:dev
 
   # ============ Frontend Next.js ============
   web:
     build:
-      context: ./apps/web
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/web/Dockerfile
       target: development
     container_name: fluid-events-web
     environment:
@@ -123,16 +132,18 @@ services:
       NEXT_PUBLIC_API_URL: http://localhost:4000
       NEXT_PUBLIC_APP_URL: http://localhost:3000
     volumes:
-      - ./apps/web:/app
+      - ./apps/web:/app/apps/web
+      - ./packages:/app/packages
+      - ./package.json:/app/package.json
+      - ./pnpm-lock.yaml:/app/pnpm-lock.yaml
       - /app/node_modules
-      - /app/.next
+      - /app/apps/web/.next
     ports:
       - "3000:3000"
     depends_on:
       - api
     networks:
       - fluid-network
-    command: npm run dev
 
 volumes:
   postgres_data:

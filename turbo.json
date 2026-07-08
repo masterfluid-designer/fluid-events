@@ -1,23 +1,35 @@
 {
   "$schema": "https://turbo.build/schema.json",
-  "globalDotEnv": [".env", ".env.local"],
-  "pipeline": {
+  "globalDependencies": ["**/.env", "**/.env.local"],
+  "globalEnv": [
+    "NODE_ENV",
+    "DATABASE_URL",
+    "JWT_SECRET",
+    "JWT_EXPIRES_IN",
+    "JWT_REFRESH_SECRET",
+    "QR_SECRET",
+    "ENCRYPTION_KEY"
+  ],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": [".next/**", "!.next/cache/**", "dist/**"]
+    },
     "dev": {
       "cache": false,
-      "interactive": true
-    },
-    "build": {
-      "outputs": ["dist/**", "build/**", ".next/**"],
-      "dependsOn": ["^build"]
+      "persistent": true
     },
     "lint": {
-      "outputs": []
+      "dependsOn": ["^build"]
+    },
+    "typecheck": {
+      "dependsOn": ["^build"]
     },
     "test": {
-      "outputs": ["coverage/**"],
-      "cache": false
+      "dependsOn": [],
+      "outputs": ["coverage/**"]
     },
-    "clean": {
+    "db:generate": {
       "cache": false
     }
   }
