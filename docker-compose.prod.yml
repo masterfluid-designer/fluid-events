@@ -1,79 +1,103 @@
 version: '3.8'
 
+# Production override - à appliquer avec: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up
+
 services:
-  # ============ Nginx Reverse Proxy ============
+  # ============ Nginx Reverse Proxy (Prod Only) ============
   nginx:
-    build:
-      context: ./docker/nginx
-      dockerfile: Dockerfile
+    image: nginx:latest-alpine
     container_name: fluid-events-nginx
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/nginx/ssl:/etc/nginx/ssl:ro
     ports:
       - "80:80"
       - "443:443"
-    volumes:
-      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - /etc/letsencrypt:/etc/letsencrypt:ro
     depends_on:
-      - web
       - api
+      - web
     networks:
       - fluid-network
-    restart: always
 
-  # ============ Backend NestJS (Production Build) ============
+  # ============ PostgreSQL Production Override ============
+  postgres:
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    # Dans production, utiliser Supabase PostgreSQL au lieu de ce container
+    # Supprimer/commenter le volume pour éviter persistance locale
+    volumes: []
+    # Ne pas exposer le port en prod
+    ports: []
+
+  # ============ Redis Production Override ============
+  redis:
+    # En production, utiliser Redis managé (Upstash, Railway, etc.)
+    environment:
+      # Peut être supprimé et remplacé par REDIS_URL externe
+      REDIS_URL: ${REDIS_URL}
+
+  # ============ Backend Production Override ============
   api:
     build:
-      context: ./apps/api
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/api/Dockerfile
       target: production
-    container_name: fluid-events-api
     environment:
       NODE_ENV: production
       DATABASE_URL: ${DATABASE_URL}  # Supabase PostgreSQL
-      REDIS_URL: ${REDIS_URL}  # Upstash ou Redis managé
-      STORAGE_ENDPOINT: ${STORAGE_ENDPOINT}  # Supabase Storage S3
+      REDIS_URL: ${REDIS_URL}        # Redis managé
+      STORAGE_ENDPOINT: ${STORAGE_ENDPOINT}  # Supabase Storage
       STORAGE_ACCESS_KEY: ${STORAGE_ACCESS_KEY}
       STORAGE_SECRET_KEY: ${STORAGE_SECRET_KEY}
       STORAGE_BUCKET: ${STORAGE_BUCKET}
-      JWT_SECRET: ${JWT_SECRET}
-      SMTP_HOST: ${SMTP_HOST}
+      STORAGE_REGION: ${STORAGE_REGION}
+      SMTP_HOST: ${SMTP_HOST}        # Resend SMTP
       SMTP_PORT: ${SMTP_PORT}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      SMTP_FROM: ${SMTP_FROM}
       APP_URL: ${APP_URL}
       API_URL: ${API_URL}
-    ports:
-      - "4000:4000"
-    networks:
-      - fluid-network
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION: ${JWT_EXPIRATION}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN}
+      LOG_LEVEL: info
+    # Pas de volumes en prod (image immutable)
+    volumes: []
+    ports: []
+    depends_on:
+      - nginx
     restart: always
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
 
-  # ============ Frontend Next.js (Production Build) ============
+  # ============ Frontend Production Override ============
   web:
     build:
-      context: ./apps/web
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/web/Dockerfile
       target: production
-    container_name: fluid-events-web
     environment:
       NODE_ENV: production
       NEXT_PUBLIC_API_URL: ${API_URL}
       NEXT_PUBLIC_APP_URL: ${APP_URL}
-    ports:
-      - "3000:3000"
+    volumes: []
+    ports: []
     depends_on:
-      - api
-    networks:
-      - fluid-network
+      - nginx
     restart: always
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+
+  # ============ Disable dev-only services ============
+  mailpit:
+    profiles:
+      - dev
+
+  rustfs:
+    profiles:
+      - dev
 
 networks:
   fluid-network:

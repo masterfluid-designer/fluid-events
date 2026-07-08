@@ -1,9 +1,10 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://purl.org/prisma/docs/schema
+// ─────────────────────────────────────────────────────────────────────────────
+// Schéma Prisma — SaaS Événementiel & Billetterie
+// Référence : CDC v2.0.0 — section 5
+// ─────────────────────────────────────────────────────────────────────────────
 
 generator client {
   provider = "prisma-client-js"
-  previewFeatures = ["jsonProtocol"]
 }
 
 datasource db {
@@ -11,375 +12,302 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ============ USERS ============
-model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  phone     String?  @unique
-  googleId  String?  @unique
-  role      UserRole @default(CLIENT)
-  
-  // Profile enrichment
-  avatar    String?
-  bio       String?
-  
-  // Relationships
-  events    Event[]        // Manager events (1 = 1 constraint at Event.managerId @unique)
-  orders    Order[]
-  clientSessions ClientSession[]
-  auditLogs AuditLog[]
-  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+// ─────────────────────────────────────────────────────────────────────────────
+// UTILISATEURS & AUTH
+// ─────────────────────────────────────────────────────────────────────────────
 
-  @@index([email])
-  @@index([googleId])
+model User {
+  id                  String    @id @default(cuid())
+  email               String    @unique
+  name                String?
+  avatarUrl           String?
+  googleId            String?   @unique
+  role                Role      @default(CLIENT)
+  isActive            Boolean   @default(true)
+  // Enrichi post-paiement via webhook provider (jamais écrasé si déjà renseigné)
+  phone               String?
+  country             String?
+  profileCompletedAt  DateTime?
+  passwordHash        String? // Scanners uniquement (login email/password)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  managedEvent   Event?   @relation("EventManager")
+  scannerProfile Scanner?
+  orders         Order[]
+  auditLogs      AuditLog[]
+
+  @@map("users")
 }
 
-enum UserRole {
+enum Role {
   SUPER_ADMIN
   MANAGER
-  CLIENT
   SCANNER
+  CLIENT
 }
 
-// ============ EVENTS ============
-model Event {
-  id              String   @id @default(cuid())
-  slug            String   @unique
-  title           String
-  description     String?
-  image           String?  // URL Supabase Storage
-  
-  // Event status & dates
-  status          EventStatus @default(DRAFT)
-  startDate       DateTime
-  endDate         DateTime
-  publishedAt     DateTime?
-  
-  // Pricing & capacity
-  totalCapacity   Int
-  soldTickets     Int      @default(0)
-  
-  // Manager (1 manager = 1 event constraint)
-  managerId       String   @unique
-  manager         User     @relation(fields: [managerId], references: [id], onDelete: Cascade)
-  
-  // Builder & customization
-  builderBlocks   BuilderBlock[]
-  ticketTemplate  TicketTemplate?
-  
-  // Relationships
-  ticketTypes     TicketType[]
-  orders          Order[]
-  qrCodes         QRCode[]
-  webhookEvents   WebhookEvent[]
-  scans           Scan[]
-  auditLogs       AuditLog[]
-  
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+// ─────────────────────────────────────────────────────────────────────────────
+// ÉVÉNEMENTS
+// ─────────────────────────────────────────────────────────────────────────────
 
-  @@index([managerId])
-  @@index([slug])
-  @@index([status])
+model Event {
+  id                       String              @id @default(cuid())
+  slug                     String              @unique
+  title                    String
+  description              String?
+  coverImageUrl            String?
+  location                 String?
+  startDate                DateTime
+  endDate                  DateTime // Détermine la durée de session client (endDate + 24h)
+  timezone                 String              @default("Africa/Abidjan")
+  status                   EventStatus         @default(DRAFT)
+  maxScanners              Int                 @default(3)
+  paymentProvider          PaymentProviderType?
+  allowManagerChooseProvider Boolean          @default(true)
+  expiresAt                DateTime?
+  createdAt                DateTime            @default(now())
+  updatedAt                DateTime            @updatedAt
+
+  // V1 : 1 Manager = 1 Event — contrainte volontaire (CDC §1.4)
+  managerId String @unique
+  manager   User   @relation("EventManager", fields: [managerId], references: [id])
+
+  tickets   Ticket[]
+  orders    Order[]
+  scanners  Scanner[]
+  eventPage EventPage?
+  analytics EventAnalytics?
+
+  @@map("events")
 }
 
 enum EventStatus {
   DRAFT
   PUBLISHED
-  ONGOING
-  ENDED
-  ARCHIVED
+  CANCELLED
+  EXPIRED
 }
 
-// ============ TICKET TYPES ============
-model TicketType {
-  id          String  @id @default(cuid())
-  eventId     String
-  event       Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  
-  name        String
-  description String?
-  price       BigInt  // cents to avoid float issues
-  capacity    Int
-  soldCount   Int     @default(0)
-  
-  // Constraints
-  @@unique([eventId, name])
-  @@index([eventId])
-  
-  createdAt   DateTime @default(now())
+// ─────────────────────────────────────────────────────────────────────────────
+// PAGE BUILDER
+// ─────────────────────────────────────────────────────────────────────────────
+
+model EventPage {
+  id          String   @id @default(cuid())
+  eventId     String   @unique
+  event       Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  blocks      Json     @default("[]") // Validé par BlocksArraySchema (Zod) avant écriture
+  theme       Json     @default("{}")
+  isPublished Boolean  @default(false)
+  publishedAt DateTime?
+  // Verrou optimiste — contrôle de concurrence (CDC §11.3)
   updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
+
+  @@map("event_pages")
 }
 
-// ============ ORDERS (Commands) ============
-model Order {
+// ─────────────────────────────────────────────────────────────────────────────
+// BILLETTERIE
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Ticket {
   id              String   @id @default(cuid())
   eventId         String
   event           Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  
-  clientId        String
-  client          User     @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  
-  // Order details
-  quantity        Int
-  ticketTypeName  String   // Ref to TicketType.name (denormalized for speed)
-  totalAmount     BigInt   // cents
-  
-  // Unique intent per event + client (timestamp-based)
-  intentKey       String   // timestamp + secret per event (immutable)
-  
-  // Status
-  status          OrderStatus @default(PENDING)
-  
-  // Payment
-  payment         Payment?
-  
-  // Tickets generated
-  tickets         Ticket[]
-  
-  // Timestamps
+  name            String
+  description     String?
+  price           Decimal  @db.Decimal(10, 2)
+  currency        String   @default("XOF")
+  stock           Int // Capacité totale
+  stockSold       Int      @default(0) // Décrémenté via updateMany atomique avec guard
+  maxPerOrder     Int      @default(1) // V1 : 1 billet = 1 QR = 1 personne
+  category        String?
+  isActive        Boolean  @default(true)
+  saleStartDate   DateTime?
+  saleEndDate     DateTime?
+  // Design billet (valeurs validées HEX/URL avant stockage)
+  designImageUrl  String? // URL Supabase Storage bucket ticket-designs/ (whitélistée)
+  designBgColor   String?  @default("#d4ac0d") // HEX strict uniquement
+  designTextColor String?  @default("#333333") // HEX strict uniquement
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
-  expiresAt       DateTime? // Expiry if payment not completed
 
-  @@unique([eventId, clientId, intentKey])
-  @@index([eventId])
-  @@index([clientId])
-  @@index([status])
+  orderItems OrderItem[]
+
+  @@map("tickets")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COMMANDES & PAIEMENTS
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Order {
+  id              String             @id @default(cuid())
+  orderNumber     String             @unique @default(cuid())
+  eventId         String
+  event           Event              @relation(fields: [eventId], references: [id])
+  clientId        String
+  client          User               @relation(fields: [clientId], references: [id])
+  status          OrderStatus        @default(PENDING)
+  totalAmount     Decimal            @db.Decimal(10, 2)
+  currency        String             @default("XOF")
+  paymentProvider PaymentProviderType
+  paymentRef      String? // Référence provider
+  paymentData     Json? // Payload webhook brut (audit)
+  paidAt          DateTime?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  items OrderItem[]
+
+  @@map("orders")
 }
 
 enum OrderStatus {
   PENDING
-  COMPLETED
-  CANCELLED
+  PAID
   FAILED
+  REFUNDED
+  CANCELLED
 }
 
-// ============ PAYMENTS ============
-model Payment {
-  id              String   @id @default(cuid())
-  orderId         String   @unique
-  order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  
-  // Provider details
-  provider        PaymentMethod
-  providerRef     String   @unique  // External payment ID
-  
-  // Amounts
-  amount          BigInt   // cents
-  
-  // Status & history
-  status          PaymentStatus @default(PENDING)
-  
-  // Webhook idempotence
-  webhookEvents   WebhookEvent[]
-  
-  // Metadata
-  metadata        Json?    // Provider-specific data
-  
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  completedAt     DateTime?
+model OrderItem {
+  id          String   @id @default(cuid())
+  orderId     String
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  ticketId    String
+  ticket      Ticket   @relation(fields: [ticketId], references: [id])
+  quantity    Int      @default(1) // V1 : toujours 1 (1 OrderItem = 1 QR)
+  unitPrice   Decimal  @db.Decimal(10, 2)
+  // Généré par BullMQ worker après confirmation paiement
+  qrCode      String? // JWT signé HS256 avec exp = event.endDate + 24h
+  qrCodeUrl   String? // URL PDF Supabase Storage
+  isScanned   Boolean  @default(false)
+  scannedAt   DateTime?
+  scannedById String?
+  createdAt   DateTime @default(now())
 
-  @@index([orderId])
-  @@index([providerRef])
+  @@map("order_items")
 }
 
-enum PaymentMethod {
+// ─────────────────────────────────────────────────────────────────────────────
+// IDEMPOTENCE WEBHOOK
+// Empêche le double-traitement d'un webhook rejoué par le provider (CDC §8.3)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model WebhookEvent {
+  id            String   @id @default(cuid())
+  provider      String // "KKIAPAY" | "CINETPAY" | "FEDAPAY"
+  transactionId String // ID unique côté provider
+  processedAt   DateTime @default(now())
+
+  // Garantit l'atomicité de l'idempotence → P2002 si doublon
+  @@unique([provider, transactionId])
+  @@map("webhook_events")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SCANNERS
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Scanner {
+  id        String   @id @default(cuid())
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id])
+  name      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  logs ScannerLog[]
+
+  @@map("scanners")
+}
+
+model ScannerLog {
+  id          String     @id @default(cuid())
+  scannerId   String
+  scanner     Scanner    @relation(fields: [scannerId], references: [id])
+  orderItemId String?
+  result      ScanResult
+  ip          String?
+  userAgent   String?
+  scannedAt   DateTime   @default(now())
+
+  @@map("scanner_logs")
+}
+
+enum ScanResult {
+  VALID
+  ALREADY_USED
+  EXPIRED
+  INVALID
+  EVENT_MISMATCH
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PAIEMENTS PROVIDERS
+// ─────────────────────────────────────────────────────────────────────────────
+
+model PaymentProviderConfig {
+  id            String              @id @default(cuid())
+  provider      PaymentProviderType @unique
+  isActive      Boolean             @default(false)
+  isDefault     Boolean             @default(false)
+  publicKey     String?
+  privateKey    String // Chiffré AES-256-GCM avant stockage
+  webhookSecret String? // Chiffré AES-256-GCM avant stockage
+  config        Json?
+  updatedAt     DateTime            @updatedAt
+
+  @@map("payment_provider_configs")
+}
+
+enum PaymentProviderType {
   KKIAPAY
   CINETPAY
   FEDAPAY
 }
 
-enum PaymentStatus {
-  PENDING
-  COMPLETED
-  FAILED
-  REFUNDED
-  CANCELLED
+// ─────────────────────────────────────────────────────────────────────────────
+// ANALYTICS
+// ─────────────────────────────────────────────────────────────────────────────
+
+model EventAnalytics {
+  id              String   @id @default(cuid())
+  eventId         String   @unique
+  event           Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  totalRevenue    Decimal  @default(0) @db.Decimal(10, 2)
+  ticketsSold     Int      @default(0)
+  totalScans      Int      @default(0)
+  uniqueAttendees Int      @default(0)
+  conversionRate  Decimal  @default(0) @db.Decimal(5, 2)
+  lastUpdatedAt   DateTime @default(now())
+
+  @@map("event_analytics")
 }
 
-// ============ WEBHOOK EVENTS (Idempotence) ============
-model WebhookEvent {
-  id          String   @id @default(cuid())
-  eventId     String
-  event       Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  
-  paymentId   String
-  payment     Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
-  
-  provider    PaymentMethod
-  externalId  String   // Provider's webhook ID
-  
-  // Ensure idempotence: one webhook per external ID per payment
-  @@unique([paymentId, externalId])
-  @@index([eventId])
-  @@index([paymentId])
-}
+// ─────────────────────────────────────────────────────────────────────────────
+// AUDIT
+// ─────────────────────────────────────────────────────────────────────────────
 
-// ============ TICKETS ============
-model Ticket {
-  id          String   @id @default(cuid())
-  orderId     String
-  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  
-  // Ticket identity
-  qrCodeId    String   @unique
-  qrCode      QRCode   @relation(fields: [qrCodeId], references: [id], onDelete: Cascade)
-  
-  // Attendee info
-  name        String
-  email       String   @db.VarChar(255)
-  phone       String?  // Optional, E.164 format
-  
-  // Status
-  status      TicketStatus @default(CONFIRMED)
-  
-  // PDF & design
-  pdfUrl      String?  // Supabase Storage URL
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  scannedAt   DateTime?
-
-  @@index([orderId])
-  @@index([qrCodeId])
-  @@index([email])
-}
-
-enum TicketStatus {
-  CONFIRMED
-  SCANNED
-  CANCELLED
-  REFUNDED
-}
-
-// ============ QR CODES ============
-model QRCode {
-  id          String   @id @default(cuid())
-  eventId     String
-  event       Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  
-  // HS256 signed payload
-  signature   String   @unique  // hash(eventId + timestamp + secret)
-  payload     String   // JSON encrypted or serialized
-  
-  // Validity
-  createdAt   DateTime @default(now())
-  expiresAt   DateTime  // event.endDate + 24h
-  
-  // Ticket reference (1:1)
-  ticket      Ticket?
-
-  @@index([eventId])
-  @@index([expiresAt])
-}
-
-// ============ EVENT BUILDER (No-Code) ============
-model BuilderBlock {
-  id          String   @id @default(cuid())
-  eventId     String
-  event       Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  
-  // Block metadata
-  type        String   // e.g. "hero", "ticketlist", "faq", "testimonials"
-  position    Int      // Order in page
-  
-  // Content (JSON validated by Zod schema backend-side)
-  content     Json
-  
-  // Concurrency control
-  lastUpdatedBy String
-  lastKnownUpdatedAt DateTime @default(now())
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@unique([eventId, position])
-  @@index([eventId])
-}
-
-// ============ TICKET TEMPLATE ============
-model TicketTemplate {
-  id          String   @id @default(cuid())
-  eventId     String   @unique
-  event       Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  
-  // HTML template (sanitized)
-  htmlTemplate String
-  
-  // Background image (Supabase URL, validated)
-  backgroundImage String?
-  
-  // Brand colors
-  primaryColor String? // Hex validated
-  secondaryColor String?
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-}
-
-// ============ SCANS (Scanner PWA) ============
-model Scan {
-  id          String   @id @default(cuid())
-  eventId     String
-  event       Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  
-  qrCodeId    String
-  
-  // Scanner info
-  scannedBy   String   // Scanner device ID or user ID
-  
-  // Validation result
-  success     Boolean
-  reason      String?  // If failed: "already_scanned", "expired", "invalid", etc
-  
-  createdAt   DateTime @default(now())
-
-  @@index([eventId])
-  @@index([qrCodeId])
-  @@index([scannedBy])
-}
-
-// ============ CLIENT SESSIONS (JWT dynamique) ============
-model ClientSession {
-  id          String   @id @default(cuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  // Session validity (JWT exp = event.endDate + 24h)
-  eventIds    String[] // JSON array of event IDs to support (v2+)
-  
-  token       String   @unique
-  expiresAt   DateTime
-  
-  createdAt   DateTime @default(now())
-
-  @@index([userId])
-}
-
-// ============ AUDIT LOG ============
 model AuditLog {
-  id          String   @id @default(cuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: SetNull)
-  
-  eventId     String?
-  event       Event?   @relation(fields: [eventId], references: [id], onDelete: SetNull)
-  
-  action      String   // "USER_LOGIN", "EVENT_CREATED", "PAYMENT_RECEIVED", "SCAN", etc
-  resource    String   // "USER", "EVENT", "TICKET", "PAYMENT", etc
-  resourceId  String   // ID of the affected resource
-  
-  details     Json?    // Additional context
-  
-  createdAt   DateTime @default(now())
+  id         String   @id @default(cuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id])
+  action     String // ex: "payment.webhook.success", "scan.valid"
+  entityType String?
+  entityId   String?
+  metadata   Json?
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
 
-  @@index([userId])
-  @@index([eventId])
   @@index([action])
-  @@index([createdAt])
+  @@index([entityType, entityId])
+  @@map("audit_logs")
 }

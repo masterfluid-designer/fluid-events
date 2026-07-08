@@ -1,8 +1,14 @@
 {
-  "name": "@fluid-events/types",
-  "version": "1.0.0",
-  "description": "Types partagés TypeScript",
+  "name": "@saas-events/types",
+  "version": "2.0.0",
   "private": true,
-  "main": "index.ts",
-  "types": "index.ts"
+  "description": "Types TypeScript partagés entre frontend et backend",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2"
+  }
 }

@@ -1,33 +1,31 @@
 {
-  "name": "fluid-events",
+  "name": "saas-events",
   "version": "4.0.0",
-  "description": "SaaS événementiel & billetterie tout-en-un pour l'Afrique",
   "private": true,
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ],
+  "description": "SaaS Événementiel & Billetterie – plateforme tout-en-un pour organisateurs africains (v4.0.0 RustFS+Docker)",
+  "license": "UNLICENSED",
+  "packageManager": "pnpm@9.15.9",
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",
-    "start": "turbo run start",
-    "lint": "turbo run lint",
     "test": "turbo run test",
-    "db:migrate": "cd apps/api && npx prisma migrate dev",
-    "db:generate": "cd apps/api && npx prisma generate",
-    "db:seed": "cd apps/api && npx prisma db seed",
-    "docker:up": "docker compose up -d",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "db:migrate": "pnpm --filter @saas-events/api prisma migrate dev",
+    "db:generate": "pnpm --filter @saas-events/api prisma generate",
+    "db:studio": "pnpm --filter @saas-events/api prisma studio",
+    "test:unit": "pnpm --filter @saas-events/api test",
+    "test:cov": "pnpm --filter @saas-events/api test:cov",
+    "docker:dev": "docker compose up --build",
+    "docker:prod": "docker compose -f docker-compose.yml -f docker-compose.prod.yml up",
     "docker:down": "docker compose down",
-    "docker:logs": "docker compose logs -f",
-    "docker:prod": "docker compose -f docker-compose.prod.yml up -d",
-    "clean": "turbo run clean && rm -rf node_modules"
+    "docker:logs": "docker compose logs -f"
   },
   "devDependencies": {
-    "turbo": "^2.0.0",
-    "typescript": "^5.4.0"
+    "turbo": "^2.3.3",
+    "typescript": "^5.7.2"
   },
   "engines": {
-    "node": ">=20.0.0",
-    "npm": ">=10.0.0"
+    "node": ">=20.0.0"
   }
 }

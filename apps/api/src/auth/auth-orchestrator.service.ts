@@ -1,0 +1,187 @@
+import {
+  Injectable,
+  Logger,
+  UnauthorizedException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import * as bcrypt from 'bcryptjs';
+import { PrismaService } from '../prisma/prisma.service';
+import { AuthService } from './auth.service';
+import { AuditService } from '../common/audit.service';
+import { GoogleProfile } from './strategies/google.strategy';
+import { LoginScannerDto } from './dto/login-scanner.dto';
+import { Role, TokenPair, ErrorCodes } from '@saas-events/types';
+
+/**
+ * AuthOrchestratorService — Orchestration des flux d'authentification complets.
+ *
+ * AuthService reste pur (génération de token, testée unitairement) ; ce service
+ * gère les effets de bord : upsert BDD, vérification password, audit log.
+ *
+ * Flux (CDC §7) :
+ *  - Google OAuth : upsert User → JWT client (durée événementielle si eventSlug)
+ *  - Scanner : vérification passwordHash (bcrypt) → JWT scanner (exp = endDate + 1h)
+ *  - Refresh : vérification du refresh token → nouvelle paire
+ */
+@Injectable()
+export class AuthOrchestratorService {
+  private readonly logger = new Logger(AuthOrchestratorService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly authService: AuthService,
+    private readonly jwtService: JwtService,
+    private readonly audit: AuditService,
+  ) {}
+
+  /**
+   * Connexion Google OAuth.
+   * @param profile Profil normalisé par GoogleStrategy
+   * @param eventSlug Optionnel — slug de l'événement ciblé (session événementielle)
+   */
+  async loginWithGoogle(
+    profile: GoogleProfile,
+    eventSlug?: string,
+  ): Promise<TokenPair> {
+    // Upsert : si l'utilisateur existe déjà (même googleId), on met à jour les infos
+    // Google sans écraser les champs enrichis post-paiement (phone, country, profileCompletedAt).
+    const user = await this.prisma.user.upsert({
+      where: { googleId: profile.googleId },
+      create: {
+        email: profile.email,
+        googleId: profile.googleId,
+        name: profile.name ?? null,
+        avatarUrl: profile.avatarUrl ?? null,
+        role: Role.CLIENT,
+      },
+      update: {
+        name: profile.name ?? undefined,
+        avatarUrl: profile.avatarUrl ?? undefined,
+      },
+      select: { id: true, email: true, role: true, isActive: true },
+    });
+
+    if (!user.isActive) {
+      throw new ForbiddenException({
+        code: ErrorCodes.FORBIDDEN,
+        message: 'Compte désactivé. Contactez un administrateur.',
+      });
+    }
+
+    await this.audit.log('auth.google.login', 'User', user.id, {
+      email: user.email,
+    });
+
+    return this.authService.generateClientToken(
+      { id: user.id, email: user.email, role: user.role as Role },
+      eventSlug,
+    );
+  }
+
+  /**
+   * Connexion scanner (email + password).
+   * Vérifie le mot de passe via bcrypt et que le scanner est actif sur l'événement.
+   */
+  async loginScanner(dto: LoginScannerDto): Promise<{ accessToken: string }> {
+    const user = await this.prisma.user.findUnique({
+      where: { email: dto.email.toLowerCase() },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        isActive: true,
+        passwordHash: true,
+      },
+    });
+
+    if (!user || user.role !== Role.SCANNER || !user.passwordHash) {
+      throw new UnauthorizedException({
+        code: ErrorCodes.UNAUTHORIZED,
+        message: 'Identifiants scanner invalides.',
+      });
+    }
+
+    if (!user.isActive) {
+      throw new ForbiddenException({
+        code: ErrorCodes.FORBIDDEN,
+        message: 'Compte scanner désactivé.',
+      });
+    }
+
+    const passwordOk = await bcrypt.compare(dto.password, user.passwordHash);
+    if (!passwordOk) {
+      throw new UnauthorizedException({
+        code: ErrorCodes.UNAUTHORIZED,
+        message: 'Identifiants scanner invalides.',
+      });
+    }
+
+    // Récupère l'événement associé au scanner (1 manager = 1 event, CDC §1.4)
+    const scanner = await this.prisma.scanner.findFirst({
+      where: { userId: user.id, isActive: true },
+      select: {
+        eventId: true,
+        event: { select: { endDate: true, status: true } },
+      },
+    });
+
+    if (!scanner || !scanner.event) {
+      throw new NotFoundException({
+        code: ErrorCodes.SCANNER_NOT_ACTIVE,
+        message: 'Aucun événement actif associé à ce scanner.',
+      });
+    }
+
+    await this.audit.log('auth.scanner.login', 'User', user.id, {
+      eventId: scanner.eventId,
+    });
+
+    return this.authService.generateScannerToken(
+      {
+        id: user.id,
+        email: user.email,
+        name: user.name ?? undefined,
+        role: Role.SCANNER,
+      },
+      scanner.eventId,
+      scanner.event.endDate,
+    );
+  }
+
+  /**
+   * Rafraîchit la paire de tokens côté client.
+   * Le refresh token est signé avec JWT_REFRESH_SECRET (vérifié ici).
+   */
+  async refreshTokens(refreshToken: string): Promise<TokenPair> {
+    let payload: { sub: string; email?: string; role?: Role };
+    try {
+      payload = this.jwtService.verify(refreshToken, {
+        secret: process.env.JWT_REFRESH_SECRET,
+      });
+    } catch {
+      throw new UnauthorizedException({
+        code: ErrorCodes.TOKEN_EXPIRED,
+        message: 'Refresh token invalide ou expiré.',
+      });
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: payload.sub },
+      select: { id: true, email: true, role: true, isActive: true },
+    });
+
+    if (!user || !user.isActive) {
+      throw new UnauthorizedException({
+        code: ErrorCodes.UNAUTHORIZED,
+        message: 'Utilisateur introuvable ou désactivé.',
+      });
+    }
+
+    return this.authService.generateClientToken(
+      { id: user.id, email: user.email, role: user.role as Role },
+    );
+  }
+}
