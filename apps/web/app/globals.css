@@ -1,1 +1,237 @@
 @import "tailwindcss";
+
+/* ============================================================
+   Fluid Events — Design System (Solid + shadcn/ui fusion)
+   Tailwind v4 — @theme + @utility
+   ============================================================ */
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  /* ── Fonts ── */
+  --font-*: initial;
+  --font-sans: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-mono), ui-monospace, monospace;
+  --font-inter: Inter, var(--font-sans), sans-serif;
+
+  /* ── Colors ── */
+  --color-current: currentColor;
+  --color-transparent: transparent;
+
+  /* Solid palette */
+  --color-stroke: #eeeeee;
+  --color-strokedark: #2d2f40;
+  --color-hoverdark: #252a42;
+  --color-titlebg: #adfff8;
+  --color-titlebg2: #ffeac2;
+  --color-titlebgdark: #46495a;
+  --color-btndark: #292e45;
+  --color-white: #ffffff;
+  --color-black: #181c31;
+  --color-blackho: #2c3149;
+  --color-blacksection: #1c2136;
+  --color-primary: #006bff;
+  --color-primaryho: #0063ec;
+  --color-meta: #20c5a8;
+  --color-waterloo: #757693;
+  --color-manatee: #999aa1;
+  --color-alabaster: #fbfbfb;
+  --color-zumthor: #edf5ff;
+  --color-socialicon: #d1d8e0;
+
+  /* shadcn/ui semantic mapping */
+  --color-background: var(--color-alabaster);
+  --color-foreground: var(--color-black);
+  --color-card: var(--color-white);
+  --color-card-foreground: var(--color-black);
+  --color-popover: var(--color-white);
+  --color-popover-foreground: var(--color-black);
+  --color-primary-foreground: var(--color-white);
+  --color-secondary: #f4f5f7;
+  --color-secondary-foreground: var(--color-black);
+  --color-muted: #f1f5f9;
+  --color-muted-foreground: var(--color-waterloo);
+  --color-accent: var(--color-zumthor);
+  --color-accent-foreground: var(--color-black);
+  --color-destructive: #ef4444;
+  --color-destructive-foreground: var(--color-white);
+  --color-border: var(--color-stroke);
+  --color-input: var(--color-stroke);
+  --color-ring: var(--color-primary);
+
+  /* ── Typography scale ── */
+  --text-metatitle: 12px, 20px;
+  --text-sectiontitle: 14px, 22px;
+  --text-regular: 16px, 26px;
+  --text-metatitle3: 18px, 26px;
+  --text-metatitle2: 20px, 32px;
+  --text-para2: 22px, 35px;
+  --text-itemtitle: 26px, 32px;
+  --text-itemtitle2: 24px, 32px;
+  --text-hero: 44px, 58px;
+  --text-sectiontitle3: 44px, 55px;
+  --text-sectiontitle2: 40px, 52px;
+  --text-sectiontitle4: 34px, 48px;
+
+  /* ── Containers ── */
+  --container-c-1390: 86.875rem;
+  --container-c-1315: 82.188rem;
+  --container-c-1280: 80rem;
+  --container-c-1235: 77.188rem;
+  --container-c-1154: 72.125rem;
+  --container-c-1016: 63.5rem;
+
+  /* ── Z-Index ── */
+  --z-index-1: 1;
+  --z-index-999: 999;
+  --z-index-99999: 99999;
+
+  /* ── Shadows ── */
+  --shadow-solid-l: 0px 10px 120px 0px rgba(45, 74, 170, 0.1);
+  --shadow-solid-2: 0px 2px 10px rgba(122, 135, 167, 0.05);
+  --shadow-solid-3: 0px 6px 90px rgba(8, 14, 40, 0.04);
+  --shadow-solid-4: 0px 6px 90px rgba(8, 14, 40, 0.1);
+  --shadow-solid-5: 0px 8px 24px rgba(45, 74, 170, 0.08);
+  --shadow-solid-6: 0px 8px 24px rgba(10, 16, 35, 0.08);
+  --shadow-solid-7: 0px 30px 50px rgba(45, 74, 170, 0.1);
+  --shadow-solid-8: 0px 12px 120px rgba(45, 74, 170, 0.06);
+  --shadow-solid-9: 0px 12px 30px rgba(45, 74, 170, 0.06);
+  --shadow-solid-10: 0px 8px 30px rgba(45, 74, 170, 0.06);
+  --shadow-solid-11: 0px 6px 20px rgba(45, 74, 170, 0.05);
+  --shadow-solid-12: 0px 2px 10px rgba(0, 0, 0, 0.05);
+  --shadow-solid-13: 0px 2px 19px rgba(0, 0, 0, 0.05);
+
+  /* ── Animations ── */
+  --animate-line1: line 3s linear infinite;
+  --animate-line2: line 6s linear infinite;
+  --animate-line3: line 9s linear infinite;
+  --animate-fade-in: fadeIn 0.6s ease-out forwards;
+  --animate-slide-up: slideUp 0.6s ease-out forwards;
+
+  @keyframes line {
+    0%,
+    100% {
+      transform: translateY(100%);
+    }
+    50% {
+      transform: translateY(0);
+    }
+  }
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes slideUp {
+    from {
+      opacity: 0;
+      transform: translateY(24px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+/* ── Base layer ── */
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+
+  body {
+    @apply relative z-1 font-sans text-regular font-normal text-waterloo dark:text-manatee;
+  }
+}
+
+/* ── Utilities ── */
+@utility no-scrollbar {
+  &::-webkit-scrollbar {
+    display: none;
+  }
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+@utility img-white {
+  filter: invert(0%) sepia(96%) saturate(15%) hue-rotate(249deg)
+    brightness(100%) contrast(105%);
+}
+
+/* ── Animate-on-scroll helper ── */
+@utility animate_top {
+  @apply translate-y-6 opacity-0;
+  animation: slideUp 0.6s ease-out forwards;
+}
+
+/* Stagger children */
+.stagger-children > *:nth-child(1) {
+  animation-delay: 0ms;
+}
+.stagger-children > *:nth-child(2) {
+  animation-delay: 100ms;
+}
+.stagger-children > *:nth-child(3) {
+  animation-delay: 200ms;
+}
+.stagger-children > *:nth-child(4) {
+  animation-delay: 300ms;
+}
+.stagger-children > *:nth-child(5) {
+  animation-delay: 400ms;
+}
+.stagger-children > *:nth-child(6) {
+  animation-delay: 500ms;
+}
+
+/* ── shadcn/ui compatibility ── */
+@layer base {
+  :root {
+    --radius: 0.625rem;
+    --sidebar-background: var(--color-alabaster);
+    --sidebar-foreground: var(--color-waterloo);
+    --sidebar-primary: var(--color-black);
+    --sidebar-primary-foreground: var(--color-alabaster);
+    --sidebar-accent: var(--color-zumthor);
+    --sidebar-accent-foreground: var(--color-black);
+    --sidebar-border: var(--color-stroke);
+    --sidebar-ring: var(--color-primary);
+  }
+
+  .dark {
+    --color-background: var(--color-black);
+    --color-foreground: var(--color-white);
+    --color-card: var(--color-blacksection);
+    --color-card-foreground: var(--color-white);
+    --color-popover: var(--color-blacksection);
+    --color-popover-foreground: var(--color-white);
+    --color-secondary: var(--color-blackho);
+    --color-secondary-foreground: var(--color-white);
+    --color-muted: var(--color-blackho);
+    --color-muted-foreground: var(--color-manatee);
+    --color-accent: var(--color-hoverdark);
+    --color-accent-foreground: var(--color-white);
+    --color-border: var(--color-strokedark);
+    --color-input: var(--color-strokedark);
+    --sidebar-background: var(--color-black);
+    --sidebar-foreground: var(--color-manatee);
+    --sidebar-primary: var(--color-primary);
+    --sidebar-primary-foreground: var(--color-white);
+    --sidebar-accent: var(--color-blackho);
+    --sidebar-accent-foreground: var(--color-white);
+    --sidebar-border: var(--color-strokedark);
+  }
+}
+
+/* Blog / docs prose overrides */
+.blog-details-docs {
+  @apply rounded-lg border border-white p-7.5 shadow-solid-3 transition-all dark:border-strokedark dark:bg-blacksection xl:p-12.5;
+}

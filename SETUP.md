@@ -16,6 +16,9 @@ pnpm install
 ### 2. Configure Environment
 ```bash
 cp .env.example .env
+# ignorer par obligatoire pour moi
+cp .env.example ./apps/api/.env
+cp .env.example ./apps/api/.env
 # Edit .env with your local settings
 ```
 

@@ -3,7 +3,9 @@ import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
+import { AuthOrchestratorService } from './auth-orchestrator.service';
 import { AuthController } from './auth.controller';
+import { AuditService } from '../common/audit.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { GoogleStrategy } from './strategies/google.strategy';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
@@ -24,6 +26,8 @@ import { PrismaModule } from '../prisma/prisma.module';
   ],
   providers: [
     AuthService,
+    AuthOrchestratorService,
+    AuditService,
     JwtStrategy,
     GoogleStrategy,
     JwtAuthGuard,
