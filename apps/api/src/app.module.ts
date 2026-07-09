@@ -40,6 +40,7 @@ import { ResponseInterceptor } from './common/interceptors/response.interceptor'
   controllers: [],
   providers: [
     // Services métier
+    { provide: 'ENCRYPTION_KEY', useValue: process.env.ENCRYPTION_KEY },
     AuthService,
     CryptoService,
     AuditService,

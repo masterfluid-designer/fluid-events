@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # ============ PostgreSQL ============
   postgres:
@@ -55,22 +53,24 @@ services:
     networks:
       - fluid-network
 
-  # ============ RustFS (S3-Compatible Storage - Dev) ============
-  rustfs:
-    image: rustfs/rustfs:latest
-    container_name: fluid-events-rustfs
+  # ============ MinIO (S3-Compatible Storage - Dev) ============
+  minio:
+    image: minio/minio:latest
+    container_name: fluid-events-minio
     environment:
-      RUST_LOG: info
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
     volumes:
-      - rustfs_data:/data
+      - minio_data:/data
     ports:
       - "9000:9000"  # S3 API
       - "9001:9001"  # Console
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     networks:
       - fluid-network
 
@@ -83,9 +83,9 @@ services:
     container_name: fluid-events-api
     environment:
       NODE_ENV: development
-      DATABASE_URL: postgresql://fluid_user:fluid_password_dev@postgres:5432/fluid_events?schema=public
+      DATABASE_URL: postgresql://fluid_user:[REDACTED]@postgres:5432/fluid_events?schema=public
       REDIS_URL: redis://redis:6379
-      STORAGE_ENDPOINT: http://rustfs:9000
+      STORAGE_ENDPOINT: http://minio:9000
       STORAGE_ACCESS_KEY: minioadmin
       STORAGE_SECRET_KEY: minioadmin
       STORAGE_BUCKET: fluid-events
@@ -115,7 +115,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      rustfs:
+      minio:
         condition: service_healthy
     networks:
       - fluid-network
@@ -148,7 +148,7 @@ services:
 volumes:
   postgres_data:
   redis_data:
-  rustfs_data:
+  minio_data:
 
 networks:
   fluid-network:

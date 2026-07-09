@@ -10,41 +10,51 @@
 // RBAC — Rôles & Permissions (CDC §4)
 // ─────────────────────────────────────────────────────────────────────────────
 
-export enum Role {
-  SUPER_ADMIN = 'SUPER_ADMIN',
-  MANAGER = 'MANAGER',
-  SCANNER = 'SCANNER',
-  CLIENT = 'CLIENT',
-}
+export const Role = {
+  SUPER_ADMIN: 'SUPER_ADMIN',
+  MANAGER: 'MANAGER',
+  SCANNER: 'SCANNER',
+  CLIENT: 'CLIENT',
+} as const;
 
-export enum EventStatus {
-  DRAFT = 'DRAFT',
-  PUBLISHED = 'PUBLISHED',
-  CANCELLED = 'CANCELLED',
-  EXPIRED = 'EXPIRED',
-}
+export type Role = (typeof Role)[keyof typeof Role];
 
-export enum OrderStatus {
-  PENDING = 'PENDING',
-  PAID = 'PAID',
-  FAILED = 'FAILED',
-  REFUNDED = 'REFUNDED',
-  CANCELLED = 'CANCELLED',
-}
+export const EventStatus = {
+  DRAFT: 'DRAFT',
+  PUBLISHED: 'PUBLISHED',
+  CANCELLED: 'CANCELLED',
+  EXPIRED: 'EXPIRED',
+} as const;
 
-export enum PaymentProviderType {
-  KKIAPAY = 'KKIAPAY',
-  CINETPAY = 'CINETPAY',
-  FEDAPAY = 'FEDAPAY',
-}
+export type EventStatus = (typeof EventStatus)[keyof typeof EventStatus];
 
-export enum ScanResult {
-  VALID = 'VALID',
-  ALREADY_USED = 'ALREADY_USED',
-  EXPIRED = 'EXPIRED',
-  INVALID = 'INVALID',
-  EVENT_MISMATCH = 'EVENT_MISMATCH',
-}
+export const OrderStatus = {
+  PENDING: 'PENDING',
+  PAID: 'PAID',
+  FAILED: 'FAILED',
+  REFUNDED: 'REFUNDED',
+  CANCELLED: 'CANCELLED',
+} as const;
+
+export type OrderStatus = (typeof OrderStatus)[keyof typeof OrderStatus];
+
+export const PaymentProviderType = {
+  KKIAPAY: 'KKIAPAY',
+  CINETPAY: 'CINETPAY',
+  FEDAPAY: 'FEDAPAY',
+} as const;
+
+export type PaymentProviderType = (typeof PaymentProviderType)[keyof typeof PaymentProviderType];
+
+export const ScanResult = {
+  VALID: 'VALID',
+  ALREADY_USED: 'ALREADY_USED',
+  EXPIRED: 'EXPIRED',
+  INVALID: 'INVALID',
+  EVENT_MISMATCH: 'EVENT_MISMATCH',
+} as const;
+
+export type ScanResult = (typeof ScanResult)[keyof typeof ScanResult];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // JWT (CDC §7.6)
