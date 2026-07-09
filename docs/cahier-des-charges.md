@@ -282,6 +282,8 @@ Le schéma complet est dans `apps/api/prisma/schema.prisma` — il inclut :
 Fichier `.env` dans `apps/api/` :
 
 ```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+
 NODE_ENV=development
 PORT=3001
 FRONTEND_URL=http://localhost:3000
