@@ -1,55 +1,53 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { JwtModule } from '@nestjs/jwt';
-import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { PrismaModule } from './prisma/prisma.module';
-import { AuthService } from './auth/auth.service';
-import { CryptoService } from './common/crypto.service';
-import { AuditService } from './common/audit.service';
-import { PhoneService } from './notifications/phone.service';
-import { StockService } from './payments/stock.service';
-import { WebhookIdempotencyService } from './payments/webhook-idempotency.service';
-import { ClientProfileService } from './payments/client-profile.service';
-import { TicketDesignService } from './ticket-design/ticket-design.service';
+import { AuthModule } from './auth/auth.module';
+import { EventsModule } from './events/events.module';
+import { ScannerModule } from './scanner/scanner.module';
+import { BuilderModule } from './builder/builder.module';
+import { TicketsModule } from './tickets/tickets.module';
+import { PaymentsModule } from './payments/payments.module';
+import { PdfQueueModule } from './pdf-queue/pdf-queue.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { AdminModule } from './admin/admin.module';
+import { TicketDesignModule } from './ticket-design/ticket-design.module';
+import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
+import { RolesGuard } from './auth/guards/roles.guard';
 import { HttpExceptionFilter } from './common/filters/http-exception-filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 
 /**
- * AppModule — Racine de l'application NestJS.
+ * AppModule — Racine de l'application NestJS (CDC v4.0.0).
  *
- * Assemble tous les services critiques du CDC v2.0.0. Les contrôleurs HTTP
- * (controllers) seront ajoutés dans chaque module métier au fil des phases.
- * Les Guards globaux (JwtAuthGuard, RolesGuard) seront enregistrés via APP_GUARD
- * une fois les stratégies Passport câblées.
+ * Assemble tous les modules métier. La sécurité est portée par :
+ *  - JwtAuthGuard  → appliqué globalement, bypass via @Public()
+ *  - RolesGuard    → appliqué globalement, bypass via pas de @Roles()
+ *  - HttpExceptionFilter  → format d'erreur standardisé (CDC §6.12)
+ *  - ResponseInterceptor  → format de succès { success: true, data }
  *
- * Sécurité transverse :
- *  - HttpExceptionFilter global → format d'erreur standardisé + anti-fuite
- *  - ResponseInterceptor global → format de succès standardisé
+ * Les modules métier gèrent leurs propres providers/services.
+ * Aucune logique métier n'est importée directement dans AppModule.
  */
 @Module({
   imports: [
-    // Chargement du .env (validé par chaque service au démarrage)
     ConfigModule.forRoot({ isGlobal: true }),
-    // JWT — la durée réelle est calculée dynamiquement par AuthService
-    JwtModule.register({
-      secret: process.env.JWT_SECRET,
-      signOptions: { algorithm: 'HS256' },
-    }),
     PrismaModule,
+    AuthModule,
+    EventsModule,
+    ScannerModule,
+    BuilderModule,
+    TicketsModule,
+    PaymentsModule,
+    PdfQueueModule,
+    NotificationsModule,
+    AdminModule,
+    TicketDesignModule,
   ],
-  controllers: [],
   providers: [
-    // Services métier
-    { provide: 'ENCRYPTION_KEY', useValue: process.env.ENCRYPTION_KEY },
-    AuthService,
-    CryptoService,
-    AuditService,
-    PhoneService,
-    StockService,
-    WebhookIdempotencyService,
-    ClientProfileService,
-    TicketDesignService,
-    // Transverse : filtre d'exception + intercepteur de réponse (CDC §6.12)
+    // Sécurité transverse globale
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: RolesGuard },
     { provide: APP_FILTER, useClass: HttpExceptionFilter },
     { provide: APP_INTERCEPTOR, useClass: ResponseInterceptor },
   ],
