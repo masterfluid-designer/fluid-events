@@ -33,7 +33,7 @@ const faqData: FaqItem[] = [
   {
     question: "Comment installer le scanner sur un téléphone ?",
     answer:
-      "Le scanner est une PWA : ouvrez l'URL dans Chrome sur Android ou Safari sur iOS, puis "Ajouter à l'écran d'accueil". Il s'installe comme une app native.",
+      `Le scanner est une PWA : ouvrez l'URL dans Chrome sur Android ou Safari sur iOS, puis "Ajouter à l'écran d'accueil". Il s'installe comme une app native.`,
   },
 ];
 

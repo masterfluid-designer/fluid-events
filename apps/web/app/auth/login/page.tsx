@@ -1,40 +1,25 @@
-'use client';
+"use client";
 
-import { useState, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
-import Link from 'next/link';
-import { Ticket, Mail, ShieldAlert } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Suspense, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { motion } from "framer-motion";
+import Image from "next/image";
+import Link from "next/link";
+import { Mail, ShieldAlert, Ticket } from "lucide-react";
+import Header from "@/components/Header";
+import Lines from "@/components/Lines";
 
-/**
- * Page de connexion — 2 flux distincts (CDC §7) :
- *  - Clients & Managers : Google OAuth (bouton principal)
- *  - Scanners : login email/password (JWT dédié, exp = endDate + 1h)
- *
- * Le paramètre ?redirect= est propagé au backend lors de l'OAuth pour
- * revenir sur la page d'origine après authentification.
- */
 function LoginForm() {
   const searchParams = useSearchParams();
-  const redirectTo = searchParams.get('redirect') ?? '/';
+  const redirectTo = searchParams.get("redirect") ?? "/";
   const [scannerMode, setScannerMode] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   function handleGoogleLogin() {
-    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? '';
+    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "";
     const params = new URLSearchParams({ redirect: redirectTo });
     window.location.href = `${apiBase}/api/auth/google?${params.toString()}`;
   }
@@ -44,117 +29,179 @@ function LoginForm() {
     setLoading(true);
     setError(null);
     try {
-      const apiBase = process.env.NEXT_PUBLIC_API_URL ?? '';
+      const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "";
       const res = await fetch(`${apiBase}/api/auth/scanner/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ email, password }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => null);
-        throw new Error(body?.error?.message ?? 'Connexion échouée');
+        throw new Error(body?.error?.message ?? "Connexion échouée");
       }
-      window.location.href = '/scanner/scan';
+      window.location.href = "/scanner/scan";
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur');
+      setError(err instanceof Error ? err.message : "Erreur");
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <main className="flex min-h-svh items-center justify-center bg-muted/30 px-4 py-12">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-3 text-center">
-          <div className="mx-auto flex size-12 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-            <Ticket className="size-6" />
-          </div>
-          <CardTitle className="text-2xl">Connexion</CardTitle>
-          <CardDescription>
-            {scannerMode
-              ? 'Accès scanner — contrôle d\'accès événement'
-              : 'Connectez-vous pour acheter ou gérer vos événements'}
-          </CardDescription>
-        </CardHeader>
-
-        <CardContent className="space-y-4">
-          {error && (
-            <div className="flex items-center gap-2 rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
-              <ShieldAlert className="size-4 shrink-0" />
-              <span>{error}</span>
+    <>
+      <Header />
+      <main className="relative overflow-hidden bg-alabaster dark:bg-black">
+        <Lines />
+        <section className="pb-12.5 pt-32.5 lg:pb-25 lg:pt-45 xl:pb-30 xl:pt-50">
+          <div className="relative z-1 mx-auto max-w-c-1016 px-7.5 pb-7.5 pt-10 lg:px-15 lg:pt-15 xl:px-20 xl:pt-20">
+            <div className="absolute left-0 top-0 -z-1 h-2/3 w-full rounded-lg bg-linear-to-t from-transparent to-[#dee7ff47] dark:bg-linear-to-t dark:to-[#252A42]" />
+            <div className="absolute bottom-17.5 left-0 -z-1 h-1/3 w-full">
+              <Image
+                src="/images/shape/shape-dotted-light.svg"
+                alt=""
+                className="dark:hidden"
+                fill
+              />
+              <Image
+                src="/images/shape/shape-dotted-dark.svg"
+                alt=""
+                className="hidden dark:block"
+                fill
+              />
             </div>
-          )}
 
-          {!scannerMode ? (
-            <>
-              <Button
-                variant="outline"
-                className="w-full"
-                size="lg"
-                onClick={handleGoogleLogin}
-              >
-                <Mail className="size-4" />
-                Continuer avec Google
-              </Button>
-              <p className="text-center text-xs text-muted-foreground">
-                En continuant, vous acceptez d'être authentifié via Google OAuth.
-              </p>
-            </>
-          ) : (
-            <form onSubmit={handleScannerLogin} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email scanner</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  required
-                  placeholder="scanner@event.io"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  autoComplete="email"
-                />
+            <motion.div
+              variants={{
+                hidden: { opacity: 0, y: -20 },
+                visible: { opacity: 1, y: 0 },
+              }}
+              initial="hidden"
+              whileInView="visible"
+              transition={{ duration: 1, delay: 0.1 }}
+              viewport={{ once: true }}
+              className="animate_top rounded-lg bg-white px-7.5 pt-7.5 shadow-solid-8 dark:border dark:border-strokedark dark:bg-black xl:px-15 xl:pt-15"
+            >
+              <div className="mb-10 text-center">
+                <div className="mx-auto mb-5 flex size-15 items-center justify-center rounded-full bg-zumthor text-primary dark:bg-blacksection">
+                  <Ticket className="size-7" />
+                </div>
+                <h1 className="mb-3 text-3xl font-semibold text-black dark:text-white xl:text-sectiontitle2">
+                  {scannerMode ? "Connexion scanner" : "Connexion à Fluid Events"}
+                </h1>
+                <p>
+                  {scannerMode
+                    ? "Accédez au contrôle d'entrée de votre événement."
+                    : "Connectez-vous pour acheter, organiser ou gérer vos événements."}
+                </p>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Mot de passe</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  autoComplete="current-password"
-                />
-              </div>
-              <Button type="submit" className="w-full" size="lg" disabled={loading}>
-                {loading ? 'Connexion...' : 'Se connecter'}
-              </Button>
-            </form>
-          )}
-        </CardContent>
 
-        <CardFooter className="flex flex-col gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              setScannerMode((v) => !v);
-              setError(null);
-            }}
-            className="text-xs text-muted-foreground underline-offset-4 hover:underline"
-          >
-            {scannerMode
-              ? '← Connexion organisateur / client'
-              : 'Vous êtes scanner ? Connexion dédiée →'}
-          </button>
-          <Link
-            href="/"
-            className="text-xs text-muted-foreground hover:text-foreground"
-          >
-            ← Retour à l'accueil
-          </Link>
-        </CardFooter>
-      </Card>
-    </main>
+              {error && (
+                <div className="mb-7.5 flex items-center gap-3 rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
+                  <ShieldAlert className="size-4 shrink-0" />
+                  <span>{error}</span>
+                </div>
+              )}
+
+              {!scannerMode ? (
+                <div className="pb-10">
+                  <button
+                    type="button"
+                    onClick={handleGoogleLogin}
+                    aria-label="continuer avec google"
+                    className="mb-6 flex w-full items-center justify-center rounded-xs border border-stroke bg-[#f8f8f8] px-6 py-3 text-base text-black outline-hidden transition-all duration-300 hover:border-primary hover:bg-primary/5 hover:text-primary dark:border-transparent dark:bg-[#2C303B] dark:text-white dark:hover:border-primary"
+                  >
+                    <Mail className="mr-3 size-5" />
+                    Continuer avec Google
+                  </button>
+
+                  <div className="mb-10 flex items-center justify-center">
+                    <span className="hidden h-[1px] w-full max-w-[200px] bg-stroke dark:bg-strokedark sm:block" />
+                    <p className="w-full px-5 text-center text-base">
+                      ou utilisez l'accès scanner dédié
+                    </p>
+                    <span className="hidden h-[1px] w-full max-w-[200px] bg-stroke dark:bg-strokedark sm:block" />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setScannerMode(true);
+                      setError(null);
+                    }}
+                    className="inline-flex items-center gap-2.5 rounded-full bg-black px-6 py-3 font-medium text-white duration-300 ease-in-out hover:bg-blackho dark:bg-btndark"
+                  >
+                    Connexion scanner
+                    <svg className="fill-white" width="14" height="14" viewBox="0 0 14 14">
+                      <path d="M10.4767 6.16664L6.00668 1.69664L7.18501 0.518311L13.6667 6.99998L7.18501 13.4816L6.00668 12.3033L10.4767 7.83331H0.333344V6.16664H10.4767Z" />
+                    </svg>
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={handleScannerLogin}>
+                  <div className="mb-7.5 flex flex-col gap-7.5 lg:mb-12.5 lg:flex-row lg:justify-between lg:gap-14">
+                    <input
+                      type="email"
+                      placeholder="Email scanner"
+                      name="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full border-b border-stroke bg-white! pb-3.5 focus:border-waterloo focus:placeholder:text-black focus-visible:outline-hidden dark:border-strokedark dark:bg-black! dark:focus:border-manatee dark:focus:placeholder:text-white lg:w-1/2"
+                      required
+                    />
+                    <input
+                      type="password"
+                      placeholder="Mot de passe"
+                      name="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="w-full border-b border-stroke bg-white! pb-3.5 focus:border-waterloo focus:placeholder:text-black focus-visible:outline-hidden dark:border-strokedark dark:bg-black! dark:focus:border-manatee dark:focus:placeholder:text-white lg:w-1/2"
+                      required
+                    />
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-10 md:justify-between xl:gap-15">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setScannerMode(false);
+                        setError(null);
+                      }}
+                      className="hover:text-primary"
+                    >
+                      Connexion organisateur / client
+                    </button>
+
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      aria-label="login scanner"
+                      className="inline-flex items-center gap-2.5 rounded-full bg-black px-6 py-3 font-medium text-white duration-300 ease-in-out hover:bg-blackho disabled:opacity-60 dark:bg-btndark dark:hover:bg-blackho"
+                    >
+                      {loading ? "Connexion..." : "Se connecter"}
+                      <svg className="fill-white" width="14" height="14" viewBox="0 0 14 14">
+                        <path d="M10.4767 6.16664L6.00668 1.69664L7.18501 0.518311L13.6667 6.99998L7.18501 13.4816L6.00668 12.3033L10.4767 7.83331H0.333344V6.16664H10.4767Z" />
+                      </svg>
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              <div className="mt-12.5 border-t border-stroke py-5 text-center dark:border-strokedark">
+                <p>
+                  <Link
+                    className="text-black hover:text-primary dark:text-white dark:hover:text-primary"
+                    href="/"
+                  >
+                    Retour à l'accueil
+                  </Link>
+                </p>
+              </div>
+            </motion.div>
+          </div>
+        </section>
+      </main>
+    </>
   );
 }
 

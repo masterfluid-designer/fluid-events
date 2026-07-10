@@ -1,5 +1,4 @@
 "use client";
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -41,7 +40,7 @@ const Header = () => {
           <Link href="/" className="flex items-center gap-2">
             <Ticket className="h-7 w-7 text-primary" />
             <span className="text-itemtitle2 font-medium text-black dark:text-white">
-              Eventio
+              Fluid Events
             </span>
           </Link>
 
@@ -116,14 +115,14 @@ const Header = () => {
             <ThemeToggler />
 
             <Link
-              href="/auth/signin"
+              href="/auth/login"
               className="text-regular font-medium text-waterloo hover:text-primary"
             >
               Connexion
             </Link>
 
             <Link
-              href="/auth/signin"
+              href="/auth/login"
               className="flex items-center justify-center rounded-full bg-primary px-7.5 py-2.5 text-regular text-white duration-300 ease-in-out hover:bg-primaryho"
             >
               Essayer gratuitement

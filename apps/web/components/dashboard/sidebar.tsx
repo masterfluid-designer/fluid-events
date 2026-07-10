@@ -46,7 +46,7 @@ export function DashboardSidebar({ role }: { role: Role }) {
     <aside className="hidden w-60 shrink-0 border-r bg-muted/30 md:flex md:flex-col">
       <div className="flex h-16 items-center gap-2 border-b px-6">
         <Link href="/" className="flex items-center gap-2 font-bold">
-          <span className="text-primary">Eventio</span>
+          <span className="text-primary">Fluid Events</span>
         </Link>
       </div>
       <nav className="flex-1 space-y-1 p-3">

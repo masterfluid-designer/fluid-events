@@ -15,7 +15,7 @@ const fontMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Eventio — SaaS Événementiel & Billetterie",
+  title: "Fluid Events — SaaS Événementiel & Billetterie",
   description:
     "Créez, vendez et contrôlez l'accès à vos événements. Paiement Mobile Money, billetterie QR, scanner PWA.",
 };

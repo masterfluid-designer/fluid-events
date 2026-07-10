@@ -32,7 +32,7 @@ const Footer = () => {
                 <Link href="/" className="relative inline-flex items-center gap-2">
                   <Ticket className="h-6 w-6 text-primary" />
                   <span className="text-itemtitle2 font-medium text-black dark:text-white">
-                    Eventio
+                    Fluid Events
                   </span>
                 </Link>
 
@@ -45,10 +45,10 @@ const Footer = () => {
                   contact
                 </p>
                 <a
-                  href="mailto:hello@eventio.africa"
+                  href="mailto:hello@fluidevents.africa"
                   className="text-itemtitle font-medium text-black dark:text-white"
                 >
-                  hello@eventio.africa
+                  hello@fluidevents.africa
                 </a>
               </motion.div>
 
@@ -102,7 +102,7 @@ const Footer = () => {
                     </li>
                     <li>
                       <Link
-                        href="/auth/signin"
+                        href="/auth/login"
                         className="mb-3 inline-block hover:text-primary"
                       >
                         Essayer gratuitement
@@ -152,15 +152,15 @@ const Footer = () => {
                     </li>
                     <li>
                       <Link
-                        href="/blog"
+                        href="/#faq"
                         className="mb-3 inline-block hover:text-primary"
                       >
-                        Blog
+                        FAQ
                       </Link>
                     </li>
                     <li>
                       <Link
-                        href="/#contact"
+                        href="mailto:hello@fluidevents.africa"
                         className="mb-3 inline-block hover:text-primary"
                       >
                         Contactez-nous
@@ -293,7 +293,7 @@ const Footer = () => {
               className="animate_top"
             >
               <p>
-                &copy; {new Date().getFullYear()} Eventio. Tous droits
+                &copy; {new Date().getFullYear()} Fluid Events. Tous droits
                 réservés. Développé en Côte d'Ivoire 🇨🇮
               </p>
             </motion.div>

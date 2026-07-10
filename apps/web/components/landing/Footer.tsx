@@ -40,7 +40,7 @@ export default function Footer() {
               <Link href="/" className="mb-4 inline-flex items-center gap-2">
                 <Ticket className="h-7 w-7 text-primary" />
                 <span className="text-itemtitle2 font-medium text-black dark:text-white">
-                  Eventio
+                  Fluid Events
                 </span>
               </Link>
               <p className="text-waterloo">
