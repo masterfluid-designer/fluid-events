@@ -8,8 +8,8 @@ import { AuthController } from './auth.controller';
 import { AuditService } from '../common/audit.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { GoogleStrategy } from './strategies/google.strategy';
-import { JwtAuthGuard } from './guards/jwt-auth.guard';
-import { RolesGuard } from './guards/roles.guard';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { RolesGuard } from '../common/guards/roles.guard';
 import { PrismaModule } from '../prisma/prisma.module';
 
 @Module({

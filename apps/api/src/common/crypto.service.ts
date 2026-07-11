@@ -1,4 +1,4 @@
-import { Injectable, Optional } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import {
   createCipheriv,
   createDecipheriv,
@@ -29,7 +29,11 @@ export class CryptoService {
    * @param encryptionKeyHex Clé de 32 bytes encodée en hex (64 caractères).
    *                         Si omise, lit process.env.ENCRYPTION_KEY.
    */
-  constructor(@Optional() encryptionKeyHex?: string) {
+  constructor(
+    @Optional()
+    @Inject('ENCRYPTION_KEY')
+    encryptionKeyHex?: string,
+  ) {
     const keyHex = encryptionKeyHex ?? process.env.ENCRYPTION_KEY;
     if (!keyHex || !/^[0-9a-fA-F]{64}$/.test(keyHex)) {
       throw new Error(

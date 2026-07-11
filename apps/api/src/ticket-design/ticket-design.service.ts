@@ -27,7 +27,7 @@ export interface TicketRenderParams {
 export interface QrVerification {
   valid: boolean;
   payload?: QrTokenPayload & JwtPayload;
-  reason?: ScanResult.EXPIRED | ScanResult.INVALID;
+  reason?: typeof ScanResult.EXPIRED | typeof ScanResult.INVALID;
 }
 
 /**
