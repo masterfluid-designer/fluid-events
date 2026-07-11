@@ -81,10 +81,12 @@ export class AuthService {
       exp: now + parsedSeconds,
     };
 
-    const accessToken = this.jwtService.sign(payload, { expiresIn });
+    // payload porte déjà `exp` — AuthModule n'a pas de signOptions.expiresIn par
+    // défaut (cf. auth.module.ts), donc aucun conflit avec jsonwebtoken ici.
+    const accessToken = this.jwtService.sign(payload);
     const refreshToken = this.jwtService.sign(
       { sub: user.id, type: 'refresh', ...(sessionExpiresAt ? { sessionExpiresAt } : {}) },
-      { secret: process.env.JWT_REFRESH_SECRET, expiresIn }, // Même durée
+      { secret: process.env.JWT_REFRESH_SECRET, expiresIn }, // pas d'exp dans ce payload → OK
     );
 
     this.logger.debug(
@@ -110,7 +112,6 @@ export class AuthService {
       Math.ceil(msUntilExpiry / 1000),
       MIN_SESSION_SECONDS,
     );
-    const expiresIn = `${seconds}s`;
 
     const now = Math.floor(Date.now() / 1000);
     const payload: JwtPayload = {
@@ -122,7 +123,9 @@ export class AuthService {
       exp: now + seconds,
     };
 
-    const accessToken = this.jwtService.sign(payload, { expiresIn });
+    // payload porte déjà `exp` — pas de signOptions.expiresIn par défaut sur ce
+    // module (cf. auth.module.ts), donc aucun conflit avec jsonwebtoken ici.
+    const accessToken = this.jwtService.sign(payload);
 
     this.logger.debug(
       `Token scanner généré pour ${user.email} — eventId=${eventId}`,

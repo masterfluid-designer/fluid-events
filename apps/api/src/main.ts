@@ -1,5 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
+import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 
 /**
@@ -9,10 +10,14 @@ import { AppModule } from './app.module';
  *  - ValidationPipe global : active class-validator sur tous les DTOs
  *  - CORS : autorise uniquement le frontend déclaré (FRONTEND_URL)
  *  - prefix global /api : cohérent avec la structure de routes du CDC §6
+ *  - cookie-parser : peuple req.cookies — requis par JwtStrategy pour lire
+ *    access_token depuis le cookie httpOnly posé par AuthController
  */
 async function bootstrap(): Promise<void> {
   const logger = new Logger('Bootstrap');
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
+
+  app.use(cookieParser());
 
   // Préfixe global — toutes les routes sont sous /api/* (CDC §6)
   app.setGlobalPrefix('api');

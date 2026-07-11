@@ -12,6 +12,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { Request, Response } from 'express';
 import { AuthOrchestratorService } from './auth-orchestrator.service';
 import { LoginScannerDto } from './dto/login-scanner.dto';
+import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { GoogleProfile } from './strategies/google.strategy';
 import { Public } from '../common/decorators/public.decorator';
@@ -23,6 +24,7 @@ import { FRONTEND_URL } from '../common/constants';
  * Routes :
  *  GET  /api/auth/google           → déclenche le flow OAuth Google
  *  GET  /api/auth/google/callback  → callback Google, set cookie + redirect frontend
+ *  POST /api/auth/login            → login email/password (CLIENT/MANAGER/SUPER_ADMIN, test/dev)
  *  POST /api/auth/login/scanner    → login email/password (scanners uniquement)
  *  POST /api/auth/refresh          → rafraîchit la paire de tokens
  *  POST /api/auth/logout           → efface les cookies
@@ -61,6 +63,18 @@ export class AuthController {
 
     setAuthCookies(res, tokens);
     res.redirect(`${FRONTEND_URL}/auth/callback`);
+  }
+
+  /** Connexion email/password générique (CLIENT/MANAGER/SUPER_ADMIN — test/dev). */
+  @Public()
+  @Post('login')
+  async login(
+    @Body() dto: LoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { tokens, role } = await this.orchestrator.login(dto);
+    setAuthCookies(res, tokens);
+    return { accessToken: tokens.accessToken, role };
   }
 
   /** Connexion scanner (email + password). */

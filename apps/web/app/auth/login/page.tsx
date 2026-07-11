@@ -14,6 +14,8 @@ function LoginForm() {
   const [scannerMode, setScannerMode] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -23,13 +25,43 @@ function LoginForm() {
     window.location.href = `${apiBase}/api/auth/google?${params.toString()}`;
   }
 
+  /** Login email/password simple — comptes de test CLIENT/MANAGER/SUPER_ADMIN. */
+  async function handleSimpleLogin(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    try {
+      const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "";
+      const res = await fetch(`${apiBase}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email: loginEmail, password: loginPassword }),
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(body?.error?.message ?? "Connexion échouée");
+      }
+      const destinations: Record<string, string> = {
+        SUPER_ADMIN: "/admin",
+        MANAGER: "/manager",
+        CLIENT: redirectTo,
+      };
+      window.location.href = destinations[body?.role] ?? redirectTo;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erreur");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function handleScannerLogin(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
     try {
       const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "";
-      const res = await fetch(`${apiBase}/api/auth/scanner/login`, {
+      const res = await fetch(`${apiBase}/api/auth/login/scanner`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -97,6 +129,47 @@ function LoginForm() {
                     <Mail className="size-4.5" />
                     Continuer avec Google
                   </button>
+
+                  <div className="mb-6 flex items-center gap-3.5">
+                    <span className="h-px flex-1 bg-stroke dark:bg-strokedark" />
+                    <p className="text-xs text-manatee dark:text-waterloo">
+                      ou avec email et mot de passe
+                    </p>
+                    <span className="h-px flex-1 bg-stroke dark:bg-strokedark" />
+                  </div>
+
+                  <form
+                    onSubmit={handleSimpleLogin}
+                    className="mb-6 flex flex-col gap-4"
+                  >
+                    <input
+                      type="email"
+                      placeholder="Email"
+                      name="loginEmail"
+                      value={loginEmail}
+                      onChange={(e) => setLoginEmail(e.target.value)}
+                      className="w-full rounded-lg border border-stroke bg-white px-4 py-3 text-sm focus:border-black focus-visible:outline-hidden dark:border-strokedark dark:bg-blackho dark:text-white dark:focus:border-manatee"
+                      required
+                    />
+                    <input
+                      type="password"
+                      placeholder="Mot de passe"
+                      name="loginPassword"
+                      value={loginPassword}
+                      onChange={(e) => setLoginPassword(e.target.value)}
+                      className="w-full rounded-lg border border-stroke bg-white px-4 py-3 text-sm focus:border-black focus-visible:outline-hidden dark:border-strokedark dark:bg-blackho dark:text-white dark:focus:border-manatee"
+                      required
+                    />
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      aria-label="se connecter"
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground duration-300 ease-in-out hover:bg-primaryho disabled:opacity-60"
+                    >
+                      {loading ? "Connexion..." : "Se connecter"}
+                      <ArrowRight className="size-3.5" />
+                    </button>
+                  </form>
 
                   <div className="mb-6 flex items-center gap-3.5">
                     <span className="h-px flex-1 bg-stroke dark:bg-strokedark" />

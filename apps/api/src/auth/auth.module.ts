@@ -16,10 +16,15 @@ import { PrismaModule } from '../prisma/prisma.module';
   imports: [
     PrismaModule,
     PassportModule,
+    // ⚠️ Pas de `signOptions.expiresIn` par défaut ici : AuthService calcule et
+    // embarque toujours `exp` directement dans le payload signé (durée de
+    // session événementielle dynamique, CDC §7.2). JwtService.sign() fusionne
+    // TOUJOURS un éventuel signOptions par défaut du module — même quand
+    // l'appelant ne passe aucune option — donc un défaut ici entrerait en
+    // conflit avec le `exp` du payload (jsonwebtoken rejette la combinaison).
     JwtModule.registerAsync({
       useFactory: (configService: ConfigService) => ({
         secret: configService.get<string>('JWT_SECRET'),
-        signOptions: { expiresIn: configService.get<string>('JWT_EXPIRATION') || '7d' },
       }),
       inject: [ConfigService],
     }),

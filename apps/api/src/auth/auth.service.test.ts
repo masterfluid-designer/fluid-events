@@ -15,6 +15,7 @@ import { JwtService } from '@nestjs/jwt';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { Role } from '@saas-events/types';
+import { parseDurationToSeconds } from '@saas-events/utils';
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 // Fixe le temps pour des assertions déterministes sur les timestamps JWT.
@@ -75,8 +76,11 @@ describe('AuthService — generateClientToken()', () => {
 
     expect(result.accessToken).toBeDefined();
     expect(result.refreshToken).toBeDefined();
-    // Access token signé avec expiresIn = '7d'
-    expect(calls[0].options.expiresIn).toBe('7d');
+    // Access token : exp calculé dans le payload (pas d'option expiresIn — cf.
+    // note ci-dessus, jsonwebtoken rejette la combinaison des deux).
+    expect(calls[0].options.expiresIn).toBeUndefined();
+    const nowUnix = Math.floor(FIXED_NOW / 1000);
+    expect(calls[0].payload.exp).toBe(nowUnix + parseDurationToSeconds('7d'));
     expect(calls[0].payload.role).toBe(Role.CLIENT);
     expect(calls[0].payload.sub).toBe('user-1');
     // sessionExpiresAt absent en mode fallback
@@ -92,11 +96,9 @@ describe('AuthService — generateClientToken()', () => {
     await service.generateClientToken(user as any, 'concert-2026');
 
     const expectedExpUnix = Math.floor(endDate.getTime() / 1000) + 86400; // +24h
-    const nowUnix = Math.floor(FIXED_NOW / 1000);
-    const expectedExpiresInSeconds = expectedExpUnix - nowUnix;
 
-    // Access token signé avec expiresIn en secondes
-    expect(calls[0].options.expiresIn).toBe(`${expectedExpiresInSeconds}s`);
+    // Access token : exp = endDate + 24h (calculé directement dans le payload)
+    expect(calls[0].payload.exp).toBe(expectedExpUnix);
     // sessionExpiresAt présent = endDate + 24h en Unix
     expect(calls[0].payload.sessionExpiresAt).toBe(expectedExpUnix);
   });
@@ -111,9 +113,9 @@ describe('AuthService — generateClientToken()', () => {
 
     await service.generateClientToken(user as any, 'past-event');
 
-    // expiresIn doit être au minimum 3600s (1h)
-    const expiresIn = calls[0].options.expiresIn as string;
-    expect(parseInt(expiresIn, 10)).toBeGreaterThanOrEqual(3600);
+    // exp doit être au minimum now + 3600s (1h)
+    const nowUnix = Math.floor(FIXED_NOW / 1000);
+    expect(calls[0].payload.exp - nowUnix).toBeGreaterThanOrEqual(3600);
   });
 
   it('événement non PUBLISHED (DRAFT) : utilise le fallback', async () => {
@@ -127,7 +129,8 @@ describe('AuthService — generateClientToken()', () => {
 
     await service.generateClientToken(user as any, 'draft-event');
 
-    expect(calls[0].options.expiresIn).toBe('7d');
+    const nowUnix = Math.floor(FIXED_NOW / 1000);
+    expect(calls[0].payload.exp).toBe(nowUnix + parseDurationToSeconds('7d'));
     expect(calls[0].payload.sessionExpiresAt).toBeUndefined();
   });
 
@@ -139,7 +142,8 @@ describe('AuthService — generateClientToken()', () => {
 
     await service.generateClientToken(user as any, 'unknown-slug');
 
-    expect(calls[0].options.expiresIn).toBe('7d');
+    const nowUnix = Math.floor(FIXED_NOW / 1000);
+    expect(calls[0].payload.exp).toBe(nowUnix + parseDurationToSeconds('7d'));
   });
 
   it('refresh token a la même durée que l\'access token (session événementielle)', async () => {
@@ -151,9 +155,12 @@ describe('AuthService — generateClientToken()', () => {
 
     await service.generateClientToken(user as any, 'concert-2026');
 
-    // calls[0] = access, calls[1] = refresh
+    // calls[0] = access (exp direct dans le payload), calls[1] = refresh
+    // (expiresIn en option, car son payload n'a pas d'exp propre)
     expect(calls).toHaveLength(2);
-    expect(calls[1].options.expiresIn).toBe(calls[0].options.expiresIn);
+    const expectedExpUnix = Math.floor(endDate.getTime() / 1000) + 86400;
+    const nowUnix = Math.floor(FIXED_NOW / 1000);
+    expect(calls[1].options.expiresIn).toBe(`${expectedExpUnix - nowUnix}s`);
     expect(calls[1].payload.type).toBe('refresh');
     expect(calls[1].payload.sessionExpiresAt).toBe(calls[0].payload.sessionExpiresAt);
   });
@@ -192,10 +199,12 @@ describe('AuthService — generateScannerToken()', () => {
     expect(calls[0].payload.eventId).toBe('event-1');
     expect(calls[0].payload.role).toBe(Role.SCANNER);
 
-    // exp = endDate + 1h
+    // exp = endDate + 1h, calculé directement dans le payload (pas d'option
+    // expiresIn — jsonwebtoken rejette la combinaison payload.exp + options.expiresIn)
+    expect(calls[0].options.expiresIn).toBeUndefined();
     const expectedExpUnix = Math.floor(endDate.getTime() / 1000) + 3600;
     const nowUnix = Math.floor(FIXED_NOW / 1000);
     const expectedExpiresInSeconds = Math.max(expectedExpUnix - nowUnix, 3600);
-    expect(calls[0].options.expiresIn).toBe(`${expectedExpiresInSeconds}s`);
+    expect(calls[0].payload.exp).toBe(nowUnix + expectedExpiresInSeconds);
   });
 });
