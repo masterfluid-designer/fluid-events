@@ -14,6 +14,7 @@
     "db:migrate": "pnpm --filter @saas-events/api prisma migrate dev",
     "db:generate": "pnpm --filter @saas-events/api prisma generate",
     "db:studio": "pnpm --filter @saas-events/api prisma studio",
+    "db:seed": "pnpm --filter @saas-events/api db:seed",
     "test:unit": "pnpm --filter @saas-events/api test",
     "test:cov": "pnpm --filter @saas-events/api test:cov",
     "docker:dev": "docker compose up --build",

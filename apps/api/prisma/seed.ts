@@ -1,49 +1,63 @@
 // Seed script for initial data
+import 'dotenv/config';
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 
 const prisma = new PrismaClient();
+
+/** Génère un token QR — même contrat que TicketDesignService.generateQrToken. */
+function signQrToken(orderItemId: string, eventId: string, ticketId: string, eventEndDate: Date) {
+  const secret = process.env.QR_SECRET;
+  if (!secret) throw new Error('QR_SECRET manquant — impossible de seeder un QR.');
+  const now = Math.floor(Date.now() / 1000);
+  const graceSeconds = 24 * 60 * 60;
+  const exp = Math.floor(eventEndDate.getTime() / 1000) + graceSeconds;
+  return jwt.sign(
+    { oid: orderItemId, eid: eventId, tid: ticketId, iat: now, exp },
+    secret,
+    { algorithm: 'HS256' },
+  );
+}
+
+/**
+ * Comptes de test — login email/password via POST /api/auth/login
+ * (2 par rôle CLIENT/MANAGER/SUPER_ADMIN, mot de passe en clair ci-dessous
+ * uniquement pour le seed/dev — jamais en prod).
+ */
+const TEST_ACCOUNTS = [
+  { email: 'admin1@fluid-events.test', name: 'Super Admin 1', role: 'SUPER_ADMIN' as const, password: 'admin123' },
+  { email: 'admin2@fluid-events.test', name: 'Super Admin 2', role: 'SUPER_ADMIN' as const, password: 'admin123' },
+  { email: 'manager1@fluid-events.test', name: 'Manager Test 1', role: 'MANAGER' as const, password: 'manager123' },
+  { email: 'manager2@fluid-events.test', name: 'Manager Test 2', role: 'MANAGER' as const, password: 'manager123' },
+  { email: 'client1@fluid-events.test', name: 'Client Test 1', role: 'CLIENT' as const, password: 'client123' },
+  { email: 'client2@fluid-events.test', name: 'Client Test 2', role: 'CLIENT' as const, password: 'client123' },
+];
 
 async function main() {
   console.log('🌱 Seeding database...');
 
-  // Create test super admin
-  const superAdmin = await prisma.user.upsert({
-    where: { email: 'admin@fluid-events.test' },
-    update: {},
-    create: {
-      email: 'admin@fluid-events.test',
-      name: 'Super Admin',
-      role: 'SUPER_ADMIN',
-    },
-  });
+  // Comptes de test avec mot de passe (login simple, en plus de Google OAuth)
+  const usersByEmail: Record<string, Awaited<ReturnType<typeof prisma.user.upsert>>> = {};
+  for (const account of TEST_ACCOUNTS) {
+    const passwordHash = await bcrypt.hash(account.password, 10);
+    const user = await prisma.user.upsert({
+      where: { email: account.email },
+      update: { passwordHash },
+      create: {
+        email: account.email,
+        name: account.name,
+        role: account.role,
+        passwordHash,
+      },
+    });
+    usersByEmail[account.email] = user;
+    console.log(`✅ Created ${account.role.toLowerCase()}: ${user.email} (mot de passe : ${account.password})`);
+  }
 
-  console.log(`✅ Created super admin: ${superAdmin.email}`);
-
-  // Create test manager
-  const manager = await prisma.user.upsert({
-    where: { email: 'manager@fluid-events.test' },
-    update: {},
-    create: {
-      email: 'manager@fluid-events.test',
-      name: 'Manager Test',
-      role: 'MANAGER',
-    },
-  });
-
-  console.log(`✅ Created manager: ${manager.email}`);
-
-  // Create test client
-  const client = await prisma.user.upsert({
-    where: { email: 'client@fluid-events.test' },
-    update: {},
-    create: {
-      email: 'client@fluid-events.test',
-      name: 'Client Test',
-      role: 'CLIENT',
-    },
-  });
-
-  console.log(`✅ Created client: ${client.email}`);
+  const superAdmin = usersByEmail['admin1@fluid-events.test'];
+  const manager = usersByEmail['manager1@fluid-events.test'];
+  const client = usersByEmail['client1@fluid-events.test'];
 
   // Create a sample published event with tickets, owned by the test manager
   const event = await prisma.event.upsert({
@@ -93,7 +107,81 @@ async function main() {
 
   console.log(`✅ Created event: ${event.slug}`);
 
-  console.log('🎉 Seeding complete!');
+  // Create a test scanner account (email/password login, CDC §7.5)
+  const scannerPasswordHash = await bcrypt.hash('scanner123', 10);
+  const scannerUser = await prisma.user.upsert({
+    where: { email: 'scanner@fluid-events.test' },
+    update: {},
+    create: {
+      email: 'scanner@fluid-events.test',
+      name: 'Scanner Entrée Nord',
+      role: 'SCANNER',
+      passwordHash: scannerPasswordHash,
+    },
+  });
+
+  const scanner = await prisma.scanner.upsert({
+    where: { userId: scannerUser.id },
+    update: {},
+    create: {
+      userId: scannerUser.id,
+      eventId: event.id,
+      name: 'Entrée Nord',
+    },
+  });
+
+  console.log(`✅ Created scanner: ${scannerUser.email} (mot de passe : scanner123)`);
+
+  // Create a paid order + a scannable ticket (QR) so the scan flow is testable end-to-end
+  const vipTicket = await prisma.ticket.findFirstOrThrow({
+    where: { eventId: event.id, name: 'VIP Or' },
+  });
+
+  const order = await prisma.order.upsert({
+    where: { orderNumber: 'ORD-SEED-0001' },
+    update: {},
+    create: {
+      orderNumber: 'ORD-SEED-0001',
+      eventId: event.id,
+      clientId: client.id,
+      status: 'PAID',
+      totalAmount: vipTicket.price,
+      currency: vipTicket.currency,
+      paymentProvider: 'KKIAPAY',
+      paidAt: new Date(),
+    },
+  });
+
+  let orderItem = await prisma.orderItem.findFirst({ where: { orderId: order.id } });
+  if (!orderItem) {
+    orderItem = await prisma.orderItem.create({
+      data: {
+        orderId: order.id,
+        ticketId: vipTicket.id,
+        unitPrice: vipTicket.price,
+      },
+    });
+  }
+
+  if (!orderItem.qrCode) {
+    const qrCode = signQrToken(orderItem.id, event.id, vipTicket.id, event.endDate);
+    orderItem = await prisma.orderItem.update({
+      where: { id: orderItem.id },
+      data: { qrCode },
+    });
+  }
+
+  console.log(`✅ Created order ${order.orderNumber} — QR de test :\n${orderItem.qrCode}`);
+  console.log(`   → scanner : ${scanner.name} (eventId=${scanner.eventId})`);
+
+  console.log('\n📋 Comptes de test (POST /api/auth/login) :');
+  for (const account of TEST_ACCOUNTS) {
+    console.log(`   ${account.role.padEnd(11)} ${account.email} / ${account.password}`);
+  }
+  console.log(`   SCANNER     ${scannerUser.email} / scanner123  (via /api/auth/login/scanner)`);
+  console.log(`   → super admin de référence : ${superAdmin.email}`);
+
+  console.log('\n🎉 Seeding complete!');
 }
 
 main()

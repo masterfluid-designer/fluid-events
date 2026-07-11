@@ -12,6 +12,7 @@ import { AuthService } from './auth.service';
 import { AuditService } from '../common/audit.service';
 import { GoogleProfile } from './strategies/google.strategy';
 import { LoginScannerDto } from './dto/login-scanner.dto';
+import { LoginDto } from './dto/login.dto';
 import { Role, TokenPair, ErrorCodes } from '@saas-events/types';
 
 /**
@@ -149,6 +150,65 @@ export class AuthOrchestratorService {
       scanner.eventId,
       scanner.event.endDate,
     );
+  }
+
+  /**
+   * Connexion email/password générique (CLIENT/MANAGER/SUPER_ADMIN).
+   * Ajoutée comme alternative de test/dev à Google OAuth — les comptes SCANNER
+   * restent sur loginScanner() (logique event-bound distincte).
+   */
+  async login(dto: LoginDto): Promise<{ tokens: TokenPair; role: Role }> {
+    const user = await this.prisma.user.findUnique({
+      where: { email: dto.email.toLowerCase() },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        isActive: true,
+        passwordHash: true,
+      },
+    });
+
+    if (!user || !user.passwordHash) {
+      throw new UnauthorizedException({
+        code: ErrorCodes.UNAUTHORIZED,
+        message: 'Identifiants invalides.',
+      });
+    }
+
+    if (user.role === Role.SCANNER) {
+      throw new UnauthorizedException({
+        code: ErrorCodes.UNAUTHORIZED,
+        message: 'Les comptes scanner utilisent /api/auth/login/scanner.',
+      });
+    }
+
+    if (!user.isActive) {
+      throw new ForbiddenException({
+        code: ErrorCodes.FORBIDDEN,
+        message: 'Compte désactivé. Contactez un administrateur.',
+      });
+    }
+
+    const passwordOk = await bcrypt.compare(dto.password, user.passwordHash);
+    if (!passwordOk) {
+      throw new UnauthorizedException({
+        code: ErrorCodes.UNAUTHORIZED,
+        message: 'Identifiants invalides.',
+      });
+    }
+
+    await this.audit.log('auth.password.login', 'User', user.id, {
+      email: user.email,
+    });
+
+    const tokens = await this.authService.generateClientToken({
+      id: user.id,
+      email: user.email,
+      role: user.role as Role,
+    });
+
+    return { tokens, role: user.role as Role };
   }
 
   /**

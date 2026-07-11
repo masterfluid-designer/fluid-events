@@ -16,12 +16,12 @@
 
 | Module | Statut |
 |---|---|
-| Gestion événements | ✅ Basic CRUD (`EventsService`) |
+| Gestion événements | ✅ Basic CRUD (`EventsService`) + endpoint public `/events/public/:slug` |
 | Billetterie | 🟡 Module vide, prêt à coder |
 | Paiement | 🟡 Module vide, services utilitaires prêts |
-| Scanner PWA | ✅ Page caméra + store Zustand + logique de décision |
+| Scanner PWA | ✅ `POST /api/scan/validate` branché end-to-end (login → scan → anti-double-scan atomique), testé en HTTP réel |
 | Event Builder | 🟡 Module vide, schémas Zod prêts |
-| Auth | ✅ Google OAuth + Scanner login + JWT événementiel + RBAC |
+| Auth | ✅ Google OAuth + Scanner login + login email/password générique + JWT événementiel + RBAC + auth par cookie httpOnly |
 | Dashboard | ✅ Pages mockées (admin/manager/client) |
 | Notifications | ✅ `PhoneService` (validation E.164) ; Email/WhatsApp à coder |
 | Design billet | ✅ QR generation + validation + `buildHtml` sanitisé |
@@ -50,7 +50,7 @@
 
 ### Phase 2 — Scanner & Paiements 🔴 En cours
 
-- [ ] Controller + service Scanner (`POST /api/scan/validate` + `$transaction`)
+- [x] Controller + service Scanner (`POST /api/scan/validate` + verrou atomique `updateMany`)
 - [ ] Controller + providers Paiement (Kkiapay / CinetPay / FedaPay)
 - [ ] Endpoint webhook avec idempotence + décrément stock atomique
 - [ ] Setup BullMQ pour génération PDF asynchrone
@@ -83,7 +83,7 @@
 
 | Module | Priorité | Référence CDC |
 |---|:---:|---|
-| Scanner `/api/scan/validate` | 🔴 Haute | §9.5 |
+| ~~Scanner `/api/scan/validate`~~ | ✅ Fait | §9.5 |
 | Tickets CRUD | 🔴 Haute | §6.3 |
 | Payments init + webhook | 🔴 Haute | §8 |
 | Events PATCH/DELETE | 🟡 Moyenne | §6.2 |

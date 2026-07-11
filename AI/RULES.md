@@ -80,3 +80,21 @@ Ces points diffèrent selon les documents fournis ; à vérifier dans le code r�
 - Ne jamais renvoyer de données personnelles (email/téléphone) dans une réponse consommée par un rôle qui n'y a pas droit (ex : Scanner).
 - Ne jamais faire d'écriture stock/commande hors transaction.
 - Ne jamais introduire une dépendance à MinIO (déprécié) — rester sur l'abstraction S3-compatible (RustFS/Supabase Storage).
+
+## 13. Piège `JwtService.sign()` — `signOptions` du module toujours fusionné
+
+`AuthModule` configure `JwtModule.registerAsync()` **sans** `signOptions.expiresIn`
+par défaut, et c'est volontaire. `JwtService.sign(payload, options?)` (voir
+`@nestjs/jwt`) fusionne TOUJOURS `this.options.signOptions` avec les options
+passées à l'appel — même quand l'appelant ne passe aucune option. Si le module
+avait un `expiresIn` par défaut, tout payload embarquant déjà son propre `exp`
+(cas de `AuthService.generateClientToken`/`generateScannerToken`, durée de
+session événementielle calculée dynamiquement) ferait planter `jsonwebtoken`
+("Bad options.expiresIn option the payload already has an exp property").
+Passer `{ expiresIn: undefined }` à l'appel NE corrige PAS le problème : le
+spread `{...defaults, ...options}` conserve la clé `expiresIn` avec une valeur
+`undefined`, ce que `jsonwebtoken` rejette aussi ("expiresIn should be a
+number of seconds or string representing a timespan").
+→ Toute nouvelle route qui appelle `jwtService.sign()` avec un payload portant
+déjà `exp` doit soit garder ce module sans `signOptions.expiresIn` par défaut,
+soit utiliser un module JWT séparé configuré sans ce défaut.
