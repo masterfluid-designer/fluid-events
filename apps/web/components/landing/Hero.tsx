@@ -20,11 +20,11 @@ export default function Hero() {
           className="mx-auto max-w-c-1016 text-center"
         >
           <span className="mb-5 inline-flex items-center gap-2.5 rounded-full border border-stroke bg-white px-4.5 py-1.5 text-metatitle font-medium text-black shadow-solid-2 dark:border-strokedark dark:bg-blacksection dark:text-white">
-            <Sparkles className="size-4 text-primary" />
+            <Sparkles className="text-accent-terracotta dark:text-accent-terracotta-dark size-4" />
             Plateforme événementielle africaine
           </span>
 
-          <h1 className="mx-auto mb-5 max-w-[900px] text-4xl font-bold leading-tight text-black dark:text-white md:text-5xl xl:text-hero">
+          <h1 className="mx-auto mb-5 max-w-[900px] font-serif text-4xl font-medium leading-[1.08] tracking-tight text-black dark:text-white md:text-5xl xl:text-hero">
             Créez des événements, vendez vos billets et{" "}
             <span className="relative z-1 inline-block before:absolute before:bottom-2.5 before:left-0 before:-z-1 before:h-3 before:w-full before:bg-titlebg dark:before:bg-titlebgdark">
               scannez les entrées.

@@ -30,24 +30,28 @@ export default function ScannerLanding() {
   }, []);
 
   return (
-    <main className="flex min-h-svh items-center justify-center bg-slate-950 px-4 py-12 text-white">
-      <Card className="w-full max-w-md border-slate-800 bg-slate-900">
+    <main className="flex min-h-svh items-center justify-center bg-black px-4 py-12 text-white">
+      <Card className="w-full max-w-md border-white/10 bg-[#141312]">
         <CardHeader className="space-y-3 text-center">
-          <div className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-indigo-500">
+          <div className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-white/10">
             <Camera className="size-7" />
           </div>
-          <CardTitle className="text-2xl">EventScan</CardTitle>
-          <CardDescription className="text-slate-400">
+          <CardTitle className="text-2xl text-white">EventScan</CardTitle>
+          <CardDescription className="text-white/50">
             Contrôle d'accès aux événements
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          <Button className="w-full" size="lg" asChild>
+          <Button
+            className="w-full bg-white text-black hover:bg-white/90"
+            size="lg"
+            asChild
+          >
             <Link href="/auth/login">
               Se connecter <ArrowRight className="size-4" />
             </Link>
           </Button>
-          <p className="text-center text-xs text-slate-500">
+          <p className="text-center text-xs text-white/40">
             Compte scanner fourni par votre organisateur.
           </p>
         </CardContent>

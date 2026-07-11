@@ -3,9 +3,8 @@
 import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
-import Image from "next/image";
 import Link from "next/link";
-import { Mail, ShieldAlert, Ticket } from "lucide-react";
+import { Mail, ShieldAlert, Ticket, ArrowRight } from "lucide-react";
 import Header from "@/components/Header";
 import Lines from "@/components/Lines";
 
@@ -51,26 +50,10 @@ function LoginForm() {
   return (
     <>
       <Header />
-      <main className="relative overflow-hidden bg-alabaster dark:bg-black">
+      <main className="relative overflow-hidden bg-alabaster dark:bg-blackho">
         <Lines />
         <section className="pb-12.5 pt-32.5 lg:pb-25 lg:pt-45 xl:pb-30 xl:pt-50">
-          <div className="relative z-1 mx-auto max-w-c-1016 px-7.5 pb-7.5 pt-10 lg:px-15 lg:pt-15 xl:px-20 xl:pt-20">
-            <div className="absolute left-0 top-0 -z-1 h-2/3 w-full rounded-lg bg-linear-to-t from-transparent to-[#dee7ff47] dark:bg-linear-to-t dark:to-[#252A42]" />
-            <div className="absolute bottom-17.5 left-0 -z-1 h-1/3 w-full">
-              <Image
-                src="/images/shape/shape-dotted-light.svg"
-                alt=""
-                className="dark:hidden"
-                fill
-              />
-              <Image
-                src="/images/shape/shape-dotted-dark.svg"
-                alt=""
-                className="hidden dark:block"
-                fill
-              />
-            </div>
-
+          <div className="relative z-1 mx-auto max-w-125 px-4">
             <motion.div
               variants={{
                 hidden: { opacity: 0, y: -20 },
@@ -80,16 +63,16 @@ function LoginForm() {
               whileInView="visible"
               transition={{ duration: 1, delay: 0.1 }}
               viewport={{ once: true }}
-              className="animate_top rounded-lg bg-white px-7.5 pt-7.5 shadow-solid-8 dark:border dark:border-strokedark dark:bg-black xl:px-15 xl:pt-15"
+              className="animate_top rounded-2xl border border-stroke bg-white p-10 shadow-solid-2 dark:border-strokedark dark:bg-blacksection"
             >
-              <div className="mb-10 text-center">
-                <div className="mx-auto mb-5 flex size-15 items-center justify-center rounded-full bg-zumthor text-primary dark:bg-blacksection">
-                  <Ticket className="size-7" />
+              <div className="mb-8 text-center">
+                <div className="mx-auto mb-5 flex size-13 items-center justify-center rounded-full bg-alabaster dark:bg-blackho">
+                  <Ticket className="size-6 text-black dark:text-white" />
                 </div>
-                <h1 className="mb-3 text-3xl font-semibold text-black dark:text-white xl:text-sectiontitle2">
+                <h1 className="mb-2 text-2xl font-bold text-black dark:text-white">
                   {scannerMode ? "Connexion scanner" : "Connexion à Fluid Events"}
                 </h1>
-                <p>
+                <p className="text-sm">
                   {scannerMode
                     ? "Accédez au contrôle d'entrée de votre événement."
                     : "Connectez-vous pour acheter, organiser ou gérer vos événements."}
@@ -97,77 +80,75 @@ function LoginForm() {
               </div>
 
               {error && (
-                <div className="mb-7.5 flex items-center gap-3 rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
+                <div className="mb-6 flex items-center gap-3 rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
                   <ShieldAlert className="size-4 shrink-0" />
                   <span>{error}</span>
                 </div>
               )}
 
               {!scannerMode ? (
-                <div className="pb-10">
+                <div>
                   <button
                     type="button"
                     onClick={handleGoogleLogin}
                     aria-label="continuer avec google"
-                    className="mb-6 flex w-full items-center justify-center rounded-xs border border-stroke bg-[#f8f8f8] px-6 py-3 text-base text-black outline-hidden transition-all duration-300 hover:border-primary hover:bg-primary/5 hover:text-primary dark:border-transparent dark:bg-[#2C303B] dark:text-white dark:hover:border-primary"
+                    className="mb-6 flex w-full items-center justify-center gap-2.5 rounded-full border border-stroke bg-secondary px-6 py-3.5 text-sm font-semibold text-black transition-all duration-300 hover:bg-alabaster dark:border-strokedark dark:bg-blackho dark:text-white dark:hover:bg-hoverdark"
                   >
-                    <Mail className="mr-3 size-5" />
+                    <Mail className="size-4.5" />
                     Continuer avec Google
                   </button>
 
-                  <div className="mb-10 flex items-center justify-center">
-                    <span className="hidden h-[1px] w-full max-w-[200px] bg-stroke dark:bg-strokedark sm:block" />
-                    <p className="w-full px-5 text-center text-base">
-                      ou utilisez l'accès scanner dédié
+                  <div className="mb-6 flex items-center gap-3.5">
+                    <span className="h-px flex-1 bg-stroke dark:bg-strokedark" />
+                    <p className="text-xs text-manatee dark:text-waterloo">
+                      ou accès scanner dédié
                     </p>
-                    <span className="hidden h-[1px] w-full max-w-[200px] bg-stroke dark:bg-strokedark sm:block" />
+                    <span className="h-px flex-1 bg-stroke dark:bg-strokedark" />
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setScannerMode(true);
-                      setError(null);
-                    }}
-                    className="inline-flex items-center gap-2.5 rounded-full bg-black px-6 py-3 font-medium text-white duration-300 ease-in-out hover:bg-blackho dark:bg-btndark"
-                  >
-                    Connexion scanner
-                    <svg className="fill-white" width="14" height="14" viewBox="0 0 14 14">
-                      <path d="M10.4767 6.16664L6.00668 1.69664L7.18501 0.518311L13.6667 6.99998L7.18501 13.4816L6.00668 12.3033L10.4767 7.83331H0.333344V6.16664H10.4767Z" />
-                    </svg>
-                  </button>
+                  <div className="text-center">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setScannerMode(true);
+                        setError(null);
+                      }}
+                      className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground duration-300 ease-in-out hover:bg-primaryho dark:hover:bg-hoverdark"
+                    >
+                      Connexion scanner
+                      <ArrowRight className="size-3.5" />
+                    </button>
+                  </div>
                 </div>
               ) : (
-                <form onSubmit={handleScannerLogin}>
-                  <div className="mb-7.5 flex flex-col gap-7.5 lg:mb-12.5 lg:flex-row lg:justify-between lg:gap-14">
-                    <input
-                      type="email"
-                      placeholder="Email scanner"
-                      name="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="w-full border-b border-stroke bg-white! pb-3.5 focus:border-waterloo focus:placeholder:text-black focus-visible:outline-hidden dark:border-strokedark dark:bg-black! dark:focus:border-manatee dark:focus:placeholder:text-white lg:w-1/2"
-                      required
-                    />
-                    <input
-                      type="password"
-                      placeholder="Mot de passe"
-                      name="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="w-full border-b border-stroke bg-white! pb-3.5 focus:border-waterloo focus:placeholder:text-black focus-visible:outline-hidden dark:border-strokedark dark:bg-black! dark:focus:border-manatee dark:focus:placeholder:text-white lg:w-1/2"
-                      required
-                    />
-                  </div>
+                <form onSubmit={handleScannerLogin} className="flex flex-col gap-5">
+                  <input
+                    type="email"
+                    placeholder="Email scanner"
+                    name="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full rounded-lg border border-stroke bg-white px-4 py-3 text-sm focus:border-black focus-visible:outline-hidden dark:border-strokedark dark:bg-blackho dark:text-white dark:focus:border-manatee"
+                    required
+                  />
+                  <input
+                    type="password"
+                    placeholder="Mot de passe"
+                    name="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full rounded-lg border border-stroke bg-white px-4 py-3 text-sm focus:border-black focus-visible:outline-hidden dark:border-strokedark dark:bg-blackho dark:text-white dark:focus:border-manatee"
+                    required
+                  />
 
-                  <div className="flex flex-wrap items-center gap-10 md:justify-between xl:gap-15">
+                  <div className="mt-2 flex flex-wrap items-center justify-between gap-4">
                     <button
                       type="button"
                       onClick={() => {
                         setScannerMode(false);
                         setError(null);
                       }}
-                      className="hover:text-primary"
+                      className="text-sm font-medium text-waterloo hover:text-black dark:text-manatee dark:hover:text-white"
                     >
                       Connexion organisateur / client
                     </button>
@@ -176,26 +157,22 @@ function LoginForm() {
                       type="submit"
                       disabled={loading}
                       aria-label="login scanner"
-                      className="inline-flex items-center gap-2.5 rounded-full bg-black px-6 py-3 font-medium text-white duration-300 ease-in-out hover:bg-blackho disabled:opacity-60 dark:bg-btndark dark:hover:bg-blackho"
+                      className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground duration-300 ease-in-out hover:bg-primaryho disabled:opacity-60"
                     >
                       {loading ? "Connexion..." : "Se connecter"}
-                      <svg className="fill-white" width="14" height="14" viewBox="0 0 14 14">
-                        <path d="M10.4767 6.16664L6.00668 1.69664L7.18501 0.518311L13.6667 6.99998L7.18501 13.4816L6.00668 12.3033L10.4767 7.83331H0.333344V6.16664H10.4767Z" />
-                      </svg>
+                      <ArrowRight className="size-3.5" />
                     </button>
                   </div>
                 </form>
               )}
 
-              <div className="mt-12.5 border-t border-stroke py-5 text-center dark:border-strokedark">
-                <p>
-                  <Link
-                    className="text-black hover:text-primary dark:text-white dark:hover:text-primary"
-                    href="/"
-                  >
-                    Retour à l'accueil
-                  </Link>
-                </p>
+              <div className="mt-9 border-t border-stroke pt-5 text-center dark:border-strokedark">
+                <Link
+                  className="text-sm font-semibold text-waterloo hover:text-black dark:text-manatee dark:hover:text-white"
+                  href="/"
+                >
+                  ← Retour à l'accueil
+                </Link>
               </div>
             </motion.div>
           </div>

@@ -94,7 +94,7 @@ export default function DocsPage() {
                     </p>
                     <Link
                       href="/support"
-                      className="inline-flex rounded-full bg-primary px-6 py-3 text-white hover:bg-primaryho"
+                      className="inline-flex rounded-full bg-primary px-6 py-3 text-primary-foreground hover:bg-primaryho"
                     >
                       Contacter le support
                     </Link>

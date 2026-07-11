@@ -77,7 +77,7 @@ export default function Features() {
                 className="animate_top group rounded-lg border border-stroke bg-white p-7.5 shadow-solid-10 dark:border-strokedark dark:bg-blacksection xl:p-12.5"
               >
                 <div className="flex h-15 w-15 items-center justify-center rounded-lg bg-zumthor dark:bg-blackho">
-                  <Icon className="h-7.5 w-7.5 text-primary" />
+                  <Icon className="text-accent-terracotta dark:text-accent-terracotta-dark h-7.5 w-7.5" />
                 </div>
 
                 <h3 className="mt-5 text-itemtitle2 font-semibold text-black dark:text-white">

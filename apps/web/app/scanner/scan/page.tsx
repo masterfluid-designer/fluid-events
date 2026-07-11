@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  Camera,
   CheckCircle2,
   XCircle,
   AlertTriangle,
@@ -107,42 +106,52 @@ export default function ScannerPage() {
   const validCount = history.filter((h) => h.result === ScanResult.VALID).length;
 
   return (
-    <main className="min-h-svh bg-slate-950 text-white">
+    <main className="min-h-svh bg-black text-white">
       <div className="mx-auto flex min-h-svh max-w-md flex-col">
         {/* Header */}
         <header className="flex items-center justify-between p-4">
           <div className="flex items-center gap-2">
-            <div className="flex size-9 items-center justify-center rounded-lg bg-indigo-500">
-              <Camera className="size-5" />
-            </div>
-            <div>
-              <h1 className="text-sm font-bold">EventScan</h1>
-              <p className="text-xs text-slate-400">Contrôle d'accès</p>
-            </div>
+            <div className="text-sm font-bold">Entrée Nord</div>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handleLogout}
-            className="text-slate-400 hover:text-white"
-          >
-            <LogOut className="size-4" />
-          </Button>
+          <div className="flex items-center gap-2">
+            <span className="rounded-full bg-white/10 px-2.5 py-1 text-xs font-semibold">
+              {history.length} scans
+            </span>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleLogout}
+              className="text-white/50 hover:text-white"
+            >
+              <LogOut className="size-4" />
+            </Button>
+          </div>
         </header>
 
         {/* Zone caméra + overlay feedback */}
-        <div className="relative mx-4 flex-1">
+        <div className="relative mx-4.5 flex-1">
           <div
             id="qr-reader"
-            className="w-full overflow-hidden rounded-2xl bg-slate-900"
+            className="w-full overflow-hidden rounded-[20px] bg-[repeating-linear-gradient(135deg,#1a1a1a_0_10px,#0d0d0d_10px_20px)]"
             style={{ aspectRatio: '1 / 1' }}
           />
 
+          {/* Cadre + ligne de scan décoratifs */}
+          {cameraReady && !cameraError && !lastScanResult && (
+            <div className="pointer-events-none absolute inset-0 rounded-[20px]">
+              <div className="absolute inset-7 rounded-2xl border-[3px] border-white/55" />
+              <div className="absolute left-[14%] right-[14%] top-1/2 h-0.5 bg-[oklch(65%_0.18_40)] shadow-[0_0_12px_oklch(65%_0.18_40)]" />
+              <div className="absolute inset-x-0 bottom-3.5 text-center text-xs text-white/70">
+                Centrez le QR code
+              </div>
+            </div>
+          )}
+
           {/* Erreur caméra */}
           {cameraError && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center rounded-2xl bg-slate-900/95 p-6 text-center">
+            <div className="absolute inset-0 flex flex-col items-center justify-center rounded-[20px] bg-[#141312]/95 p-6 text-center">
               <AlertTriangle className="mb-3 size-10 text-amber-400" />
-              <p className="mb-4 text-sm text-slate-300">{cameraError}</p>
+              <p className="mb-4 text-sm text-white/70">{cameraError}</p>
               <Button onClick={() => location.reload()} size="sm">
                 Réessayer
               </Button>
@@ -151,8 +160,8 @@ export default function ScannerPage() {
 
           {/* Statut caméra */}
           {!cameraReady && !cameraError && (
-            <div className="absolute inset-0 flex items-center justify-center rounded-2xl bg-slate-900/80">
-              <div className="animate-pulse text-sm text-slate-400">
+            <div className="absolute inset-0 flex items-center justify-center rounded-[20px] bg-[#141312]/80">
+              <div className="animate-pulse text-sm text-white/50">
                 Activation caméra...
               </div>
             </div>
@@ -178,39 +187,39 @@ export default function ScannerPage() {
         </div>
 
         {/* Stats session */}
-        <div className="p-4">
-          <Card className="bg-slate-900 border-slate-800">
+        <div className="space-y-3 p-4">
+          <Card className="border-white/10 bg-[#141312]">
             <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-sm text-slate-300">
-                <Activity className="size-4 text-indigo-400" />
+              <CardTitle className="flex items-center gap-2 text-sm text-white/70">
+                <Activity className="size-4 text-[oklch(70%_0.16_40)]" />
                 Session en cours
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 gap-3 text-center">
-                <div className="rounded-lg bg-slate-800/50 p-3">
-                  <div className="text-2xl font-bold text-emerald-400">
+                <div className="rounded-lg bg-white/5 p-3">
+                  <div className="text-2xl font-bold text-[oklch(70%_0.16_145)]">
                     {validCount}
                   </div>
-                  <div className="text-xs text-slate-400">Validés</div>
+                  <div className="text-xs text-white/50">Validés</div>
                 </div>
-                <div className="rounded-lg bg-slate-800/50 p-3">
-                  <div className="text-2xl font-bold text-slate-200">
+                <div className="rounded-lg bg-white/5 p-3">
+                  <div className="text-2xl font-bold text-white/90">
                     {history.length}
                   </div>
-                  <div className="text-xs text-slate-400">Total scannés</div>
+                  <div className="text-xs text-white/50">Total scannés</div>
                 </div>
               </div>
 
               {history.length > 0 && (
                 <div className="mt-3 space-y-1.5">
-                  <div className="text-xs text-slate-500">Derniers scans</div>
+                  <div className="text-xs text-white/40">Derniers scans</div>
                   {history.slice(0, 3).map((h, i) => (
                     <div
                       key={i}
-                      className="flex items-center justify-between rounded-md bg-slate-800/30 px-2 py-1.5 text-xs"
+                      className="flex items-center justify-between rounded-md bg-white/5 px-2 py-1.5 text-xs"
                     >
-                      <span className="text-slate-300">
+                      <span className="text-white/80">
                         {h.attendee?.name ?? '—'}
                       </span>
                       <ScanResultBadge result={h.result} />
@@ -245,8 +254,8 @@ function ScanFeedback({
   return (
     <button
       onClick={onDismiss}
-      className={`absolute inset-0 flex items-center justify-center rounded-2xl transition-colors ${
-        isValid ? 'bg-emerald-500/90' : 'bg-red-500/90'
+      className={`absolute inset-0 flex items-center justify-center rounded-[20px] transition-colors ${
+        isValid ? 'bg-[oklch(58%_0.16_145)]/90' : 'bg-[oklch(55%_0.18_25)]/90'
       }`}
     >
       <div className="text-center text-white">

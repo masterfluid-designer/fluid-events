@@ -1,14 +1,6 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { CalendarDays, MapPin, Ticket, ArrowLeft } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { CalendarDays, MapPin, ArrowLeft } from 'lucide-react';
 import type { Metadata } from 'next';
 
 /**
@@ -80,111 +72,118 @@ export default async function EventPage({
   const isPublished = event.status === 'PUBLISHED';
 
   return (
-    <main className="min-h-svh bg-background">
-      {/* Cover */}
-      <div className="relative h-64 w-full bg-gradient-to-br from-primary/80 to-primary/40 md:h-80">
-        {event.coverImageUrl && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={event.coverImageUrl}
-            alt={event.title}
-            className="size-full object-cover"
-          />
-        )}
-        <div className="absolute inset-0 bg-gradient-to-t from-background to-transparent" />
-        <div className="absolute left-4 top-4">
-          <Button variant="secondary" size="sm" asChild>
-            <Link href="/">
-              <ArrowLeft className="size-4" /> Retour
+    <main className="min-h-svh bg-alabaster dark:bg-blackho">
+      <div className="mx-auto max-w-190 px-4 py-8 md:px-8">
+        <div className="overflow-hidden rounded-2xl border border-stroke bg-white shadow-solid-2 dark:border-strokedark dark:bg-blacksection">
+          {/* Cover */}
+          <div className="relative h-64 w-full bg-[repeating-linear-gradient(135deg,#EFEDE7_0_14px,#E7E4DE_14px_28px)] dark:bg-[repeating-linear-gradient(135deg,#24221F_0_14px,#1B1A18_14px_28px)] md:h-85">
+            {event.coverImageUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={event.coverImageUrl}
+                alt={event.title}
+                className="size-full object-cover"
+              />
+            )}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent" />
+            <Link
+              href="/"
+              className="absolute left-4 top-4 inline-flex items-center gap-1.5 rounded-full bg-white/90 px-3.5 py-1.5 text-xs font-semibold text-black backdrop-blur"
+            >
+              <ArrowLeft className="size-3.5" /> Retour
             </Link>
-          </Button>
-        </div>
-      </div>
-
-      <div className="container mx-auto -mt-12 px-4 pb-20">
-        <div className="grid gap-8 md:grid-cols-3">
-          {/* Infos principales */}
-          <div className="space-y-6 md:col-span-2">
-            <div>
-              <div className="mb-2 flex items-center gap-2">
-                <Badge variant={isPublished ? 'success' : 'secondary'}>
-                  {isPublished ? '● Billets ouverts' : 'Bientôt disponible'}
-                </Badge>
+            <div className="absolute inset-x-6 bottom-5 text-white md:inset-x-9 md:bottom-6">
+              <div className="text-xs font-semibold uppercase tracking-[0.08em] opacity-85">
+                {formattedDate}
+                {event.location ? ` · ${event.location}` : ''}
               </div>
-              <h1 className="text-balance text-3xl font-bold tracking-tight md:text-4xl">
+              <h1 className="mt-1.5 font-serif text-3xl leading-[1.05] md:text-4xl">
                 {event.title}
               </h1>
-              {event.description && (
-                <p className="mt-4 whitespace-pre-line text-muted-foreground">
-                  {event.description}
-                </p>
-              )}
             </div>
+          </div>
 
-            <div className="flex flex-wrap gap-6 text-sm">
-              <div className="flex items-center gap-2">
-                <CalendarDays className="size-4 text-primary" />
-                <span>{formattedDate}</span>
-              </div>
+          <div className="px-6 pb-2 pt-8 md:px-9">
+            <div className="flex flex-wrap gap-2">
+              <span className="rounded-full border border-stroke bg-alabaster px-2.5 py-1 text-xs font-semibold text-black dark:border-strokedark dark:bg-blackho dark:text-white">
+                {isPublished ? 'Billets ouverts' : 'Bientôt disponible'}
+              </span>
               {event.location && (
-                <div className="flex items-center gap-2">
-                  <MapPin className="size-4 text-primary" />
-                  <span>{event.location}</span>
-                </div>
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-stroke bg-alabaster px-2.5 py-1 text-xs font-semibold text-black dark:border-strokedark dark:bg-blackho dark:text-white">
+                  <MapPin className="size-3" /> {event.location}
+                </span>
               )}
             </div>
           </div>
 
+          {event.description && (
+            <p className="max-w-150 whitespace-pre-line px-6 pb-2 pt-4 text-[15px] leading-relaxed text-waterloo dark:text-manatee md:px-9">
+              {event.description}
+            </p>
+          )}
+
+          <div className="flex flex-wrap gap-5 px-6 py-4 text-sm md:px-9">
+            <div className="flex items-center gap-2">
+              <CalendarDays className="text-accent-terracotta dark:text-accent-terracotta-dark size-4" />
+              <span>{formattedDate}</span>
+            </div>
+          </div>
+
+          <div className="mx-6 border-t border-stroke dark:border-strokedark md:mx-9" />
+
           {/* Billets */}
-          <div className="space-y-4">
-            <h2 className="flex items-center gap-2 font-semibold">
-              <Ticket className="size-4" /> Billets disponibles
-            </h2>
+          <div className="flex flex-col gap-3 px-6 py-8 md:px-9">
+            <div className="mb-1 text-xs font-bold uppercase tracking-[0.04em] text-manatee dark:text-waterloo">
+              Billets
+            </div>
             {event.tickets.length === 0 ? (
-              <Card>
-                <CardContent className="p-6 text-center text-sm text-muted-foreground">
-                  Aucun billet en vente pour le moment.
-                </CardContent>
-              </Card>
+              <div className="rounded-xl border border-stroke p-6 text-center text-sm text-muted-foreground dark:border-strokedark">
+                Aucun billet en vente pour le moment.
+              </div>
             ) : (
-              event.tickets.map((ticket) => {
+              event.tickets.map((ticket, index) => {
                 const available = ticket.stock - ticket.stockSold;
                 const soldOut = available <= 0;
+                const highlighted = index === 0 && !soldOut;
                 return (
-                  <Card key={ticket.id}>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="flex items-center justify-between text-base">
-                        <span>{ticket.name}</span>
-                        <span className="text-primary">
-                          {new Intl.NumberFormat('fr-FR', {
-                            style: 'currency',
-                            currency: ticket.currency,
-                          }).format(Number(ticket.price))}
-                        </span>
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <span>
-                          {soldOut
-                            ? 'Épuisé'
-                            : `${available} place${available > 1 ? 's' : ''} restante${available > 1 ? 's' : ''}`}
-                        </span>
-                        {soldOut && <Badge variant="destructive">Épuisé</Badge>}
+                  <div
+                    key={ticket.id}
+                    className={`flex items-center justify-between gap-4 rounded-xl border p-5 ${
+                      soldOut ? 'opacity-50' : ''
+                    } ${
+                      highlighted
+                        ? 'border-black dark:border-white'
+                        : 'border-stroke dark:border-strokedark'
+                    }`}
+                  >
+                    <div>
+                      <div className="font-semibold">{ticket.name}</div>
+                      <div className="mt-0.5 text-xs text-manatee dark:text-waterloo">
+                        {soldOut
+                          ? 'Épuisé'
+                          : `${available} place${available > 1 ? 's' : ''} restante${available > 1 ? 's' : ''}`}
                       </div>
-                      <Button
-                        className="w-full"
-                        disabled={soldOut || !isPublished}
-                        asChild={!soldOut && isPublished ? true : undefined}
-                      >
-                        {soldOut || !isPublished ? (
-                          <span>Indisponible</span>
-                        ) : (
-                          <BuyButton slug={slug} ticketId={ticket.id} />
-                        )}
-                      </Button>
-                    </CardContent>
-                  </Card>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="font-bold">
+                        {new Intl.NumberFormat('fr-FR', {
+                          style: 'currency',
+                          currency: ticket.currency,
+                        }).format(Number(ticket.price))}
+                      </div>
+                      {soldOut || !isPublished ? (
+                        <span className="rounded-lg border border-stroke px-4 py-2.5 text-sm font-semibold text-manatee dark:border-strokedark">
+                          Indisponible
+                        </span>
+                      ) : (
+                        <BuyButton
+                          slug={slug}
+                          ticketId={ticket.id}
+                          highlighted={highlighted}
+                        />
+                      )}
+                    </div>
+                  </div>
                 );
               })
             )}
@@ -196,12 +195,25 @@ export default async function EventPage({
 }
 
 /** Bouton client qui déclenche l'OAuth avec intent d'achat horodaté. */
-function BuyButton({ slug, ticketId }: { slug: string; ticketId: string }) {
+function BuyButton({
+  slug,
+  ticketId,
+  highlighted,
+}: {
+  slug: string;
+  ticketId: string;
+  highlighted: boolean;
+}) {
   return (
     <a
       href={`/api/buy-redirect?slug=${encodeURIComponent(slug)}&ticketId=${ticketId}`}
+      className={`rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors ${
+        highlighted
+          ? 'bg-primary text-primary-foreground hover:bg-primaryho'
+          : 'border border-stroke text-black hover:border-black dark:border-strokedark dark:text-white dark:hover:border-white'
+      }`}
     >
-      Acheter ce billet
+      Acheter
     </a>
   );
 }

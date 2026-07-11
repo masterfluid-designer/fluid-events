@@ -98,7 +98,7 @@ export default function Pricing() {
             >
               {/* Popular badge */}
               {plan.popular && (
-                <span className="absolute -right-3.5 top-7.5 -rotate-90 rounded-bl-full rounded-tl-full bg-primary px-4.5 py-1.5 text-metatitle font-medium uppercase text-white">
+                <span className="absolute -right-3.5 top-7.5 -rotate-90 rounded-bl-full rounded-tl-full bg-primary px-4.5 py-1.5 text-metatitle font-medium uppercase text-primary-foreground">
                   Populaire
                 </span>
               )}
@@ -128,7 +128,7 @@ export default function Pricing() {
                     }`}
                   >
                     {feature.included ? (
-                      <Check className="size-4.5 shrink-0 text-primary" />
+                      <Check className="text-accent-terracotta size-4.5 shrink-0" />
                     ) : (
                       <X className="size-4.5 shrink-0 text-waterloo" />
                     )}
@@ -142,9 +142,9 @@ export default function Pricing() {
                 href={plan.button.href}
                 className={`group/btn mt-9 inline-flex w-full items-center justify-center gap-2.5 rounded-full px-7.5 py-2.5 text-regular font-medium transition ${
                   plan.button.variant === 'primary'
-                    ? 'bg-primary text-white hover:bg-primaryho'
+                    ? 'bg-primary text-primary-foreground hover:bg-primaryho'
                     : plan.button.variant === 'outline'
-                      ? 'border border-stroke text-primary hover:bg-primary hover:text-white dark:border-strokedark dark:text-white dark:hover:bg-primary dark:hover:text-white'
+                      ? 'border border-stroke text-primary hover:bg-primary hover:text-primary-foreground dark:border-strokedark dark:text-white dark:hover:bg-primary dark:hover:text-primary-foreground'
                       : 'text-primary dark:text-white dark:hover:text-primary'
                 }`}
               >

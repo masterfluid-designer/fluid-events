@@ -38,8 +38,16 @@ const navByRole: Record<Role, NavItem[]> = {
   ],
 };
 
-export function DashboardSidebar({ role }: { role: Role }) {
+function roleFromPathname(pathname: string): Role {
+  if (pathname.startsWith('/admin')) return Role.SUPER_ADMIN;
+  if (pathname.startsWith('/manager')) return Role.MANAGER;
+  if (pathname.startsWith('/scanner')) return Role.SCANNER;
+  return Role.CLIENT;
+}
+
+export function DashboardSidebar() {
   const pathname = usePathname();
+  const role = roleFromPathname(pathname);
   const items = navByRole[role] ?? navByRole[Role.CLIENT];
 
   return (
