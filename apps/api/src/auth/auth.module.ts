@@ -34,6 +34,6 @@ import { PrismaModule } from '../prisma/prisma.module';
     RolesGuard,
   ],
   controllers: [AuthController],
-  exports: [AuthService, JwtAuthGuard, RolesGuard],
+  exports: [AuthService, AuditService, JwtAuthGuard, RolesGuard],
 })
 export class AuthModule {}

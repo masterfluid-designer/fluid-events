@@ -3,9 +3,10 @@
   "version": "2.0.0",
   "private": true,
   "description": "Fonctions utilitaires pures partagées (validation, parsing durée, sanitisation)",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "scripts": {
+    "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"
