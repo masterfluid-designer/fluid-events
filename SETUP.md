@@ -16,10 +16,8 @@ pnpm install
 ### 2. Configure Environment
 ```bash
 cp .env.example .env
-# ignorer par obligatoire pour moi
 cp .env.example ./apps/api/.env
-cp .env.example ./apps/api/.env
-# Edit .env with your local settings
+# Edit both .env files with your local settings (Google OAuth, payment providers, etc.)
 ```
 
 ### 3. Start Docker Services
@@ -37,7 +35,11 @@ docker compose up -d
 ```bash
 pnpm db:generate    # Generate Prisma client
 pnpm db:migrate     # Run migrations
-pnpm db:seed        # Optional: seed test data
+```
+
+Optional: seed test data — not yet wired to a pnpm script, run directly:
+```bash
+pnpm --filter @saas-events/api exec ts-node prisma/seed.ts
 ```
 
 ### 5. Start Development
@@ -65,20 +67,23 @@ Access:
 # Development
 pnpm dev              # Start all services
 pnpm build            # Build all packages
-pnpm lint             # Lint all packages
-pnpm test             # Run tests
+pnpm lint             # Lint (currently apps/web only — apps/api has no lint script)
+pnpm test             # Run tests (currently apps/api only — apps/web has no test script)
 
 # Database
 pnpm db:migrate       # Create/run migrations
 pnpm db:generate      # Regenerate Prisma client
-pnpm db:seed          # Seed database
-pnpm db:reset         # Drop and recreate DB
+pnpm db:studio        # Open Prisma Studio
 
 # Docker
 docker compose up -d   # Start services
 docker compose down    # Stop services
 docker compose logs -f # View logs
 ```
+
+`db:seed` and `db:reset` are not defined as pnpm scripts yet. A seed script
+exists at `apps/api/prisma/seed.ts` — run it manually with
+`pnpm --filter @saas-events/api exec ts-node prisma/seed.ts`.
 
 ## Troubleshooting
 
@@ -93,9 +98,13 @@ docker compose restart postgres
 
 ### Port Already in Use
 ```bash
-# Find process on port (e.g., 3000)
+# macOS/Linux
 lsof -i :3000
 kill -9 <PID>
+
+# Windows
+netstat -ano | findstr :3000
+taskkill /PID <PID> /F
 ```
 
 ### Prisma Client Issues

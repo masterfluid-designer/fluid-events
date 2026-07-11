@@ -1,32 +1,46 @@
 # API Endpoints — Fluid Events
 
-## Authentication
+Ce document décrit uniquement les routes **effectivement implémentées** dans
+`apps/api/src`. Pour la conception complète prévue (tickets, paiements,
+scanner, builder, dashboards), voir [cahier-des-charges.md](./cahier-des-charges.md)
+— ces modules ne sont **pas encore développés** (aucun controller au moment
+de la rédaction).
 
-### POST /api/auth/google
-Authentification via Google OAuth
+## ✅ Implémenté
 
-**Response:**
+### Authentication (`AuthController`, préfixe `/api/auth`)
+
+#### GET /api/auth/google
+Déclenche le flow OAuth Google (redirection, pas de body). Accepte un query
+param optionnel `?eventSlug=` propagé via `state`.
+
+#### GET /api/auth/google/callback
+Callback OAuth Google. Pose des cookies httpOnly (`access_token`,
+`refresh_token`) puis redirige vers `${FRONTEND_URL}/auth/callback`.
+
+#### POST /api/auth/login/scanner
+Connexion email/password réservée aux comptes scanner.
+
+**Body:**
 ```json
-{
-  "token": "eyJhbGc...",
-  "user": {
-    "id": "uuid",
-    "email": "user@example.com",
-    "role": "CLIENT"
-  }
-}
+{ "email": "scanner@example.com", "password": "..." }
 ```
 
-### GET /api/auth/me
-Récupérer le profil utilisateur courant (JwtAuthGuard)
+#### POST /api/auth/refresh
+Rafraîchit la paire access/refresh token.
 
-## Events
+**Body:**
+```json
+{ "refreshToken": "..." }
+```
 
-### GET /api/events
-Lister tous les événements
+#### POST /api/auth/logout
+Efface les cookies d'authentification (`access_token`, `refresh_token`).
 
-### POST /api/events
-Créer un événement (Manager, JwtAuthGuard, RolesGuard)
+### Events (`EventsController`, préfixe `/api/events`)
+
+#### POST /api/events
+Créer un événement.
 
 **Body:**
 ```json
@@ -41,147 +55,41 @@ Créer un événement (Manager, JwtAuthGuard, RolesGuard)
 }
 ```
 
-### GET /api/events/:id
-Récupérer un événement
+⚠️ Cette route n'a actuellement **aucun guard d'authentification** dans le
+code (`events.controller.ts`) — à sécuriser avant mise en production.
 
-### GET /api/events/:slug/public
-Récupérer la page publique d'un événement (SSR, pas d'auth)
+#### GET /api/events/public/:slug
+Récupérer la page publique d'un événement par son slug (route publique,
+`@Public()`). Note : le slug est bien après `public/`, pas avant.
 
-## Tickets
+#### GET /api/events/:id
+Récupérer un événement par id.
 
-### POST /api/tickets/purchase
-Acheter des tickets
+#### GET /api/events
+Lister tous les événements.
 
-**Body:**
-```json
-{
-  "eventId": "uuid",
-  "ticketTypeId": "uuid",
-  "quantity": 2,
-  "attendeeInfo": [
-    {
-      "name": "John Doe",
-      "email": "john@example.com",
-      "phone": "+256701234567"
-    }
-  ]
-}
-```
+## 🚧 Prévu, pas encore implémenté
 
-**Response:**
-```json
-{
-  "orderId": "uuid",
-  "intentKey": "timestamp:secret",
-  "paymentUrl": "https://provider.com/checkout"
-}
-```
+Ces routes existent dans le cahier des charges mais n'ont **aucun controller
+NestJS correspondant** dans `apps/api/src` pour l'instant :
 
-### GET /api/tickets/:id
-Récupérer les détails d'un ticket (Client ou Scanner)
+- `POST /api/tickets/purchase`, `GET /api/tickets/:id`
+- `POST /api/payments/init`, `POST /api/payments/webhook/:provider`
+- `POST /api/scan/validate`
+- `PUT /api/builder/:eventId/blocks`
+- `GET /api/dashboard/manager/:eventId`, `GET /api/dashboard/client`, `GET /api/dashboard/admin`
 
-## Payments
-
-### POST /api/payments/init
-Initialiser un paiement
-
-**Body:**
-```json
-{
-  "orderId": "uuid",
-  "provider": "KKIAPAY",
-  "amount": 50000,
-  "currency": "XOF"
-}
-```
-
-**Response:**
-```json
-{
-  "paymentId": "uuid",
-  "redirectUrl": "https://kkiapay.com/pay?..."
-}
-```
-
-### POST /api/payments/webhook/:provider
-Recevoir les webhooks des providers (idempotence)
-
-## Scanner
-
-### POST /api/scan/validate
-Valider un scan QR (Anti double-scan atomique)
-
-**Body:**
-```json
-{
-  "qrCodeSignature": "hs256_signature",
-  "payload": "encrypted_json"
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "ticketName": "VIP",
-  "name": "John Doe",
-  "scannedAt": "2026-08-15T10:30:00Z"
-}
-```
-
-⚠️ Note: **Pas d'email/phone** dans la réponse (données sensibles)
-
-## Event Builder
-
-### PUT /api/builder/:eventId/blocks
-Mettre à jour les blocs du builder
-
-**Body:**
-```json
-{
-  "blocks": [
-    {
-      "type": "hero",
-      "position": 0,
-      "content": { "title": "...", "image": "..." }
-    }
-  ],
-  "lastKnownUpdatedAt": "2026-08-14T15:30:00Z"
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "updatedAt": "2026-08-14T15:31:00Z"
-}
-```
-
-⚠️ **409 Conflict** si `lastKnownUpdatedAt` ne match pas (concurrence optimiste)
-
-## Dashboard
-
-### GET /api/dashboard/manager/:eventId
-Dashboard manager (ventes, scans, revenus)
-
-### GET /api/dashboard/client
-Dashboard client (mes tickets, historique, factures)
-
-### GET /api/dashboard/admin
-Dashboard super admin (événements, utilisateurs, analytics)
+Ne pas les appeler depuis le frontend tant qu'ils ne sont pas livrés.
 
 ## Errors
 
-### Standard Response Format
+### Standard Response Format (NestJS par défaut)
 
 ```json
 {
   "statusCode": 400,
   "message": "Erreur détaillée",
-  "error": "Bad Request",
-  "timestamp": "2026-08-14T15:30:00Z",
-  "path": "/api/tickets/purchase"
+  "error": "Bad Request"
 }
 ```
 
@@ -193,30 +101,5 @@ Dashboard super admin (événements, utilisateurs, analytics)
 - **401**: Unauthorized (missing token)
 - **403**: Forbidden (insufficient permissions)
 - **404**: Not Found
-- **409**: Conflict (concurrence builder)
-- **429**: Too Many Requests (rate limit)
+- **429**: Too Many Requests (rate limit — `ThrottlerModule`)
 - **500**: Internal Server Error
-
-## Rate Limiting
-
-- **General**: 100 req/s per IP
-- **API**: 50 req/s per IP
-- **Auth**: 5 attempts/minute per email
-
-## Webhooks
-
-Tous les webhooks sont idempotents via `@unique(paymentId, externalId)`.
-
-Structure:
-```json
-{
-  "externalId": "provider_webhook_id",
-  "event": "payment.completed",
-  "timestamp": "2026-08-14T15:30:00Z",
-  "data": { "orderId": "uuid", "amount": 50000 }
-}
-```
-
-Response attendue: **200 OK**
-
-Retry: **3 fois** avec backoff exponentiel

@@ -56,29 +56,30 @@ pnpm db:generate
 
 ## 📦 Architecture v4.0.0
 
-### Nouvelles fonctionnalités
+### État réel des fonctionnalités (juillet 2026)
 
-✅ **Couche de stockage S3-compatible**
-- RustFS en dev (localhost:9000)
-- Supabase Storage en prod
-- AWS SDK S3 abstraite — zero modification de code
+✅ **Fonctionne de bout en bout**
+- Infrastructure Docker complète (PostgreSQL, Redis, Mailpit, RustFS, Nginx en prod)
+- Auth Google OAuth + login scanner + refresh/logout (`AuthController`)
+- CRUD événements de base (`EventsController`)
+- Format d'erreur/succès standardisé (filter + interceptor globaux)
 
-✅ **Infrastructure Docker complète**
-- PostgreSQL + Redis + Mailpit + RustFS
-- Nginx reverse proxy en prod
-- Multi-stage builds optimisés
+🚧 **Logique métier écrite et testée, mais pas encore branchée à une route HTTP**
+(providers présents dans `AppModule`, mais sans controller ni module importé) :
+- Stock atomique avec guard capacité (`payments/stock.service.ts`)
+- Idempotence webhook (`payments/webhook-idempotency.service.ts`)
+- Décision de scan QR / anti double-scan (`scanner/scan-decision.ts`)
+- Concurrence optimiste du builder (`builder/builder.concurrency.ts`)
+- Design de ticket (`ticket-design/ticket-design.service.ts`)
+- Normalisation téléphone pour notifications (`notifications/phone.service.ts`)
 
-✅ **Corrections de sécurité**
-- QR code signé HS256 (anti-tampering)
-- Idempotence webhook (`WebhookEvent @unique`)
-- Stock atomique avec guard capacité
-- Session JWT dynamique
-- Données scanner minimisées
-
-✅ **Jobs asynchrones**
-- BullMQ pour PDF generation
-- Notifications Email + WhatsApp
-- Retry automatique avec backoff
+❌ **Pas encore implémenté**
+- Couche de stockage S3 (aucun code `S3Client`/`StorageService` dans `apps/api/src`
+  malgré les dépendances `@aws-sdk/*` installées et RustFS qui tourne en Docker)
+- BullMQ / génération PDF (`pdf-queue` n'est qu'une coquille de module, non importé dans `AppModule`)
+- Notifications Email/WhatsApp effectives (pas de controller/trigger)
+- Endpoints tickets, paiements, scan, builder, dashboards (voir [docs/api.md](docs/api.md))
+- Guard d'authentification global — `@Public()` n'a donc pas d'effet réel pour l'instant
 
 ## 🔄 Dev Workflow
 
@@ -170,12 +171,14 @@ fluid-events/
 ├── apps/
 │   ├── api/              # NestJS Backend
 │   │   └── src/
-│   │       ├── auth/     # JWT + Google OAuth
-│   │       ├── events/   # Gestion événements
-│   │       ├── payments/ # Multi-provider (Kkiapay, CinetPay, FedaPay)
-│   │       ├── scan/     # PWA Scanner validation
-│   │       ├── builder/  # Event Builder no-code
-│   │       └── storage/  # StorageService S3-compatible
+│   │       ├── auth/         # JWT + Google OAuth — controller HTTP ✅
+│   │       ├── events/       # Gestion événements — controller HTTP ✅
+│   │       ├── payments/     # Stock/webhook/profil — services only, pas de controller HTTP
+│   │       ├── scanner/      # Décision de scan — services only, pas de controller HTTP
+│   │       ├── builder/      # Event Builder no-code — services only, pas de controller HTTP
+│   │       ├── tickets/      # Coquille de module, pas encore de logique
+│   │       ├── ticket-design/# Design des tickets — services only
+│   │       └── notifications/# Email/WhatsApp — services only
 │   │
 │   └── web/              # Next.js 15 Frontend
 │       └── app/
@@ -231,11 +234,10 @@ pnpm typecheck           # TypeScript check
 
 ## ⚠️ Notes importantes
 
-1. **RustFS** remplace MinIO (déprécié en avril 2026) — image officielle Apache 2.0
-2. **Données scanner minimisées** — email/phone exclus de la réponse
-3. **Stock atomique** — guard capacité contre race conditions
-4. **Idempotence webhook** — contrainte `WebhookEvent @unique`
-5. **1 Manager = 1 Événement** — contrainte intentionnelle V1
+1. **RustFS** remplace MinIO (déprécié en avril 2026) — image officielle Apache 2.0, tourne en Docker
+2. **Données scanner minimisées**, **stock atomique**, **idempotence webhook** — logique écrite et testée
+   (`scanner/`, `payments/`) mais **pas encore exposée via un endpoint HTTP** (voir état réel plus haut)
+3. **1 Manager = 1 Événement** — contrainte intentionnelle V1
 
 ## 🆘 Troubleshooting
 
@@ -262,9 +264,15 @@ pnpm db:migrate
 ### Port déjà utilisé?
 
 ```bash
-# Lister les ports
+# macOS/Linux
 lsof -i :3000  # Next.js
 lsof -i :4000  # NestJS
+
+# Windows
+netstat -ano | findstr :3000
+netstat -ano | findstr :4000
+taskkill /PID <PID> /F
+
 docker compose down  # Arrêter tous les services
 ```
 

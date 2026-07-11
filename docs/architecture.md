@@ -1,5 +1,10 @@
 # Architecture Globale
 
+> ⚠️ Ce document décrit l'architecture **cible**. Au moment de la rédaction,
+> seuls les modules `auth` et `events` sont implémentés côté API (voir
+> [api.md](./api.md)) — les flux Tickets/Paiements/Scanner/Builder ci-dessous
+> sont le design prévu, pas l'état actuel du code.
+
 ## Vue d'ensemble
 
 ```
