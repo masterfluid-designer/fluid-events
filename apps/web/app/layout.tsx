@@ -1,21 +1,24 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter, Newsreader } from "next/font/google";
 
 import "./globals.css";
 import { Providers } from "@/components/providers";
 
-const fontSans = Geist({
+const fontSans = Inter({
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800"],
   variable: "--font-sans",
 });
 
-const fontMono = Geist_Mono({
+const fontSerif = Newsreader({
   subsets: ["latin"],
-  variable: "--font-mono",
+  weight: ["400", "500"],
+  style: ["normal", "italic"],
+  variable: "--font-serif",
 });
 
 export const metadata: Metadata = {
-  title: "Eventio — SaaS Événementiel & Billetterie",
+  title: "Fluid Events — SaaS Événementiel & Billetterie",
   description:
     "Créez, vendez et contrôlez l'accès à vos événements. Paiement Mobile Money, billetterie QR, scanner PWA.",
 };
@@ -29,7 +32,7 @@ export default function RootLayout({
     <html
       lang="fr"
       suppressHydrationWarning
-      className={`${fontSans.variable} ${fontMono.variable} font-sans antialiased`}
+      className={`${fontSans.variable} ${fontSerif.variable} font-sans antialiased`}
     >
       <body>
         <Providers>{children}</Providers>

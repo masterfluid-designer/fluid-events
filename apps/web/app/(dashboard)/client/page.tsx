@@ -88,18 +88,30 @@ function TicketCard({ ticket }: { ticket: ClientTicket }) {
   }).format(new Date(ticket.startDate));
 
   return (
-    <Card className="overflow-hidden">
+    <Card
+      className={`overflow-hidden py-0 ${ticket.isScanned ? 'opacity-75' : 'border-black dark:border-white'}`}
+    >
       <div className="flex">
         {/* Section visuelle */}
-        <div className="flex w-28 shrink-0 items-center justify-center bg-primary/10">
-          <QrCode className="size-12 text-primary/70" />
+        <div
+          className={`flex w-24 shrink-0 items-center justify-center ${
+            ticket.isScanned ? 'bg-secondary' : 'bg-primary'
+          }`}
+        >
+          <QrCode
+            className={`size-8 ${
+              ticket.isScanned ? 'text-muted-foreground opacity-40' : 'text-primary-foreground'
+            }`}
+          />
         </div>
         {/* Infos */}
-        <div className="flex-1 p-4">
+        <div className="flex-1 p-4.5">
           <div className="mb-2 flex items-start justify-between gap-2">
             <div>
-              <h3 className="font-semibold leading-tight">{ticket.eventName}</h3>
-              <p className="text-sm text-primary">{ticket.ticketName}</p>
+              <h3 className="font-bold leading-tight">{ticket.eventName}</h3>
+              <p className="text-accent-terracotta dark:text-accent-terracotta-dark text-sm font-semibold">
+                {ticket.ticketName}
+              </p>
             </div>
             {ticket.isScanned ? (
               <Badge variant="success">✓ Utilisé</Badge>
@@ -107,7 +119,7 @@ function TicketCard({ ticket }: { ticket: ClientTicket }) {
               <Badge variant="secondary">Valide</Badge>
             )}
           </div>
-          <div className="space-y-1 text-xs text-muted-foreground">
+          <div className="space-y-0.5 text-xs text-muted-foreground">
             <div className="flex items-center gap-1.5">
               <Calendar className="size-3" /> {formattedDate}
             </div>
@@ -116,14 +128,16 @@ function TicketCard({ ticket }: { ticket: ClientTicket }) {
             </div>
             <div className="font-mono">Réf : {ticket.orderNumber}</div>
           </div>
-          <div className="mt-3 flex gap-2">
-            <Button size="sm" variant="outline">
-              <QrCode className="size-3.5" /> Voir QR
-            </Button>
-            <Button size="sm" variant="ghost">
-              <Download className="size-3.5" /> PDF
-            </Button>
-          </div>
+          {!ticket.isScanned && (
+            <div className="mt-3 flex gap-2">
+              <Button size="sm" variant="outline">
+                <QrCode className="size-3.5" /> Voir QR
+              </Button>
+              <Button size="sm" variant="ghost">
+                <Download className="size-3.5" /> PDF
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     </Card>

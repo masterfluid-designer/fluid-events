@@ -12,8 +12,8 @@ import { PdfQueueModule } from './pdf-queue/pdf-queue.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { AdminModule } from './admin/admin.module';
 import { TicketDesignModule } from './ticket-design/ticket-design.module';
-import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
-import { RolesGuard } from './auth/guards/roles.guard';
+import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
+import { RolesGuard } from './common/guards/roles.guard';
 import { HttpExceptionFilter } from './common/filters/http-exception-filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 
@@ -26,8 +26,12 @@ import { ResponseInterceptor } from './common/interceptors/response.interceptor'
  *  - HttpExceptionFilter  → format d'erreur standardisé (CDC §6.12)
  *  - ResponseInterceptor  → format de succès { success: true, data }
  *
- * Les modules métier gèrent leurs propres providers/services.
- * Aucune logique métier n'est importée directement dans AppModule.
+ * Les modules métier gèrent leurs propres providers/services. AuthModule et
+ * EventsModule exposent déjà leurs controllers HTTP ; scanner/builder/
+ * tickets/payments/pdf-queue/admin restent des coquilles vides tant que
+ * leurs controllers ne sont pas écrits (prochaine étape). Leur logique
+ * métier déjà écrite et testée est provisionnée via payments/ticket-design/
+ * notifications modules en attendant.
  */
 @Module({
   imports: [

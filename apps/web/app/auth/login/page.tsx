@@ -1,40 +1,24 @@
-'use client';
+"use client";
 
-import { useState, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
-import Link from 'next/link';
-import { Ticket, Mail, ShieldAlert } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Suspense, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { motion } from "framer-motion";
+import Link from "next/link";
+import { Mail, ShieldAlert, Ticket, ArrowRight } from "lucide-react";
+import Header from "@/components/Header";
+import Lines from "@/components/Lines";
 
-/**
- * Page de connexion — 2 flux distincts (CDC §7) :
- *  - Clients & Managers : Google OAuth (bouton principal)
- *  - Scanners : login email/password (JWT dédié, exp = endDate + 1h)
- *
- * Le paramètre ?redirect= est propagé au backend lors de l'OAuth pour
- * revenir sur la page d'origine après authentification.
- */
 function LoginForm() {
   const searchParams = useSearchParams();
-  const redirectTo = searchParams.get('redirect') ?? '/';
+  const redirectTo = searchParams.get("redirect") ?? "/";
   const [scannerMode, setScannerMode] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   function handleGoogleLogin() {
-    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? '';
+    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "";
     const params = new URLSearchParams({ redirect: redirectTo });
     window.location.href = `${apiBase}/api/auth/google?${params.toString()}`;
   }
@@ -44,117 +28,157 @@ function LoginForm() {
     setLoading(true);
     setError(null);
     try {
-      const apiBase = process.env.NEXT_PUBLIC_API_URL ?? '';
+      const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "";
       const res = await fetch(`${apiBase}/api/auth/scanner/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ email, password }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => null);
-        throw new Error(body?.error?.message ?? 'Connexion échouée');
+        throw new Error(body?.error?.message ?? "Connexion échouée");
       }
-      window.location.href = '/scanner/scan';
+      window.location.href = "/scanner/scan";
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur');
+      setError(err instanceof Error ? err.message : "Erreur");
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <main className="flex min-h-svh items-center justify-center bg-muted/30 px-4 py-12">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-3 text-center">
-          <div className="mx-auto flex size-12 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-            <Ticket className="size-6" />
+    <>
+      <Header />
+      <main className="relative overflow-hidden bg-alabaster dark:bg-blackho">
+        <Lines />
+        <section className="pb-12.5 pt-32.5 lg:pb-25 lg:pt-45 xl:pb-30 xl:pt-50">
+          <div className="relative z-1 mx-auto max-w-125 px-4">
+            <motion.div
+              variants={{
+                hidden: { opacity: 0, y: -20 },
+                visible: { opacity: 1, y: 0 },
+              }}
+              initial="hidden"
+              whileInView="visible"
+              transition={{ duration: 1, delay: 0.1 }}
+              viewport={{ once: true }}
+              className="animate_top rounded-2xl border border-stroke bg-white p-10 shadow-solid-2 dark:border-strokedark dark:bg-blacksection"
+            >
+              <div className="mb-8 text-center">
+                <div className="mx-auto mb-5 flex size-13 items-center justify-center rounded-full bg-alabaster dark:bg-blackho">
+                  <Ticket className="size-6 text-black dark:text-white" />
+                </div>
+                <h1 className="mb-2 text-2xl font-bold text-black dark:text-white">
+                  {scannerMode ? "Connexion scanner" : "Connexion à Fluid Events"}
+                </h1>
+                <p className="text-sm">
+                  {scannerMode
+                    ? "Accédez au contrôle d'entrée de votre événement."
+                    : "Connectez-vous pour acheter, organiser ou gérer vos événements."}
+                </p>
+              </div>
+
+              {error && (
+                <div className="mb-6 flex items-center gap-3 rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
+                  <ShieldAlert className="size-4 shrink-0" />
+                  <span>{error}</span>
+                </div>
+              )}
+
+              {!scannerMode ? (
+                <div>
+                  <button
+                    type="button"
+                    onClick={handleGoogleLogin}
+                    aria-label="continuer avec google"
+                    className="mb-6 flex w-full items-center justify-center gap-2.5 rounded-full border border-stroke bg-secondary px-6 py-3.5 text-sm font-semibold text-black transition-all duration-300 hover:bg-alabaster dark:border-strokedark dark:bg-blackho dark:text-white dark:hover:bg-hoverdark"
+                  >
+                    <Mail className="size-4.5" />
+                    Continuer avec Google
+                  </button>
+
+                  <div className="mb-6 flex items-center gap-3.5">
+                    <span className="h-px flex-1 bg-stroke dark:bg-strokedark" />
+                    <p className="text-xs text-manatee dark:text-waterloo">
+                      ou accès scanner dédié
+                    </p>
+                    <span className="h-px flex-1 bg-stroke dark:bg-strokedark" />
+                  </div>
+
+                  <div className="text-center">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setScannerMode(true);
+                        setError(null);
+                      }}
+                      className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground duration-300 ease-in-out hover:bg-primaryho dark:hover:bg-hoverdark"
+                    >
+                      Connexion scanner
+                      <ArrowRight className="size-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <form onSubmit={handleScannerLogin} className="flex flex-col gap-5">
+                  <input
+                    type="email"
+                    placeholder="Email scanner"
+                    name="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full rounded-lg border border-stroke bg-white px-4 py-3 text-sm focus:border-black focus-visible:outline-hidden dark:border-strokedark dark:bg-blackho dark:text-white dark:focus:border-manatee"
+                    required
+                  />
+                  <input
+                    type="password"
+                    placeholder="Mot de passe"
+                    name="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full rounded-lg border border-stroke bg-white px-4 py-3 text-sm focus:border-black focus-visible:outline-hidden dark:border-strokedark dark:bg-blackho dark:text-white dark:focus:border-manatee"
+                    required
+                  />
+
+                  <div className="mt-2 flex flex-wrap items-center justify-between gap-4">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setScannerMode(false);
+                        setError(null);
+                      }}
+                      className="text-sm font-medium text-waterloo hover:text-black dark:text-manatee dark:hover:text-white"
+                    >
+                      Connexion organisateur / client
+                    </button>
+
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      aria-label="login scanner"
+                      className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground duration-300 ease-in-out hover:bg-primaryho disabled:opacity-60"
+                    >
+                      {loading ? "Connexion..." : "Se connecter"}
+                      <ArrowRight className="size-3.5" />
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              <div className="mt-9 border-t border-stroke pt-5 text-center dark:border-strokedark">
+                <Link
+                  className="text-sm font-semibold text-waterloo hover:text-black dark:text-manatee dark:hover:text-white"
+                  href="/"
+                >
+                  ← Retour à l'accueil
+                </Link>
+              </div>
+            </motion.div>
           </div>
-          <CardTitle className="text-2xl">Connexion</CardTitle>
-          <CardDescription>
-            {scannerMode
-              ? 'Accès scanner — contrôle d\'accès événement'
-              : 'Connectez-vous pour acheter ou gérer vos événements'}
-          </CardDescription>
-        </CardHeader>
-
-        <CardContent className="space-y-4">
-          {error && (
-            <div className="flex items-center gap-2 rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
-              <ShieldAlert className="size-4 shrink-0" />
-              <span>{error}</span>
-            </div>
-          )}
-
-          {!scannerMode ? (
-            <>
-              <Button
-                variant="outline"
-                className="w-full"
-                size="lg"
-                onClick={handleGoogleLogin}
-              >
-                <Mail className="size-4" />
-                Continuer avec Google
-              </Button>
-              <p className="text-center text-xs text-muted-foreground">
-                En continuant, vous acceptez d'être authentifié via Google OAuth.
-              </p>
-            </>
-          ) : (
-            <form onSubmit={handleScannerLogin} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email scanner</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  required
-                  placeholder="scanner@event.io"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  autoComplete="email"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Mot de passe</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  autoComplete="current-password"
-                />
-              </div>
-              <Button type="submit" className="w-full" size="lg" disabled={loading}>
-                {loading ? 'Connexion...' : 'Se connecter'}
-              </Button>
-            </form>
-          )}
-        </CardContent>
-
-        <CardFooter className="flex flex-col gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              setScannerMode((v) => !v);
-              setError(null);
-            }}
-            className="text-xs text-muted-foreground underline-offset-4 hover:underline"
-          >
-            {scannerMode
-              ? '← Connexion organisateur / client'
-              : 'Vous êtes scanner ? Connexion dédiée →'}
-          </button>
-          <Link
-            href="/"
-            className="text-xs text-muted-foreground hover:text-foreground"
-          >
-            ← Retour à l'accueil
-          </Link>
-        </CardFooter>
-      </Card>
-    </main>
+        </section>
+      </main>
+    </>
   );
 }
 

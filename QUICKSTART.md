@@ -24,6 +24,10 @@ Le script fait automatiquement:
 
 **⏱️ Durée: ~5-10 minutes**
 
+⚠️ Le script affichera une ligne `❌ Seeding database with test data - FAILED` — c'est
+normal et sans conséquence : le script `db:seed` n'est pas encore câblé dans
+`package.json` (voir plus bas). Tout le reste de l'installation fonctionne.
+
 ---
 
 ### 2️⃣ Installation Manuelle (Alternative)
@@ -47,9 +51,12 @@ docker compose up -d
 # 5. Attendre que les services soient prêts (30s)
 # Attendez que postgres, redis, mailpit et rustfs soient en ligne
 
-# 6. Créer les tables et seeder
+# 6. Créer les tables
 pnpm db:migrate
-pnpm db:seed
+
+# 7. (Optionnel) Seeder des données de test — script pas encore relié à pnpm,
+# à lancer manuellement :
+pnpm --filter @saas-events/api exec ts-node prisma/seed.ts
 ```
 
 ---
@@ -194,13 +201,10 @@ docker compose logs -f postgres
 # Exécuter une commande dans un container
 docker compose exec api npm run build
 
-# Réinitialiser complètement la DB
-pnpm db:reset
-
 # Voir l'état du projet
 pnpm build
-pnpm lint
-pnpm test
+pnpm lint    # ne lint actuellement que apps/web (apps/api n'a pas de script lint)
+pnpm test    # ne teste actuellement que apps/api (apps/web n'a pas de script test)
 ```
 
 ---

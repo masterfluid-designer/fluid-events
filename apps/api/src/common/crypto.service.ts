@@ -35,14 +35,12 @@ export class CryptoService {
     encryptionKeyHex?: string,
   ) {
     const keyHex = encryptionKeyHex ?? process.env.ENCRYPTION_KEY;
-    const normalizedKeyHex = keyHex ?? '0000000000000000000000000000000000000000000000000000000000000000';
-
-    if (!/^[0-9a-fA-F]{64}$/.test(normalizedKeyHex)) {
+    if (!keyHex || !/^[0-9a-fA-F]{64}$/.test(keyHex)) {
       throw new Error(
         'ENCRYPTION_KEY invalide : 32 bytes requis (64 caractères hexadécimaux).',
       );
     }
-    this.key = Buffer.from(normalizedKeyHex, 'hex');
+    this.key = Buffer.from(keyHex, 'hex');
   }
 
   /** Chiffre un plaintext → renvoie `iv:tag:encrypted` (hex). */

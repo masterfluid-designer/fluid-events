@@ -1,1 +1,247 @@
 @import "tailwindcss";
+
+/* ============================================================
+   Fluid Events — Design System (Solid + shadcn/ui fusion)
+   Tailwind v4 — @theme + @utility
+   ============================================================ */
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  /* ── Fonts ── */
+  --font-*: initial;
+  --font-sans: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-mono), ui-monospace, monospace;
+  --font-serif: var(--font-serif), ui-serif, serif;
+  --font-inter: var(--font-sans), ui-sans-serif, sans-serif;
+
+  /* ── Colors ── */
+  --color-current: currentColor;
+  --color-transparent: transparent;
+
+  /* Fluid Events palette — chaud, noir & blanc, accent terracotta unique */
+  --color-stroke: #e7e4de;
+  --color-strokedark: #2e2c29;
+  --color-hoverdark: #24221f;
+  --color-titlebg: #f3e6d8;
+  --color-titlebg2: #ffeac2;
+  --color-titlebgdark: #332f2b;
+  --color-btndark: #211f1c;
+  --color-white: #ffffff;
+  --color-black: #1c1b1a;
+  --color-blackho: #141312;
+  --color-blacksection: #1b1a18;
+  --color-primary: #1c1b1a;
+  --color-primaryho: #3d3a35;
+  --color-accent-terracotta: oklch(58% 0.15 45);
+  --color-accent-terracotta-dark: oklch(70% 0.16 40);
+  --color-meta: oklch(58% 0.16 145);
+  --color-waterloo: #6b6862;
+  --color-manatee: #9c988f;
+  --color-alabaster: #f3f1ec;
+  --color-zumthor: #f3f1ec;
+  --color-socialicon: #d8d5ce;
+
+  /* shadcn/ui semantic mapping */
+  --color-background: var(--color-alabaster);
+  --color-foreground: var(--color-black);
+  --color-card: var(--color-white);
+  --color-card-foreground: var(--color-black);
+  --color-popover: var(--color-white);
+  --color-popover-foreground: var(--color-black);
+  --color-primary-foreground: var(--color-alabaster);
+  --color-secondary: #fbfaf8;
+  --color-secondary-foreground: var(--color-black);
+  --color-muted: #efede7;
+  --color-muted-foreground: var(--color-waterloo);
+  --color-accent: var(--color-alabaster);
+  --color-accent-foreground: var(--color-black);
+  --color-destructive: oklch(55% 0.18 25);
+  --color-destructive-foreground: var(--color-white);
+  --color-border: var(--color-stroke);
+  --color-input: var(--color-stroke);
+  --color-ring: var(--color-accent-terracotta);
+
+  /* ── Typography scale ── */
+  --text-metatitle: 12px, 20px;
+  --text-sectiontitle: 14px, 22px;
+  --text-regular: 16px, 26px;
+  --text-metatitle3: 18px, 26px;
+  --text-metatitle2: 20px, 32px;
+  --text-para2: 22px, 35px;
+  --text-itemtitle: 26px, 32px;
+  --text-itemtitle2: 24px, 32px;
+  --text-hero: 44px, 58px;
+  --text-sectiontitle3: 44px, 55px;
+  --text-sectiontitle2: 40px, 52px;
+  --text-sectiontitle4: 34px, 48px;
+
+  /* ── Containers ── */
+  --container-c-1390: 86.875rem;
+  --container-c-1315: 82.188rem;
+  --container-c-1280: 80rem;
+  --container-c-1235: 77.188rem;
+  --container-c-1154: 72.125rem;
+  --container-c-1016: 63.5rem;
+
+  /* ── Z-Index ── */
+  --z-index-1: 1;
+  --z-index-999: 999;
+  --z-index-99999: 99999;
+
+  /* ── Shadows ── */
+  --shadow-solid-l: 0px 10px 120px 0px rgba(45, 74, 170, 0.1);
+  --shadow-solid-2: 0px 2px 10px rgba(122, 135, 167, 0.05);
+  --shadow-solid-3: 0px 6px 90px rgba(8, 14, 40, 0.04);
+  --shadow-solid-4: 0px 6px 90px rgba(8, 14, 40, 0.1);
+  --shadow-solid-5: 0px 8px 24px rgba(45, 74, 170, 0.08);
+  --shadow-solid-6: 0px 8px 24px rgba(10, 16, 35, 0.08);
+  --shadow-solid-7: 0px 30px 50px rgba(45, 74, 170, 0.1);
+  --shadow-solid-8: 0px 12px 120px rgba(45, 74, 170, 0.06);
+  --shadow-solid-9: 0px 12px 30px rgba(45, 74, 170, 0.06);
+  --shadow-solid-10: 0px 8px 30px rgba(45, 74, 170, 0.06);
+  --shadow-solid-11: 0px 6px 20px rgba(45, 74, 170, 0.05);
+  --shadow-solid-12: 0px 2px 10px rgba(0, 0, 0, 0.05);
+  --shadow-solid-13: 0px 2px 19px rgba(0, 0, 0, 0.05);
+
+  /* ── Animations ── */
+  --animate-line1: line 3s linear infinite;
+  --animate-line2: line 6s linear infinite;
+  --animate-line3: line 9s linear infinite;
+  --animate-fade-in: fadeIn 0.6s ease-out forwards;
+  --animate-slide-up: slideUp 0.6s ease-out forwards;
+
+  @keyframes line {
+    0%,
+    100% {
+      transform: translateY(-100%);
+    }
+    100% {
+      transform: translateY(100vh);
+    }
+  }
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes slideUp {
+    from {
+      opacity: 0;
+      transform: translateY(24px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+/* ── Base layer ── */
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+
+  body {
+    @apply relative z-1 font-sans text-regular font-normal text-waterloo dark:text-manatee;
+  }
+
+  ::selection {
+    background: oklch(58% 0.15 45 / 0.25);
+  }
+}
+
+/* ── Utilities ── */
+@utility no-scrollbar {
+  &::-webkit-scrollbar {
+    display: none;
+  }
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+@utility img-white {
+  filter: invert(0%) sepia(96%) saturate(15%) hue-rotate(249deg)
+    brightness(100%) contrast(105%);
+}
+
+/* ── Animate-on-scroll helper ── */
+@utility animate_top {
+  @apply translate-y-6 opacity-0;
+  animation: slideUp 0.6s ease-out forwards;
+}
+
+/* Stagger children */
+.stagger-children > *:nth-child(1) {
+  animation-delay: 0ms;
+}
+.stagger-children > *:nth-child(2) {
+  animation-delay: 100ms;
+}
+.stagger-children > *:nth-child(3) {
+  animation-delay: 200ms;
+}
+.stagger-children > *:nth-child(4) {
+  animation-delay: 300ms;
+}
+.stagger-children > *:nth-child(5) {
+  animation-delay: 400ms;
+}
+.stagger-children > *:nth-child(6) {
+  animation-delay: 500ms;
+}
+
+/* ── shadcn/ui compatibility ── */
+@layer base {
+  :root {
+    --radius: 0.625rem;
+    --sidebar-background: var(--color-alabaster);
+    --sidebar-foreground: var(--color-waterloo);
+    --sidebar-primary: var(--color-black);
+    --sidebar-primary-foreground: var(--color-alabaster);
+    --sidebar-accent: var(--color-zumthor);
+    --sidebar-accent-foreground: var(--color-black);
+    --sidebar-border: var(--color-stroke);
+    --sidebar-ring: var(--color-primary);
+  }
+
+  .dark {
+    --color-background: var(--color-blackho);
+    --color-foreground: #f3f1ec;
+    --color-card: var(--color-blacksection);
+    --color-card-foreground: #f3f1ec;
+    --color-popover: var(--color-blacksection);
+    --color-popover-foreground: #f3f1ec;
+    --color-primary: #f3f1ec;
+    --color-primary-foreground: var(--color-black);
+    --color-secondary: var(--color-titlebgdark);
+    --color-secondary-foreground: #f3f1ec;
+    --color-muted: var(--color-titlebgdark);
+    --color-muted-foreground: var(--color-manatee);
+    --color-accent: var(--color-hoverdark);
+    --color-accent-foreground: #f3f1ec;
+    --color-border: var(--color-strokedark);
+    --color-input: var(--color-strokedark);
+    --color-ring: var(--color-accent-terracotta-dark);
+    --sidebar-background: var(--color-blackho);
+    --sidebar-foreground: var(--color-manatee);
+    --sidebar-primary: #f3f1ec;
+    --sidebar-primary-foreground: var(--color-black);
+    --sidebar-accent: var(--color-hoverdark);
+    --sidebar-accent-foreground: #f3f1ec;
+    --sidebar-border: var(--color-strokedark);
+  }
+}
+
+/* Blog / docs prose overrides */
+.blog-details-docs {
+  @apply rounded-lg border border-white p-7.5 shadow-solid-3 transition-all dark:border-strokedark dark:bg-blacksection xl:p-12.5;
+}

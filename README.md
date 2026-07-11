@@ -73,17 +73,23 @@ fluid-events/
 - [Cahier des Charges Complet](./docs/cahier-des-charges.md)
 - [Architecture](./docs/architecture.md)
 - [API Endpoints](./docs/api.md)
-- [Database Schema](./docs/database.md)
 
 ## 🔐 Sécurité
 
-- ✅ JWT HS256 avec expiration dynamique (event.endDate + 24h)
-- ✅ Transactions atomiques pour le stock des tickets
-- ✅ Anti double-scan QR avec locks atomiques
-- ✅ Idempotence webhook (contrainte unique `@unique(paymentId, externalId)`)
-- ✅ XSS mitigation (whitelist Supabase + regex validation)
-- ✅ Logs d'audit complets
-- ✅ Rate limiting (100 req/s général, 50 req/s API)
+Implémenté et branché à une route HTTP :
+- ✅ JWT HS256 (auth Google OAuth + login scanner, `AuthController`)
+- ✅ Logs d'audit sur les flux d'auth (`AuditService` via `AuthModule`)
+
+Logique écrite et testée, mais **pas encore reliée à un endpoint** (services
+présents en `providers` bruts dans `AppModule`, sans controller) :
+- 🚧 Transactions atomiques pour le stock des tickets (`payments/stock.service.ts`)
+- 🚧 Anti double-scan QR (`scanner/scan-decision.ts`)
+- 🚧 Idempotence webhook (`payments/webhook-idempotency.service.ts`)
+
+Pas encore implémenté :
+- ❌ Rate limiting — `@nestjs/throttler` est une dépendance mais aucun `ThrottlerModule`
+  n'est importé dans `app.module.ts` actuellement
+- ❌ XSS mitigation / whitelist Supabase — aucun code trouvé dans `apps/api/src`
 
 ## 🐳 Docker
 
@@ -109,8 +115,14 @@ docker compose -f docker-compose.prod.yml up -d
 ```bash
 pnpm db:migrate     # Créer une migration
 pnpm db:generate    # Générer le client Prisma
-pnpm db:seed        # Seeder (données de test)
-pnpm db:reset       # Reset complet
+pnpm db:studio      # Ouvrir Prisma Studio
+```
+
+⚠️ `db:seed` et `db:reset` ne sont **pas encore** définis comme scripts pnpm.
+Un script de seed existe (`apps/api/prisma/seed.ts`) mais n'est pas encore relié
+à `package.json` — pour l'exécuter manuellement en attendant :
+```bash
+pnpm --filter @saas-events/api exec ts-node prisma/seed.ts
 ```
 
 ## 🧪 Tests
@@ -123,17 +135,12 @@ pnpm test:cov       # Coverage
 
 ## 📦 Déploiement
 
-Voir [`docs/deployment.md`](./docs/deployment.md) pour :
-- GitHub Actions CI/CD
-- Déploiement Docker Swarm
-- Configuration Supabase
-- Upstash Redis
-- Resend Email
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build -d
+```
+
+Services externes en prod : Supabase (PostgreSQL + Storage), Upstash (Redis), Resend (SMTP).
 
 ## 📝 Licence
 
-MIT — Voir `LICENSE` pour les détails
-
-## 👥 Contribution
-
-Les contributions sont bienvenues ! Voir `CONTRIBUTING.md` pour les guidelines.
+UNLICENSED — projet privé (voir `package.json`).
