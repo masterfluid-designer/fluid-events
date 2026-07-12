@@ -111,18 +111,14 @@ export class TicketDesignService {
    *  - designImageUrl → sanitizeImageUrl (whitelist bucket Supabase)
    *  - toutes autres variables → escapeHtml
    *
-   * @throws si SUPABASE_URL est absent (buildAllowedImageBase en a besoin)
+   * Si `designImageUrl` est absent (cas courant — pas d'image personnalisée),
+   * SUPABASE_URL n'est même pas requis : la vérification de whitelist ne sert
+   * qu'à valider une image réellement fournie.
    */
   buildHtml(params: TicketRenderParams): string {
-    const supabaseUrl = process.env.SUPABASE_URL;
-    if (!supabaseUrl) {
-      throw new Error('SUPABASE_URL manquant — sanitisation URL impossible.');
-    }
-    const allowedBase = buildAllowedImageBase(supabaseUrl);
-
     // ── Sanitisation de chaque variable (jamais d'interpolation brute) ──────
     const bgColor = sanitizeBgColor(params.designBgColor);
-    const imageUrl = sanitizeImageUrl(params.designImageUrl, allowedBase);
+    const imageUrl = params.designImageUrl ? this.sanitizeDesignImageUrl(params.designImageUrl) : '';
     const eventName = escapeHtml(params.eventName);
     const ticketType = escapeHtml(params.ticketType);
     const orderNumber = escapeHtml(params.orderNumber);
@@ -181,5 +177,22 @@ export class TicketDesignService {
   </div>
 </body>
 </html>`;
+  }
+
+  /**
+   * Valide `designImageUrl` contre la whitelist du bucket (CDC §9.3).
+   * Non-bloquant : si SUPABASE_URL est absent (dev sans Supabase configuré),
+   * on ignore l'image plutôt que de faire échouer toute la génération du
+   * billet pour une fonctionnalité optionnelle.
+   */
+  private sanitizeDesignImageUrl(url: string): string {
+    const supabaseUrl = process.env.SUPABASE_URL;
+    if (!supabaseUrl) {
+      this.logger.warn(
+        'SUPABASE_URL manquant — image de design ignorée (whitelist impossible).',
+      );
+      return '';
+    }
+    return sanitizeImageUrl(url, buildAllowedImageBase(supabaseUrl));
   }
 }

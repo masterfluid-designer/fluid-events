@@ -69,4 +69,34 @@ export class StockService {
     }
     return success;
   }
+
+  /**
+   * Libère le stock précédemment réservé (webhook paiement en échec, CDC §8).
+   *
+   * Symétrique de `decrementStockAtomic` : une réservation faite à l'init du
+   * paiement (avant confirmation provider) doit être annulée si le paiement
+   * échoue, sinon le stock reste bloqué indéfiniment sur des commandes mortes.
+   *
+   * @param tx Transaction Prisma active
+   * @param ticketId ID du billet
+   * @param quantity Quantité à relâcher (doit correspondre à la réservation initiale)
+   */
+  async releaseStockAtomic(
+    tx: {
+      ticket: {
+        updateMany: (args: {
+          where: { id: string };
+          data: { stockSold: { decrement: number } };
+        }) => Promise<{ count: number }>;
+      };
+    },
+    ticketId: string,
+    quantity: number,
+  ): Promise<void> {
+    await tx.ticket.updateMany({
+      where: { id: ticketId },
+      data: { stockSold: { decrement: quantity } },
+    });
+    this.logger.debug(`Stock relâché — ticket ${ticketId}, quantité ${quantity}.`);
+  }
 }

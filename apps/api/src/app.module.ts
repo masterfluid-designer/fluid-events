@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { BullModule } from '@nestjs/bull';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
@@ -36,6 +37,9 @@ import { ResponseInterceptor } from './common/interceptors/response.interceptor'
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    // Connexion Redis partagée par toutes les queues BullMQ (CDC ADR §3 —
+    // génération PDF asynchrone, hors chemin critique webhook).
+    BullModule.forRoot(parseRedisUrl(process.env.REDIS_URL)),
     PrismaModule,
     AuthModule,
     EventsModule,
@@ -57,3 +61,18 @@ import { ResponseInterceptor } from './common/interceptors/response.interceptor'
   ],
 })
 export class AppModule {}
+
+/** Parse REDIS_URL ("redis://[:password@]host:port") en config `bull`/ioredis. */
+function parseRedisUrl(redisUrl: string | undefined) {
+  if (!redisUrl) {
+    throw new Error('REDIS_URL manquant — nécessaire pour les queues BullMQ.');
+  }
+  const parsed = new URL(redisUrl);
+  return {
+    redis: {
+      host: parsed.hostname,
+      port: Number(parsed.port || 6379),
+      ...(parsed.password ? { password: parsed.password } : {}),
+    },
+  };
+}

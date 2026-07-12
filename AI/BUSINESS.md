@@ -50,6 +50,8 @@ enum Role { SUPER_ADMIN, MANAGER, SCANNER, CLIENT }
 ## 6. Règles de paiement
 
 - Multi-provider : au moins Kkiapay identifié dans les exemples, avec CinetPay et FedaPay prévus au roadmap (mobile money africain).
+- **Spécificité Kkiapay (implémentée)** : pas de "checkoutUrl" côté serveur — le paiement s'initie via le widget JS client (`openKkiapayWidget`), avec `partnerId` = notre `Order.id` transmis en donnée de corrélation. Le webhook (authentifié par un secret partagé, pas de HMAC) est **systématiquement re-vérifié côté serveur** via `k.verify(transactionId)` avant de considérer un paiement confirmé (recommandation explicite de la doc Kkiapay, anti-fraude).
+- Un seul compte/config Kkiapay global (`PaymentProviderConfig.provider` `@unique`) — pas de clés par Manager en V1. Les modalités de reversement aux organisateurs restent un point ouvert (§12).
 - Montants exprimés a minima en XOF dans les exemples fournis — *la gestion multi-devises pour d'autres pays n'est pas explicitement traitée, voir section 12.*
 - Un `Order` n'est confirmé (billets + QR générés) qu'après réception et traitement du **webhook** du provider, jamais uniquement sur la redirection front (qui peut être interrompue).
 - **Idempotence obligatoire** : un webhook reçu plusieurs fois (retry provider, jusqu'à 3 tentatives avec backoff exponentiel) ne doit générer les effets de bord (tickets, emails) qu'une seule fois.

@@ -1,7 +1,17 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
+import type { Request } from 'express';
 import { JwtPayload, Role, ErrorCodes } from '@saas-events/types';
+
+/**
+ * Extrait le JWT depuis le cookie httpOnly `access_token` (CDC §7.3).
+ * Utilisé en repli quand aucun header Authorization: Bearer n'est présent —
+ * c'est le mode d'auth par défaut du frontend Next.js (`credentials: 'include'`).
+ */
+function extractFromCookie(req: Request): string | null {
+  return req?.cookies?.access_token ?? null;
+}
 
 /**
  * JwtStrategy — Extrait et valide le JWT depuis l'en-tête Authorization: Bearer <token>.
@@ -27,8 +37,12 @@ export interface RequestUser {
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   constructor() {
     super({
-      // Extraction "Bearer <token>" depuis l'en-tête Authorization
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      // Header Authorization: Bearer <token> en priorité (clients API / scanner
+      // PWA), sinon cookie httpOnly access_token (flux web par défaut)
+      jwtFromRequest: ExtractJwt.fromExtractors([
+        ExtractJwt.fromAuthHeaderAsBearerToken(),
+        extractFromCookie,
+      ]),
       // Refus explicite si pas de secret configuré (fail-fast au démarrage)
       secretOrKey: requireEnv('JWT_SECRET'),
       // passport-jwt vérifie déjà exp ; on ignore pas l'iat

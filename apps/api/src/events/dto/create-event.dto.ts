@@ -3,9 +3,10 @@ import { IsDateString, IsOptional, IsString, IsUrl, Matches } from 'class-valida
 /**
  * DTO — Création d'événement (POST /api/events).
  *
- * V1 : 1 Manager = 1 Event (CDC §1.4) — managerId doit référencer un User
- * existant avec le rôle MANAGER (pas encore vérifié ici, en attendant le
- * câblage des guards sur cette route).
+ * ⚠️ `managerId` n'est PAS un champ de ce DTO : il est dérivé du JWT
+ * (`@CurrentUser()`), jamais accepté depuis le body. L'accepter du client
+ * permettrait à n'importe quel compte de créer un événement au nom d'un
+ * autre manager (IDOR) — RULES.md §1.
  */
 export class CreateEventDto {
   @IsString()
@@ -34,7 +35,4 @@ export class CreateEventDto {
 
   @IsDateString()
   endDate!: string;
-
-  @IsString()
-  managerId!: string;
 }

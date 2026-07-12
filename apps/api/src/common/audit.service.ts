@@ -8,6 +8,7 @@ import { PrismaService } from '../prisma/prisma.service';
  */
 export const AUDIT_ACTIONS = {
   'auth.google.login': 'Connexion Google OAuth',
+  'auth.password.login': 'Connexion email/password',
   'auth.scanner.login': 'Connexion scanner',
   'auth.logout': 'Déconnexion',
   'event.created': 'Événement créé',
@@ -19,6 +20,8 @@ export const AUDIT_ACTIONS = {
   'payment.webhook.failed': 'Webhook échoué',
   'payment.webhook.duplicate': 'Webhook en double ignoré',
   'payment.stock.race': 'Race condition stock détectée',
+  'ticket.pdf.generated': 'PDF billet généré',
+  'ticket.pdf.failed': 'Échec génération PDF billet',
   'scan.valid': 'QR valide',
   'scan.already_used': 'QR déjà utilisé',
   'scan.invalid': 'QR invalide',

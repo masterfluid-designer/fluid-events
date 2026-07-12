@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { CalendarDays, MapPin, ArrowLeft } from 'lucide-react';
 import type { Metadata } from 'next';
+import { ResumeCheckout } from './resume-checkout';
 
 /**
  * Page événement publique (SSR) — CDC §6.2 route GET /api/events/public/:slug.
@@ -57,10 +58,13 @@ export async function generateMetadata({
 
 export default async function EventPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ resume?: string }>;
 }) {
   const { slug } = await params;
+  const { resume } = await searchParams;
   const event = await fetchEvent(slug);
   if (!event) notFound();
 
@@ -190,6 +194,7 @@ export default async function EventPage({
           </div>
         </div>
       </div>
+      <ResumeCheckout slug={slug} resume={resume === '1'} />
     </main>
   );
 }

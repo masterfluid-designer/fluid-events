@@ -1,30 +1,88 @@
-import { MoreVertical } from 'lucide-react';
+'use client';
+
+import { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
+import { Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
+import { Spinner } from '@/components/ui/spinner';
+import { api, apiPost, ApiError } from '@/lib/api';
 
 /**
- * Gestion des billets (CDC §6.3 tickets + §13 design personnalisé).
- * Données mockées — pas encore d'API `tickets` branchée (module stub, cf. audit v4).
+ * Gestion des billets (CDC §6.3). Données réelles via GET /api/events/mine
+ * (inclut les tickets) et POST /api/events/:eventId/tickets pour la création.
  */
 
-interface TicketTypeRow {
+interface TicketRow {
+  id: string;
   name: string;
-  description: string;
+  description: string | null;
   price: string;
-  sold: number;
+  currency: string;
   stock: number;
-  status: 'active' | 'soldout';
+  stockSold: number;
+  isActive: boolean;
 }
 
-const ticketTypes: TicketTypeRow[] = [
-  { name: 'VIP Or', description: 'Accès backstage · open bar', price: '15 000 XOF', sold: 412, stock: 468, status: 'active' },
-  { name: 'Standard', description: 'Accès général', price: '6 000 XOF', sold: 689, stock: 1320, status: 'active' },
-  { name: 'Early Bird', description: 'Tarif de lancement', price: '4 000 XOF', sold: 139, stock: 139, status: 'soldout' },
-];
+interface EventWithTickets {
+  id: string;
+  tickets: TicketRow[];
+}
 
 export default function ManagerTicketsPage() {
-  const totalSold = ticketTypes.reduce((sum, t) => sum + t.sold, 0);
+  const queryClient = useQueryClient();
+  const [showForm, setShowForm] = useState(false);
+  const [name, setName] = useState('');
+  const [price, setPrice] = useState('');
+  const [stock, setStock] = useState('');
+  const [description, setDescription] = useState('');
+
+  const { data: event, isLoading, isError } = useQuery({
+    queryKey: ['manager-event'],
+    queryFn: () => api<EventWithTickets>('/api/events/mine'),
+  });
+
+  const createTicket = useMutation({
+    mutationFn: () =>
+      apiPost(`/api/events/${event!.id}/tickets`, {
+        name,
+        price: Number(price),
+        stock: Number(stock),
+        description: description || undefined,
+      }),
+    onSuccess: () => {
+      toast.success('Billet créé');
+      setShowForm(false);
+      setName('');
+      setPrice('');
+      setStock('');
+      setDescription('');
+      queryClient.invalidateQueries({ queryKey: ['manager-event'] });
+    },
+    onError: (err) => {
+      toast.error(err instanceof ApiError ? err.message : 'Impossible de créer le billet');
+    },
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center p-12">
+        <Spinner className="size-6" />
+      </div>
+    );
+  }
+
+  if (isError || !event) {
+    return (
+      <div className="p-6 text-sm text-muted-foreground">
+        Impossible de charger vos billets.
+      </div>
+    );
+  }
+
+  const totalSold = event.tickets.reduce((sum, t) => sum + t.stockSold, 0);
 
   return (
     <div className="space-y-6 p-6">
@@ -32,111 +90,110 @@ export default function ManagerTicketsPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Types de billets</h1>
           <p className="text-sm text-muted-foreground">
-            {ticketTypes.length} types actifs · {totalSold.toLocaleString('fr-FR')} vendus
+            {event.tickets.length} type{event.tickets.length > 1 ? 's' : ''} · {totalSold.toLocaleString('fr-FR')} vendus
           </p>
         </div>
-        <Button>+ Ajouter un billet</Button>
+        <Button onClick={() => setShowForm((v) => !v)}>
+          {showForm ? <X className="size-4" /> : <Plus className="size-4" />}
+          {showForm ? 'Annuler' : 'Ajouter un billet'}
+        </Button>
       </div>
 
-      <Card className="overflow-hidden py-0">
-        <div className="grid grid-cols-[1.6fr_0.9fr_1.3fr_0.8fr_0.6fr] gap-4 border-b border-border bg-secondary px-4.5 py-3 text-xs font-bold uppercase tracking-[0.05em] text-muted-foreground">
-          <span>Billet</span>
-          <span>Prix</span>
-          <span>Stock</span>
-          <span>Statut</span>
-          <span />
-        </div>
-        {ticketTypes.map((t, i) => {
-          const percent = Math.round((t.sold / t.stock) * 100);
-          return (
-            <div
-              key={t.name}
-              className={`grid grid-cols-[1.6fr_0.9fr_1.3fr_0.8fr_0.6fr] items-center gap-4 px-4.5 py-3.5 ${
-                i < ticketTypes.length - 1 ? 'border-b border-border' : ''
-              }`}
-            >
-              <div>
-                <div className="text-sm font-semibold">{t.name}</div>
-                <div className="text-xs text-muted-foreground">{t.description}</div>
-              </div>
-              <div className="text-sm font-semibold">{t.price}</div>
-              <div>
-                <div className="mb-1 h-1.5 overflow-hidden rounded-full bg-muted">
-                  <div
-                    className={`h-full rounded-full ${t.status === 'soldout' ? 'bg-muted-foreground' : 'bg-primary'}`}
-                    style={{ width: `${percent}%` }}
-                  />
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  {t.sold} / {t.stock} vendus
-                </div>
-              </div>
-              <Badge variant={t.status === 'active' ? 'success' : 'secondary'} className="w-fit">
-                {t.status === 'active' ? 'Actif' : 'Épuisé'}
-              </Badge>
-              <button type="button" aria-label="Options" className="text-muted-foreground hover:text-foreground">
-                <MoreVertical className="size-4" />
-              </button>
-            </div>
-          );
-        })}
-      </Card>
-
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card>
-          <CardContent className="space-y-4 p-6">
-            <h2 className="text-sm font-bold">Design du billet — VIP Or</h2>
-            <div>
-              <label className="mb-1.5 block text-xs font-semibold">Image du billet</label>
-              <div className="flex h-17.5 items-center justify-center rounded-lg border border-dashed border-input text-xs text-muted-foreground">
-                Déposer un logo / visuel (max 5 Mo)
-              </div>
-            </div>
-            <div className="flex gap-3.5">
-              <div className="flex-1">
-                <label className="mb-1.5 block text-xs font-semibold">Couleur de fond</label>
-                <div className="flex items-center gap-2 rounded-md border border-border px-2.5 py-2">
-                  <span className="size-4 rounded shrink-0" style={{ background: '#D4AC0D' }} />
-                  <span className="font-mono text-xs">#D4AC0D</span>
-                </div>
-              </div>
-              <div className="flex-1">
-                <label className="mb-1.5 block text-xs font-semibold">Couleur du texte</label>
-                <div className="flex items-center gap-2 rounded-md border border-border px-2.5 py-2">
-                  <span className="size-4 rounded shrink-0" style={{ background: '#333333' }} />
-                  <span className="font-mono text-xs">#333333</span>
-                </div>
-              </div>
-            </div>
-          </CardContent>
+      {showForm && (
+        <Card className="p-5">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              createTicket.mutate();
+            }}
+            className="grid gap-3 md:grid-cols-4"
+          >
+            <input
+              required
+              placeholder="Nom (ex: VIP)"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+            />
+            <input
+              required
+              type="number"
+              min="0"
+              placeholder="Prix (XOF)"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+            />
+            <input
+              required
+              type="number"
+              min="0"
+              placeholder="Stock"
+              value={stock}
+              onChange={(e) => setStock(e.target.value)}
+              className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+            />
+            <input
+              placeholder="Description (optionnel)"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+            />
+            <Button type="submit" disabled={createTicket.isPending} className="md:col-span-4 w-fit">
+              {createTicket.isPending ? 'Création...' : 'Créer le billet'}
+            </Button>
+          </form>
         </Card>
+      )}
 
-        <Card>
-          <CardContent className="p-6">
-            <h2 className="mb-3.5 text-sm font-bold">Aperçu</h2>
-            <div
-              className="overflow-hidden rounded-2xl p-5.5"
-              style={{ background: '#D4AC0D', color: '#333333' }}
-            >
-              <div className="text-[11px] font-bold uppercase tracking-[0.06em] opacity-70">
-                Concert FESTA 2026
-              </div>
-              <div className="mt-1.5 text-xl font-extrabold">VIP Or</div>
-              <div className="mt-1 text-xs opacity-85">31 déc 2026 · Palais des Sports</div>
-              <div className="mt-4.5 flex items-center justify-between">
-                <div className="font-mono text-xs">ORD-3F8A1B</div>
-                <div
-                  className="size-13 rounded-md bg-white"
-                  style={{
-                    backgroundImage:
-                      'repeating-linear-gradient(45deg,#333 0 3px, transparent 3px 6px), repeating-linear-gradient(135deg,#333 0 3px, transparent 3px 6px)',
-                  }}
-                />
-              </div>
-            </div>
-          </CardContent>
+      {event.tickets.length === 0 ? (
+        <Card className="p-12 text-center text-sm text-muted-foreground">
+          Aucun type de billet pour le moment.
         </Card>
-      </div>
+      ) : (
+        <Card className="overflow-hidden py-0">
+          <div className="grid grid-cols-[1.6fr_0.9fr_1.3fr_0.8fr] gap-4 border-b border-border bg-secondary px-4.5 py-3 text-xs font-bold uppercase tracking-[0.05em] text-muted-foreground">
+            <span>Billet</span>
+            <span>Prix</span>
+            <span>Stock</span>
+            <span>Statut</span>
+          </div>
+          {event.tickets.map((t, i) => {
+            const percent = t.stock > 0 ? Math.round((t.stockSold / t.stock) * 100) : 0;
+            const soldOut = t.stockSold >= t.stock;
+            return (
+              <div
+                key={t.id}
+                className={`grid grid-cols-[1.6fr_0.9fr_1.3fr_0.8fr] items-center gap-4 px-4.5 py-3.5 ${
+                  i < event.tickets.length - 1 ? 'border-b border-border' : ''
+                }`}
+              >
+                <div>
+                  <div className="text-sm font-semibold">{t.name}</div>
+                  {t.description && <div className="text-xs text-muted-foreground">{t.description}</div>}
+                </div>
+                <div className="text-sm font-semibold">
+                  {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: t.currency }).format(Number(t.price))}
+                </div>
+                <div>
+                  <div className="mb-1 h-1.5 overflow-hidden rounded-full bg-muted">
+                    <div
+                      className={`h-full rounded-full ${soldOut ? 'bg-muted-foreground' : 'bg-primary'}`}
+                      style={{ width: `${percent}%` }}
+                    />
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {t.stockSold} / {t.stock} vendus
+                  </div>
+                </div>
+                <Badge variant={!t.isActive ? 'outline' : soldOut ? 'secondary' : 'success'} className="w-fit">
+                  {!t.isActive ? 'Inactif' : soldOut ? 'Épuisé' : 'Actif'}
+                </Badge>
+              </div>
+            );
+          })}
+        </Card>
+      )}
     </div>
   );
 }

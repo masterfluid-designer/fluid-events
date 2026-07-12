@@ -2,20 +2,24 @@ import {
   Body,
   Controller,
   Get,
+  Logger,
   Post,
   Query,
   Req,
   Res,
   UseGuards,
 } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
 import { Request, Response } from 'express';
 import { AuthOrchestratorService } from './auth-orchestrator.service';
 import { LoginScannerDto } from './dto/login-scanner.dto';
+import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { GoogleProfile } from './strategies/google.strategy';
+import { GoogleAuthGuard } from './guards/google-auth.guard';
 import { Public } from '../common/decorators/public.decorator';
 import { FRONTEND_URL } from '../common/constants';
+
+const authLogger = new Logger('AuthController');
 
 /**
  * AuthController — Points d'entrée d'authentification (CDC §7).
@@ -23,6 +27,7 @@ import { FRONTEND_URL } from '../common/constants';
  * Routes :
  *  GET  /api/auth/google           → déclenche le flow OAuth Google
  *  GET  /api/auth/google/callback  → callback Google, set cookie + redirect frontend
+ *  POST /api/auth/login            → login email/password (CLIENT/MANAGER/SUPER_ADMIN, test/dev)
  *  POST /api/auth/login/scanner    → login email/password (scanners uniquement)
  *  POST /api/auth/refresh          → rafraîchit la paire de tokens
  *  POST /api/auth/logout           → efface les cookies
@@ -32,35 +37,52 @@ export class AuthController {
   constructor(private readonly orchestrator: AuthOrchestratorService) {}
 
   /**
-   * Déclenche l'OAuth Google. Le paramètre `eventSlug` est propagé via `state`
-   * pour pouvoir le récupérer au callback (session événementielle, CDC §7.2).
+   * Déclenche l'OAuth Google. `eventSlug` (session événementielle, CDC §7.2)
+   * et `redirect` (reprise du tunnel d'achat, CDC §7.4) sont propagés via
+   * `state` par `GoogleAuthGuard` pour être récupérés au callback.
    */
   @Public()
   @Get('google')
-  @UseGuards(AuthGuard('google'))
-  googleAuth(@Query('eventSlug') _eventSlug?: string): void {
+  @UseGuards(GoogleAuthGuard)
+  googleAuth(
+    @Query('eventSlug') _eventSlug?: string,
+    @Query('redirect') _redirect?: string,
+  ): void {
     // passport-google-oauth20 gère la redirection → on ne fait rien ici.
   }
 
   /**
    * Callback Google. Stratégie 'google' peuple req.user avec le GoogleProfile.
-   * On émet les tokens puis on redirige vers le frontend avec un cookie httpOnly.
+   * On émet les tokens puis on redirige vers le frontend — soit vers `redirect`
+   * (repris du `state`, ex : reprise d'achat sur `/e/[slug]?resume=1`) si son
+   * origine correspond bien à FRONTEND_URL, soit vers `/auth/callback` par défaut.
    */
   @Public()
   @Get('google/callback')
-  @UseGuards(AuthGuard('google'))
+  @UseGuards(GoogleAuthGuard)
   async googleCallback(
     @Req() req: Request & { user?: GoogleProfile },
     @Res({ passthrough: true }) res: Response,
     @Query('state') state?: string,
   ): Promise<void> {
     const profile = req.user!;
-    // Le state porte l'eventSlug s'il a été passé (URL-encodé par Google)
-    const eventSlug = state ? decodeState(state) : undefined;
-    const tokens = await this.orchestrator.loginWithGoogle(profile, eventSlug);
+    const decoded = state ? decodeState(state) : undefined;
+    const tokens = await this.orchestrator.loginWithGoogle(profile, decoded?.eventSlug);
 
     setAuthCookies(res, tokens);
-    res.redirect(`${FRONTEND_URL}/auth/callback`);
+    res.redirect(resolveSafeRedirect(decoded?.redirect));
+  }
+
+  /** Connexion email/password générique (CLIENT/MANAGER/SUPER_ADMIN — test/dev). */
+  @Public()
+  @Post('login')
+  async login(
+    @Body() dto: LoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { tokens, role } = await this.orchestrator.login(dto);
+    setAuthCookies(res, tokens);
+    return { accessToken: tokens.accessToken, role };
   }
 
   /** Connexion scanner (email + password). */
@@ -97,14 +119,38 @@ export class AuthController {
   }
 }
 
-/** Lit le `state` OAuth (peut contenir l'eventSlug encodé). */
-function decodeState(state: string): string | undefined {
+/** Lit le `state` OAuth JSON posé par `GoogleAuthGuard` ({ eventSlug?, redirect? }). */
+function decodeState(state: string): { eventSlug?: string; redirect?: string } | undefined {
   try {
     const parsed = JSON.parse(state);
-    return typeof parsed.eventSlug === 'string' ? parsed.eventSlug : undefined;
+    return {
+      eventSlug: typeof parsed.eventSlug === 'string' ? parsed.eventSlug : undefined,
+      redirect: typeof parsed.redirect === 'string' ? parsed.redirect : undefined,
+    };
   } catch {
-    // Si ce n'est pas du JSON, on considère que c'est directement le slug
-    return state || undefined;
+    // Ancien format (state = slug brut, non-JSON) — rétrocompatibilité.
+    return state ? { eventSlug: state } : undefined;
+  }
+}
+
+/**
+ * Valide que `redirect` pointe bien vers l'origine de FRONTEND_URL avant de
+ * l'honorer — sinon un `redirect` arbitraire dans la query de départ
+ * ouvrirait une redirection non contrôlée après une authentification bien
+ * réelle (open redirect). Fallback sur `/auth/callback` en cas de doute.
+ */
+function resolveSafeRedirect(redirect: string | undefined): string {
+  const fallback = `${FRONTEND_URL}/auth/callback`;
+  if (!redirect) return fallback;
+  try {
+    const target = new URL(redirect, FRONTEND_URL);
+    if (target.origin !== new URL(FRONTEND_URL).origin) {
+      authLogger.warn(`Redirect OAuth hors origine ignoré : ${redirect}`);
+      return fallback;
+    }
+    return target.toString();
+  } catch {
+    return fallback;
   }
 }
 

@@ -156,6 +156,22 @@ describe('TicketDesignService — buildHtml() [SANITISATION XSS]', () => {
     expect(html).toContain('#d4ac0d');
   });
 
+  it("ne requiert PAS SUPABASE_URL quand aucune designImageUrl n'est fournie (cas courant)", () => {
+    delete process.env.SUPABASE_URL;
+    expect(() =>
+      service.buildHtml({ ...baseParams, designImageUrl: null }),
+    ).not.toThrow();
+  });
+
+  it('ignore silencieusement une designImageUrl si SUPABASE_URL est absent (dégrade sans planter)', () => {
+    delete process.env.SUPABASE_URL;
+    const html = service.buildHtml({
+      ...baseParams,
+      designImageUrl: 'https://xxxxx.supabase.co/storage/v1/object/public/ticket-designs/x.png',
+    });
+    expect(html).not.toContain('ticket-designs/x.png');
+  });
+
   // ─── Tentatives d'injection XSS ──────────────────────────────────────────
 
   it('neutralise une injection script dans le nom de l\'événement', () => {

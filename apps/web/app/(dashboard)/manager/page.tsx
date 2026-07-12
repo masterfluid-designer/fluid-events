@@ -1,92 +1,84 @@
-import {
-  DollarSign,
-  Ticket,
-  TrendingUp,
-  ScanLine,
-  Users,
-  Clock,
-} from 'lucide-react';
+'use client';
+
+import { useQuery } from '@tanstack/react-query';
+import { DollarSign, Ticket, ScanLine, Radio, Clock } from 'lucide-react';
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
+  CardDescription,
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Spinner } from '@/components/ui/spinner';
+import { api } from '@/lib/api';
 
 /**
  * Dashboard Manager (CDC §14.3 — KPIs événement géré).
- * En V1, 1 Manager = 1 Événement (CDC §1.4). Données via GET /api/events/:id/stats.
+ * En V1, 1 Manager = 1 Événement (CDC §1.4). Données réelles via
+ * GET /api/events/mine/overview (agrégées à la volée depuis Order/OrderItem/ScannerLog).
  */
 
-const salesCurve = [
-  120, 110, 115, 95, 100, 80, 85, 60, 65, 45, 50, 30, 35, 15, 20,
-];
-
-function SalesCurve() {
-  const width = 560;
-  const height = 160;
-  const step = width / (salesCurve.length - 1);
-  const points = salesCurve
-    .map((y, i) => `${Math.round(i * step)},${y}`)
-    .join(' ');
-  const areaPoints = `${points} ${width},${height} 0,${height}`;
-
-  return (
-    <svg viewBox={`0 0 ${width} ${height}`} className="block h-40 w-full">
-      <line x1="0" y1="30" x2={width} y2="30" className="stroke-border" strokeWidth={1} />
-      <line x1="0" y1="80" x2={width} y2="80" className="stroke-border" strokeWidth={1} />
-      <line x1="0" y1="130" x2={width} y2="130" className="stroke-border" strokeWidth={1} />
-      <polyline
-        points={areaPoints}
-        fill="oklch(58% 0.16 40 / 0.12)"
-        className="dark:fill-[oklch(70%_0.16_40_/_0.14)]"
-        stroke="none"
-      />
-      <polyline
-        points={points}
-        fill="none"
-        stroke="oklch(58% 0.16 40)"
-        className="dark:stroke-[oklch(70%_0.16_40)]"
-        strokeWidth={3}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
+interface Overview {
+  event: { id: string; title: string; slug: string; status: string };
+  totalRevenue: number;
+  currency: string;
+  ticketsSold: number;
+  revenueByTicketType: Array<{ name: string; revenue: number; count: number }>;
+  scansByScanner: Array<{ name: string; scans: number; lastScanAt: string | null }>;
 }
 
+const STATUS_LABELS: Record<string, string> = {
+  DRAFT: 'Brouillon',
+  PUBLISHED: 'Publié',
+  CANCELLED: 'Annulé',
+  EXPIRED: 'Expiré',
+};
+
 export default function ManagerDashboardPage() {
+  const { data: overview, isLoading, isError } = useQuery({
+    queryKey: ['manager-overview'],
+    queryFn: () => api<Overview>('/api/events/mine/overview'),
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center p-12">
+        <Spinner className="size-6" />
+      </div>
+    );
+  }
+
+  if (isError || !overview) {
+    return (
+      <div className="p-6 text-sm text-muted-foreground">
+        Impossible de charger les statistiques de votre événement.
+      </div>
+    );
+  }
+
+  const totalScans = overview.scansByScanner.reduce((sum, s) => sum + s.scans, 0);
+  const scanRate = overview.ticketsSold > 0 ? Math.round((totalScans / overview.ticketsSold) * 100) : 0;
+  const currencyFmt = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: overview.currency });
+  const maxTicketRevenue = Math.max(1, ...overview.revenueByTicketType.map((r) => r.revenue));
+
   const stats = [
-    { label: 'Revenus', value: '4.2M XOF', icon: <DollarSign className="size-4" />, trend: '+12% vs objectif' },
-    { label: 'Billets vendus', value: '1 240', icon: <Ticket className="size-4" />, trend: '+87 (7j)' },
-    { label: 'Conversion', value: '64%', icon: <TrendingUp className="size-4" />, trend: 'visite → achat' },
-    { label: 'Taux de scan (J)', value: '78%', icon: <ScanLine className="size-4" />, trend: '968 / 1 240' },
-  ];
-
-  const revenueByType = [
-    { name: 'VIP Or', revenue: '2.8M', count: 412, percent: 67 },
-    { name: 'Standard', revenue: '1.1M', count: 689, percent: 26 },
-    { name: 'Early Bird', revenue: '0.3M', count: 139, percent: 7 },
-  ];
-
-  const scannerActivity = [
-    { name: 'Entrée Nord', scans: 487, last: 'il y a 2 min' },
-    { name: 'Entrée Sud', scans: 312, last: 'il y a 5 min' },
-    { name: 'VIP Gate', scans: 169, last: 'il y a 14 min' },
+    { label: 'Revenus', value: currencyFmt.format(overview.totalRevenue), icon: <DollarSign className="size-4" /> },
+    { label: 'Billets vendus', value: overview.ticketsSold.toLocaleString('fr-FR'), icon: <Ticket className="size-4" /> },
+    { label: 'Taux de scan', value: `${scanRate}%`, icon: <ScanLine className="size-4" /> },
+    { label: 'Scanners actifs', value: overview.scansByScanner.length.toString(), icon: <Radio className="size-4" /> },
   ];
 
   return (
     <div className="space-y-6 p-6">
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Concert FESTA 2026</h1>
-          <p className="text-sm text-muted-foreground">
-            Tableau de bord de votre événement
-          </p>
+          <h1 className="text-2xl font-bold tracking-tight">{overview.event.title}</h1>
+          <p className="text-sm text-muted-foreground">Tableau de bord de votre événement</p>
         </div>
-        <Badge variant="success">● Publié</Badge>
+        <Badge variant={overview.event.status === 'PUBLISHED' ? 'success' : 'secondary'}>
+          ● {STATUS_LABELS[overview.event.status] ?? overview.event.status}
+        </Badge>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -98,71 +90,71 @@ export default function ManagerDashboardPage() {
                 <span className="text-accent-terracotta dark:text-accent-terracotta-dark">{s.icon}</span>
               </div>
               <div className="mt-2 text-2xl font-bold">{s.value}</div>
-              <div className="mt-1 text-xs text-muted-foreground">{s.trend}</div>
             </CardContent>
           </Card>
         ))}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Ventes des 14 derniers jours</CardTitle>
-            <CardDescription>Billets vendus par jour</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <SalesCurve />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Revenus par type de billet</CardTitle>
-            <CardDescription>Répartition des ventes</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {revenueByType.map((row) => (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Revenus par type de billet</CardTitle>
+          <CardDescription>Répartition des ventes confirmées</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {overview.revenueByTicketType.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Aucune vente confirmée pour le moment.</p>
+          ) : (
+            overview.revenueByTicketType.map((row) => (
               <div key={row.name}>
                 <div className="mb-1 flex items-center justify-between text-sm">
                   <span className="font-medium">{row.name}</span>
                   <span className="text-muted-foreground">
-                    {row.count} billets • {row.revenue} XOF
+                    {row.count} billet{row.count > 1 ? 's' : ''} • {currencyFmt.format(row.revenue)}
                   </span>
                 </div>
                 <div className="h-1.5 overflow-hidden rounded-full bg-muted">
                   <div
                     className="h-full rounded-full bg-primary"
-                    style={{ width: `${row.percent}%` }}
+                    style={{ width: `${Math.round((row.revenue / maxTicketRevenue) * 100)}%` }}
                   />
                 </div>
               </div>
-            ))}
-          </CardContent>
-        </Card>
-      </div>
+            ))
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
-            <Users className="size-4" /> Activité scanners
+            <Radio className="size-4" /> Activité scanners
           </CardTitle>
-          <CardDescription>Scans par point d&apos;accès</CardDescription>
+          <CardDescription>Scans valides par point d&apos;accès</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 md:grid-cols-3">
-          {scannerActivity.map((sc) => (
-            <div
-              key={sc.name}
-              className="flex items-center justify-between rounded-lg border border-border p-3"
-            >
-              <div>
-                <div className="font-medium">{sc.name}</div>
-                <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <Clock className="size-3" /> {sc.last}
+          {overview.scansByScanner.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Aucun scanner configuré pour cet événement.</p>
+          ) : (
+            overview.scansByScanner.map((sc) => (
+              <div
+                key={sc.name}
+                className="flex items-center justify-between rounded-lg border border-border p-3"
+              >
+                <div>
+                  <div className="font-medium">{sc.name}</div>
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <Clock className="size-3" />
+                    {sc.lastScanAt
+                      ? new Intl.DateTimeFormat('fr-FR', { dateStyle: 'short', timeStyle: 'short' }).format(
+                          new Date(sc.lastScanAt),
+                        )
+                      : 'Aucun scan'}
+                  </div>
                 </div>
+                <Badge variant="secondary">{sc.scans}</Badge>
               </div>
-              <Badge variant="secondary">{sc.scans}</Badge>
-            </div>
-          ))}
+            ))
+          )}
         </CardContent>
       </Card>
     </div>

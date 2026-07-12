@@ -25,9 +25,13 @@ function makeInMemoryTx(initialSold = 0, stock = 100) {
     ticket: {
       updateMany(args: {
         where: { id: string; stockSold?: { lte: number } };
-        data: { stockSold: { increment: number } };
+        data: { stockSold: { increment?: number; decrement?: number } };
       }): Promise<{ count: number }> {
-        const qty = args.data.stockSold.increment;
+        if (args.data.stockSold.decrement !== undefined) {
+          state.stockSold -= args.data.stockSold.decrement;
+          return Promise.resolve({ count: 1 });
+        }
+        const qty = args.data.stockSold.increment ?? 0;
         const limit = args.where.stockSold?.lte;
         // Garde de capacité : stockSold doit être <= (stock - qty)
         const allowed = limit !== undefined ? state.stockSold <= limit : true;
@@ -112,6 +116,34 @@ describe('StockService — decrementStockAtomic()', () => {
     expect(successCount).toBe(stock);
     expect(sim.state.stockSold).toBe(stock);
     expect(successCount).toBeLessThanOrEqual(stock);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+describe('StockService — releaseStockAtomic()', () => {
+  let stockService: StockService;
+
+  beforeEach(() => {
+    stockService = new StockService();
+  });
+
+  it('décrémente stockSold de la quantité relâchée', async () => {
+    const sim = makeInMemoryTx(5, 10);
+    await stockService.releaseStockAtomic(sim.tx as any, 'ticket-1', 1);
+    expect(sim.state.stockSold).toBe(4);
+  });
+
+  it('passe la bonne condition where (pas de garde de capacité nécessaire)', async () => {
+    const sim = makeInMemoryTx(5, 10);
+    const callSpy = vi.fn(sim.tx.ticket.updateMany.bind(sim.tx.ticket));
+    sim.tx.ticket.updateMany = callSpy as any;
+
+    await stockService.releaseStockAtomic(sim.tx as any, 'ticket-1', 2);
+
+    expect(callSpy).toHaveBeenCalledWith({
+      where: { id: 'ticket-1' },
+      data: { stockSold: { decrement: 2 } },
+    });
   });
 });
 

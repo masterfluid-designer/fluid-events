@@ -135,6 +135,46 @@ export interface InitPaymentDto {
   provider: PaymentProviderType;
 }
 
+/**
+ * Réponse de POST /api/payments/init pour Kkiapay.
+ *
+ * ⚠️ Kkiapay n'a pas de "checkoutUrl" serveur : le paiement s'initie côté
+ * client via le widget JS (`openKkiapayWidget`), avec `partnerId` (= orderId)
+ * passé en donnée de corrélation, retrouvé tel quel dans le webhook.
+ */
+export interface KkiapayInitResult {
+  provider: 'KKIAPAY';
+  orderId: string;
+  /** = orderId — transmis au widget Kkiapay pour corrélation (champ `partnerId`). */
+  partnerId: string;
+  amount: number;
+  currency: string;
+  /** Clé publique Kkiapay — sûre à exposer côté client (champ `key` du widget). */
+  publicKey: string;
+  sandbox: boolean;
+}
+
+/**
+ * Payload webhook Kkiapay (POST /api/payments/webhook/kkiapay).
+ * `partnerId` = notre `Order.id`, transmis au widget à l'ouverture (corrélation).
+ * Authentifié via l'en-tête `x-kkiapay-secret` (secret partagé, pas de HMAC).
+ */
+export interface KkiapayWebhookPayload {
+  transactionId: string;
+  isPaymentSucces: boolean;
+  event: 'transaction.success' | 'transaction.failed' | string;
+  account?: string | null;
+  failureCode?: string;
+  failureMessage?: string;
+  label?: string;
+  method?: 'MOBILE_MONEY' | 'WALLET' | 'CARD' | string;
+  amount?: number;
+  fees?: number;
+  partnerId?: string;
+  performedAt?: string;
+  stateData?: Record<string, unknown>;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Scanner (CDC §9.5, §10)
 // ─────────────────────────────────────────────────────────────────────────────

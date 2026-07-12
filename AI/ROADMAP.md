@@ -17,16 +17,16 @@
 | Module | Statut |
 |---|---|
 | Gestion événements | ✅ Basic CRUD (`EventsService`) |
-| Billetterie | 🟡 Module vide, prêt à coder |
-| Paiement | 🟡 Module vide, services utilitaires prêts |
-| Scanner PWA | ✅ Page caméra + store Zustand + logique de décision |
+| Billetterie | ✅ CRUD Tickets (ownership Manager) |
+| Paiement | ✅ Kkiapay (`init` + webhook + anti-fraude serveur) ; CinetPay/FedaPay à faire |
+| Scanner PWA | ✅ Page caméra + store Zustand + logique de décision + `POST /api/scan/validate` |
 | Event Builder | 🟡 Module vide, schémas Zod prêts |
-| Auth | ✅ Google OAuth + Scanner login + JWT événementiel + RBAC |
-| Dashboard | ✅ Pages mockées (admin/manager/client) |
+| Auth | ✅ Google OAuth + Scanner login + login email/password générique + JWT événementiel + RBAC + auth par cookie httpOnly, testé en conditions réelles (voir RULES.md §13-14) |
+| Dashboard | ✅ Client (Mes billets), Manager (overview/billets/participants) et Admin (vue plateforme) branchés sur données réelles ; pages "commandes"/"profil" client et "Page builder" manager encore mockées |
 | Notifications | ✅ `PhoneService` (validation E.164) ; Email/WhatsApp à coder |
 | Design billet | ✅ QR generation + validation + `buildHtml` sanitisé |
 | Analytics | ❌ Pas commencé |
-| Storage S3 | ❌ Pas commencé |
+| Storage S3 | ✅ `StorageService` S3-compatible (RustFS/MinIO dev, Supabase Storage prod), bucket public-read auto-provisionné |
 
 ## 3. Détail des phases
 
@@ -50,18 +50,20 @@
 
 ### Phase 2 — Scanner & Paiements 🔴 En cours
 
-- [ ] Controller + service Scanner (`POST /api/scan/validate` + `$transaction`)
-- [ ] Controller + providers Paiement (Kkiapay / CinetPay / FedaPay)
-- [ ] Endpoint webhook avec idempotence + décrément stock atomique
-- [ ] Setup BullMQ pour génération PDF asynchrone
-- [ ] Génération QR dans `OrderItem` après paiement confirmé
+- [x] Controller + service Scanner (`POST /api/scan/validate` + verrou atomique anti-double-scan)
+- [x] Controller + provider Paiement Kkiapay (`POST /api/payments/init`) — CinetPay/FedaPay non branchés (pas de SDK/doc fournie, V1 se concentre sur Kkiapay)
+- [x] Endpoint webhook Kkiapay avec idempotence + décrément/relâche stock atomique + re-vérification serveur anti-fraude (`k.verify()`)
+- [x] Flux d'achat client bout-en-bout : intent horodaté → OAuth (eventSlug + redirect propagés via `state`) → reprise sur `/e/[slug]?resume=1` → widget Kkiapay → `GET /api/payments/orders/:id` (polling, le webhook reste seule source de vérité)
+  - Testé en conditions réelles (Docker Postgres/Redis, vraie DB) jusqu'à l'ouverture du widget Kkiapay : login, réservation stock atomique, création Order, signature/idempotence webhook, échec+relâche de stock. Non testé : un paiement Kkiapay réellement abouti (nécessite de vraies clés marchand sandbox — `PaymentProviderConfig` seedé avec des clés placeholder non fonctionnelles, à remplacer dans `prisma/seed.ts`).
+- [x] Setup BullMQ pour génération PDF asynchrone (`PdfQueueService` + `PdfProcessor`, testé en conditions réelles : PDF de 56 Ko généré, uploadé et téléchargeable publiquement)
+- [x] Génération QR dans `OrderItem` après paiement confirmé
 
 ### Phase 3 — Events & Tickets 🟡
 
-- [ ] CRUD Events complet (ownership Manager, statuts, publication)
-- [ ] CRUD Tickets (stock, prix, dates de vente)
-- [ ] Pages événement publiques SSR (`/e/[slug]`)
-- [ ] Export CSV des participants
+- [x] CRUD Events complet — `POST /api/events` (MANAGER, managerId dérivé du JWT — corrige une faille IDOR où le body pouvait imposer n'importe quel managerId), `PATCH /api/events/mine` (update + statut, pas de state-machine imposée — cycle de vie exact non tranché, BUSINESS.md §12)
+- [x] CRUD Tickets (stock, prix, dates de vente, ownership Manager)
+- [x] Pages événement publiques SSR (`/e/[slug]`)
+- [x] Export CSV des participants (généré côté client depuis `GET /api/events/:eventId/participants` déjà chargé, pas d'endpoint dédié)
 
 ### Phase 4 — Builder & Design 🟡
 
@@ -83,9 +85,10 @@
 
 | Module | Priorité | Référence CDC |
 |---|:---:|---|
-| Scanner `/api/scan/validate` | 🔴 Haute | §9.5 |
-| Tickets CRUD | 🔴 Haute | §6.3 |
-| Payments init + webhook | 🔴 Haute | §8 |
+| Scanner `/api/scan/validate` | ✅ Fait | §9.5 |
+| Tickets CRUD | ✅ Fait | §6.3 |
+| Payments init + webhook (Kkiapay) | ✅ Fait | §8 |
+| Payments CinetPay / FedaPay | 🟡 Moyenne (pas de SDK/doc fournie) | §8 |
 | Events PATCH/DELETE | 🟡 Moyenne | §6.2 |
 | Builder endpoints | 🟡 Moyenne | §11 |
 | Admin endpoints | 🟢 Basse | §6.11 |

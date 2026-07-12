@@ -1,0 +1,55 @@
+import { Body, Controller, Get, Headers, HttpCode, HttpStatus, Param, Post } from '@nestjs/common';
+import { Role } from '@saas-events/types';
+import { Public } from '../common/decorators/public.decorator';
+import { Roles } from '../common/decorators/roles.decorator';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import type { RequestUser } from '../auth/strategies/jwt.strategy';
+import { PaymentsService } from './payments.service';
+import { InitPaymentDto } from './dto/init-payment.dto';
+import { KkiapayWebhookDto } from './dto/kkiapay-webhook.dto';
+
+@Controller('payments')
+export class PaymentsController {
+  constructor(private readonly paymentsService: PaymentsService) {}
+
+  /** POST /api/payments/init (CDC §8) — JwtAuthGuard + RolesGuard globaux (AppModule). */
+  @Roles(Role.CLIENT)
+  @Post('init')
+  async init(@CurrentUser() user: RequestUser, @Body() dto: InitPaymentDto) {
+    return this.paymentsService.initPayment(user, dto);
+  }
+
+  /** GET /api/payments/orders — commandes du client authentifié (dashboard "Mes billets"). */
+  @Roles(Role.CLIENT)
+  @Get('orders')
+  async listOrders(@CurrentUser() user: RequestUser) {
+    return this.paymentsService.listOrdersForClient(user);
+  }
+
+  /**
+   * GET /api/payments/orders/:id — statut d'une commande, pour le polling
+   * frontend après fermeture du widget Kkiapay (le webhook reste la seule
+   * source de vérité de confirmation, jamais le seul callback client).
+   */
+  @Roles(Role.CLIENT)
+  @Get('orders/:id')
+  async getOrder(@CurrentUser() user: RequestUser, @Param('id') id: string) {
+    return this.paymentsService.getOrderForClient(user, id);
+  }
+
+  /**
+   * POST /api/payments/webhook/kkiapay — authentifié par le header
+   * `x-kkiapay-secret` (pas de JWT), toujours 2xx sauf signature invalide
+   * (doc Kkiapay : accuser réception par un code 2xx pour éviter les retries).
+   */
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @Post('webhook/kkiapay')
+  async webhookKkiapay(
+    @Body() dto: KkiapayWebhookDto,
+    @Headers('x-kkiapay-secret') secret: string | undefined,
+  ) {
+    await this.paymentsService.handleKkiapayWebhook(dto, secret);
+    return { received: true };
+  }
+}

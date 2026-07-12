@@ -76,15 +76,23 @@ apps/
     │   ├── prisma/                ✅
     │   ├── auth/                  ✅ (Google OAuth, scanner login, refresh, logout)
     │   ├── events/                ✅ (CRUD basique)
-    │   ├── tickets/                🟡 Module vide
+    │   ├── tickets/
+    │   │   ├── tickets.module.ts        ✅
+    │   │   ├── tickets.controller.ts    ✅ (CRUD, ownership Manager)
+    │   │   └── tickets.service.ts       ✅
     │   ├── payments/
-    │   │   ├── payments.module.ts             🟡 Module vide
-    │   │   ├── stock.service.ts               ✅
-    │   │   ├── webhook-idempotency.service.ts ✅
-    │   │   └── client-profile.service.ts      ✅
+    │   │   ├── payments.module.ts              ✅
+    │   │   ├── payments.controller.ts          ✅ (`POST /init`, `POST /webhook/kkiapay`)
+    │   │   ├── payments.service.ts             ✅ (réservation stock, webhook anti-fraude)
+    │   │   ├── kkiapay.service.ts               ✅ (wrapper `@kkiapay-org/nodejs-sdk`)
+    │   │   ├── stock.service.ts                ✅ (décrément + relâche atomiques)
+    │   │   ├── webhook-idempotency.service.ts  ✅
+    │   │   └── client-profile.service.ts       ✅
     │   ├── scanner/
-    │   │   ├── scanner.module.ts   🟡 Module vide
-    │   │   └── scan-decision.ts    ✅ (fonction pure)
+    │   │   ├── scanner.module.ts       ✅
+    │   │   ├── scanner.controller.ts   ✅ (`POST /api/scan/validate`)
+    │   │   ├── scanner.service.ts      ✅ (verrou atomique anti-double-scan)
+    │   │   └── scan-decision.ts        ✅ (fonction pure)
     │   ├── builder/
     │   │   ├── builder.module.ts       🟡 Module vide
     │   │   ├── blocks.schema.ts        ✅ (Zod)
@@ -95,8 +103,17 @@ apps/
     │   ├── notifications/
     │   │   ├── notifications.module.ts 🟡 Module vide
     │   │   └── phone.service.ts        ✅
-    │   ├── pdf-queue/              🟡 Module vide
-    │   ├── admin/                  🟡 Module vide
+    │   ├── pdf-queue/
+    │   │   ├── pdf-queue.module.ts      ✅
+    │   │   ├── pdf-queue.service.ts     ✅ (enqueue, hors chemin critique webhook)
+    │   │   └── pdf.processor.ts         ✅ (worker BullMQ : Puppeteer → upload S3)
+    │   ├── storage/
+    │   │   ├── storage.module.ts   ✅
+    │   │   └── storage.service.ts  ✅ (S3-compatible : RustFS/MinIO dev, Supabase prod)
+    │   ├── admin/
+    │   │   ├── admin.module.ts      ✅
+    │   │   ├── admin.controller.ts  ✅ (`GET /api/admin/overview`)
+    │   │   └── admin.service.ts     ✅ (agrégats plateforme à la volée)
     │   └── common/
     │       ├── audit.service.ts             ✅
     │       ├── crypto.service.ts            ✅ (AES-256-GCM)
