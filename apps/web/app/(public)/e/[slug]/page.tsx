@@ -1,8 +1,8 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { CalendarDays, MapPin, ArrowLeft } from 'lucide-react';
+import { CalendarDays, MapPin, ArrowLeft, Ticket } from 'lucide-react';
 import type { Metadata } from 'next';
-import type { Block } from '@saas-events/types';
+import type { Block, FaqEntry, MediaEntry, ScheduleEntry, SpeakerEntry } from '@saas-events/types';
 import { ResumeCheckout } from './resume-checkout';
 import { BlockRenderer } from './block-renderer';
 
@@ -19,7 +19,13 @@ interface EventDetail {
   startDate: string;
   endDate: string;
   status: string;
+  logoUrl: string | null;
   coverImageUrl: string | null;
+  faqs: FaqEntry[];
+  schedule: ScheduleEntry[];
+  speakers: SpeakerEntry[];
+  galleryImages: MediaEntry[];
+  sponsorImages: MediaEntry[];
   tickets: Array<{
     id: string;
     name: string;
@@ -82,6 +88,25 @@ export default async function EventPage({
 
   return (
     <main className="min-h-svh bg-alabaster dark:bg-blackho">
+      {/* Header obligatoire (décision produit 2026-07-13) : logo à gauche,
+          "Mon ticket" à droite — jamais un bloc du Builder, toujours présent
+          quel que soit le contenu de la page. */}
+      <header className="sticky top-0 z-20 flex items-center justify-between border-b border-stroke bg-white/90 px-4 py-3 backdrop-blur-sm dark:border-strokedark dark:bg-blacksection/90 md:px-8">
+        <div className="flex items-center gap-2.5">
+          {event.logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={event.logoUrl} alt={event.title} className="size-8 rounded-lg object-cover" />
+          ) : null}
+          <span className="font-serif text-base font-semibold md:text-lg">{event.title}</span>
+        </div>
+        <a
+          href={`/client?event=${encodeURIComponent(slug)}`}
+          className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:bg-primaryho"
+        >
+          <Ticket className="size-3.5" /> Mon ticket
+        </a>
+      </header>
+
       <div className="mx-auto max-w-190 px-4 py-8 md:px-8">
         <div className="relative overflow-hidden rounded-2xl border border-stroke bg-white shadow-solid-2 dark:border-strokedark dark:bg-blacksection">
           <Link
@@ -97,6 +122,14 @@ export default async function EventPage({
               tickets={event.tickets}
               isPublished={isPublished}
               slug={slug}
+              eventConfig={{
+                startDate: event.startDate,
+                faqs: event.faqs,
+                schedule: event.schedule,
+                speakers: event.speakers,
+                galleryImages: event.galleryImages,
+                sponsorImages: event.sponsorImages,
+              }}
               BuyButton={BuyButton}
             />
           ) : (

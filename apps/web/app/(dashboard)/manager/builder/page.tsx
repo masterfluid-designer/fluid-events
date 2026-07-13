@@ -23,6 +23,9 @@ import {
   Pencil,
   Eye,
   RefreshCw,
+  Mic2,
+  Settings2,
+  LayoutGrid,
 } from 'lucide-react';
 import type { Block, BlockType } from '@saas-events/types';
 import { Button } from '@/components/ui/button';
@@ -30,7 +33,8 @@ import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
 import { ColorField } from '@/components/ui/color-field';
 import { ImageUploadField } from '@/components/ui/image-upload-field';
-import { api, apiPut, ApiError } from '@/lib/api';
+import { api, apiPatch, apiPut, ApiError } from '@/lib/api';
+import { ConfigPanel, type EventConfig } from './config-panel';
 
 /**
  * Event Builder no-code (CDC §11 — blocs). Branché sur les vrais endpoints
@@ -57,6 +61,12 @@ interface EventTicket {
   currency: string;
 }
 
+interface ManagerEventData extends EventConfig {
+  slug: string;
+  startDate: string;
+  tickets: EventTicket[];
+}
+
 const BLOCK_LIBRARY: { type: BlockType; icon: typeof ImageIcon; label: string }[] = [
   { type: 'hero', icon: ImageIcon, label: 'Hero / Couverture' },
   { type: 'text', icon: Type, label: 'Texte' },
@@ -67,6 +77,7 @@ const BLOCK_LIBRARY: { type: BlockType; icon: typeof ImageIcon; label: string }[
   { type: 'video', icon: Video, label: 'Vidéo' },
   { type: 'schedule', icon: CalendarDays, label: 'Programme' },
   { type: 'testimonials', icon: Users, label: 'Témoignages' },
+  { type: 'speakers', icon: Mic2, label: 'Speakers' },
   { type: 'sponsors', icon: Building2, label: 'Sponsors' },
   { type: 'html', icon: Code2, label: 'HTML personnalisé' },
 ];
@@ -81,21 +92,45 @@ const BLOCK_LABELS: Record<BlockType, string> = {
   video: 'Vidéo',
   schedule: 'Programme',
   testimonials: 'Témoignages',
+  speakers: 'Speakers',
   sponsors: 'Sponsors',
   image: 'Image',
   html: 'HTML personnalisé',
 };
 
+/**
+ * Types de blocs "placement uniquement" (décision produit 2026-07-13) : leur
+ * contenu vit dans l'onglet Config (un seul jeu de données par événement),
+ * pas dans `block.props` — les poser sur la page affiche automatiquement ce
+ * contenu. Un seul exemplaire a du sens (le contenu est identique partout).
+ */
+const SINGLETON_BLOCK_TYPES = new Set<BlockType>(['faq', 'schedule', 'speakers', 'gallery', 'sponsors']);
+
 function createBlock(type: BlockType, order: number): Block {
   return { id: crypto.randomUUID(), type, order, props: {} };
 }
+
+const EMPTY_CONFIG: EventConfig = {
+  title: '',
+  description: '',
+  location: '',
+  logoUrl: '',
+  coverImageUrl: '',
+  faqs: [],
+  schedule: [],
+  speakers: [],
+  galleryImages: [],
+  sponsorImages: [],
+};
 
 export default function EventBuilderPage() {
   const queryClient = useQueryClient();
   const [device, setDevice] = useState<'desktop' | 'mobile'>('desktop');
   const [mode, setMode] = useState<'edit' | 'preview'>('edit');
+  const [sidebarTab, setSidebarTab] = useState<'blocs' | 'config'>('blocs');
   const [previewNonce, setPreviewNonce] = useState(0);
   const [blocks, setBlocks] = useState<Block[]>([]);
+  const [config, setConfig] = useState<EventConfig>(EMPTY_CONFIG);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [lastKnownUpdatedAt, setLastKnownUpdatedAt] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
@@ -109,7 +144,7 @@ export default function EventBuilderPage() {
 
   const { data: eventData } = useQuery({
     queryKey: ['manager-event'],
-    queryFn: () => api<{ slug: string; tickets: EventTicket[] }>('/api/events/mine'),
+    queryFn: () => api<ManagerEventData>('/api/events/mine'),
   });
 
   // Synchronise l'état local éditable avec la dernière version chargée/sauvegardée.
@@ -119,17 +154,61 @@ export default function EventBuilderPage() {
     setLastKnownUpdatedAt(data.updatedAt);
   }, [data]);
 
+  // Synchronise le contenu centralisé (onglet Config) avec l'événement chargé.
+  // Les champs texte/URL sont nullable côté Prisma — jamais null en state ici
+  // (contrôlé par des <input>/<textarea>, React avertit sur value={null}).
+  useEffect(() => {
+    if (!eventData) return;
+    setConfig({
+      title: eventData.title ?? '',
+      description: eventData.description ?? '',
+      location: eventData.location ?? '',
+      logoUrl: eventData.logoUrl ?? '',
+      coverImageUrl: eventData.coverImageUrl ?? '',
+      faqs: eventData.faqs ?? [],
+      schedule: eventData.schedule ?? [],
+      speakers: eventData.speakers ?? [],
+      galleryImages: eventData.galleryImages ?? [],
+      sponsorImages: eventData.sponsorImages ?? [],
+    });
+  }, [eventData]);
+
+  function updateConfig(patch: Partial<EventConfig>) {
+    setConfig((prev) => ({ ...prev, ...patch }));
+  }
+
+  // Sauvegarde unifiée : blocs (structure/ordre de la page) + contenu
+  // centralisé (Config) partent ensemble en un seul clic sur "Enregistrer"
+  // (pas d'auto-save, un seul bouton — cohérent avec le reste du Builder).
   const save = useMutation({
-    mutationFn: () => apiPut<BuilderData>(`/api/builder/${data!.eventId}/blocks`, {
-      blocks,
-      lastKnownUpdatedAt,
-    }),
+    mutationFn: async () => {
+      const [savedBuilder] = await Promise.all([
+        apiPut<BuilderData>(`/api/builder/${data!.eventId}/blocks`, {
+          blocks,
+          lastKnownUpdatedAt,
+        }),
+        apiPatch('/api/events/mine', {
+          title: config.title,
+          description: config.description,
+          location: config.location,
+          logoUrl: config.logoUrl || undefined,
+          coverImageUrl: config.coverImageUrl || undefined,
+          faqs: config.faqs,
+          schedule: config.schedule,
+          speakers: config.speakers,
+          galleryImages: config.galleryImages,
+          sponsorImages: config.sponsorImages,
+        }),
+      ]);
+      return savedBuilder;
+    },
     onSuccess: (saved) => {
       toast.success('Page sauvegardée');
       setLastKnownUpdatedAt(saved.updatedAt);
       setSavedAt(new Date());
       setPreviewNonce((n) => n + 1);
       queryClient.setQueryData(['builder-mine'], saved);
+      queryClient.invalidateQueries({ queryKey: ['manager-event'] });
     },
     onError: (err) => {
       if (err instanceof ApiError && err.code === 'BUILDER_CONFLICT') {
@@ -321,33 +400,67 @@ export default function EventBuilderPage() {
       </div>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Block library */}
+        {/* Bibliothèque de blocs / Config */}
         {mode === 'edit' && (
-          <aside className="w-55 shrink-0 overflow-y-auto border-r border-border p-4">
-            <div className="mb-2.5 text-xs font-bold uppercase tracking-[0.06em] text-muted-foreground">
-              Blocs
+          <aside className="w-72 shrink-0 overflow-y-auto border-r border-border">
+            <div className="flex border-b border-border">
+              <button
+                type="button"
+                onClick={() => setSidebarTab('blocs')}
+                className={`flex flex-1 items-center justify-center gap-1.5 py-2.5 text-xs font-semibold ${
+                  sidebarTab === 'blocs' ? 'border-b-2 border-primary text-foreground' : 'text-muted-foreground'
+                }`}
+              >
+                <LayoutGrid className="size-3.5" /> Blocs
+              </button>
+              <button
+                type="button"
+                onClick={() => setSidebarTab('config')}
+                className={`flex flex-1 items-center justify-center gap-1.5 py-2.5 text-xs font-semibold ${
+                  sidebarTab === 'config' ? 'border-b-2 border-primary text-foreground' : 'text-muted-foreground'
+                }`}
+              >
+                <Settings2 className="size-3.5" /> Config
+              </button>
             </div>
-            <p className="mb-2.5 text-[11px] text-muted-foreground">
-              Cliquez ou glissez un bloc dans l&apos;aperçu.
-            </p>
-            <div className="flex flex-col gap-1.5">
-              {BLOCK_LIBRARY.map((b) => (
-                <button
-                  key={b.type}
-                  type="button"
-                  draggable
-                  onDragStart={(e) => {
-                    e.dataTransfer.setData('application/x-block-type', b.type);
-                    e.dataTransfer.effectAllowed = 'copy';
-                  }}
-                  onClick={() => addBlock(b.type)}
-                  className="flex cursor-grab items-center gap-2.5 rounded-lg border border-border px-2.5 py-2 text-left text-sm font-medium hover:bg-accent active:cursor-grabbing"
-                >
-                  <b.icon className="size-4" />
-                  {b.label}
-                </button>
-              ))}
-            </div>
+
+            {sidebarTab === 'blocs' ? (
+              <div className="p-4">
+                <p className="mb-2.5 text-[11px] text-muted-foreground">
+                  Cliquez ou glissez un bloc dans l&apos;aperçu.
+                </p>
+                <div className="flex flex-col gap-1.5">
+                  {BLOCK_LIBRARY.map((b) => {
+                    const alreadyPlaced =
+                      SINGLETON_BLOCK_TYPES.has(b.type) && blocks.some((bl) => bl.type === b.type);
+                    return (
+                      <button
+                        key={b.type}
+                        type="button"
+                        disabled={alreadyPlaced}
+                        draggable={!alreadyPlaced}
+                        title={alreadyPlaced ? 'Déjà ajouté — contenu unique par événement' : undefined}
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData('application/x-block-type', b.type);
+                          e.dataTransfer.effectAllowed = 'copy';
+                        }}
+                        onClick={() => !alreadyPlaced && addBlock(b.type)}
+                        className={`flex items-center gap-2.5 rounded-lg border border-border px-2.5 py-2 text-left text-sm font-medium ${
+                          alreadyPlaced
+                            ? 'cursor-not-allowed opacity-40'
+                            : 'cursor-grab hover:bg-accent active:cursor-grabbing'
+                        }`}
+                      >
+                        <b.icon className="size-4" />
+                        {b.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <ConfigPanel config={config} onChange={updateConfig} />
+            )}
           </aside>
         )}
 
@@ -483,6 +596,47 @@ export default function EventBuilderPage() {
                         </div>
                       ))
                     )}
+                  </button>
+                );
+              } else if (SINGLETON_BLOCK_TYPES.has(block.type)) {
+                const count = {
+                  faq: config.faqs.length,
+                  schedule: config.schedule.length,
+                  speakers: config.speakers.length,
+                  gallery: config.galleryImages.length,
+                  sponsors: config.sponsorImages.length,
+                }[block.type as 'faq' | 'schedule' | 'speakers' | 'gallery' | 'sponsors'];
+                content = (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedId(block.id)}
+                    className={`block w-full border-b border-dashed border-border p-4 text-left outline-2 -outline-offset-2 ${outline}`}
+                  >
+                    <div className="text-xs font-bold uppercase tracking-[0.05em] text-muted-foreground">
+                      {BLOCK_LABELS[block.type]}
+                    </div>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      {count > 0
+                        ? `Affiche ${count} entrée${count > 1 ? 's' : ''} configurée${count > 1 ? 's' : ''}`
+                        : 'Rien à afficher pour le moment — configurez du contenu dans l’onglet Config'}
+                    </div>
+                  </button>
+                );
+              } else if (block.type === 'countdown') {
+                content = (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedId(block.id)}
+                    className={`block w-full border-b border-dashed border-border p-4 text-left outline-2 -outline-offset-2 ${outline}`}
+                  >
+                    <div className="text-xs font-bold uppercase tracking-[0.05em] text-muted-foreground">
+                      Compte à rebours
+                    </div>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      {eventData?.startDate
+                        ? `Décompte automatique jusqu'au ${new Date(eventData.startDate).toLocaleString('fr-FR')}`
+                        : 'Décompte automatique jusqu’à la date de début de l’événement'}
+                    </div>
                   </button>
                 );
               } else {
@@ -639,10 +793,37 @@ export default function EventBuilderPage() {
                 </div>
               )}
 
+              {SINGLETON_BLOCK_TYPES.has(selected.type) && (
+                <div>
+                  <p className="text-xs text-muted-foreground">
+                    Ce bloc affiche automatiquement le contenu configuré dans l&apos;onglet Config
+                    (un seul jeu de contenu par événement).
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-2.5"
+                    onClick={() => setSidebarTab('config')}
+                  >
+                    <Settings2 className="size-3.5" /> Éditer dans Config
+                  </Button>
+                </div>
+              )}
+
+              {selected.type === 'countdown' && (
+                <p className="text-xs text-muted-foreground">
+                  Ce bloc décompte automatiquement jusqu&apos;à la date de début de votre événement
+                  — aucune saisie manuelle nécessaire.
+                </p>
+              )}
+
               {selected.type !== 'hero' &&
                 selected.type !== 'text' &&
                 selected.type !== 'tickets' &&
-                selected.type !== 'html' && (
+                selected.type !== 'html' &&
+                selected.type !== 'countdown' &&
+                !SINGLETON_BLOCK_TYPES.has(selected.type) && (
                   <>
                     <div>
                       <label className="mb-1.5 block text-xs font-semibold">Titre</label>

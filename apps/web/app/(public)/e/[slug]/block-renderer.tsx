@@ -1,14 +1,20 @@
-import type { Block, BlockType } from '@saas-events/types';
+import type { Block, FaqEntry, MediaEntry, ScheduleEntry, SpeakerEntry } from '@saas-events/types';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Countdown } from './countdown';
+import { SponsorsCarousel } from './sponsors-carousel';
 
 /**
  * BlockRenderer — Rend les blocs Builder (CDC §11) sur la page publique.
  *
  * Rendu minimal cohérent avec ce que le Builder permet réellement d'éditer
  * (apps/web/app/(dashboard)/manager/builder/page.tsx) : hero/texte/billets/html
- * ont un rendu dédié, les autres types (image/vidéo/galerie/countdown/faq/
- * schedule/testimonials/sponsors) un rendu générique titre + contenu — pas de
- * sur-conception pour des blocs dont le Builder n'édite encore que ces deux
- * champs communs.
+ * ont un rendu dédié depuis leurs propres `props`. faq/schedule/speakers/
+ * gallery/sponsors sont des blocs de PLACEMENT (décision produit 2026-07-13) —
+ * ils n'ont pas de `props` propres, ils affichent le contenu centralisé de
+ * l'événement (`eventConfig`, un seul jeu de données, édité depuis l'onglet
+ * Config du Builder). `countdown` ignore aussi ses `props` : il décompte
+ * automatiquement jusqu'à `eventConfig.startDate`. Les types restants
+ * (image/vidéo/testimonials) gardent un rendu générique titre + contenu.
  *
  * `styles.customClassName` (décision produit 2026-07-13) : classes Tailwind
  * libres appliquées au conteneur de chaque bloc, validées côté backend par une
@@ -27,17 +33,28 @@ interface PublicTicket {
   stockSold: number;
 }
 
+export interface EventConfigData {
+  startDate: string;
+  faqs: FaqEntry[];
+  schedule: ScheduleEntry[];
+  speakers: SpeakerEntry[];
+  galleryImages: MediaEntry[];
+  sponsorImages: MediaEntry[];
+}
+
 export function BlockRenderer({
   blocks,
   tickets,
   isPublished,
   slug,
+  eventConfig,
   BuyButton,
 }: {
   blocks: Block[];
   tickets: PublicTicket[];
   isPublished: boolean;
   slug: string;
+  eventConfig: EventConfigData;
   BuyButton: (props: { slug: string; ticketId: string; highlighted: boolean }) => React.JSX.Element;
 }) {
   const sorted = [...blocks].sort((a, b) => a.order - b.order);
@@ -46,7 +63,14 @@ export function BlockRenderer({
     <>
       {sorted.map((block) => (
         <div key={block.id} className={block.styles?.customClassName}>
-          <BlockItem block={block} tickets={tickets} isPublished={isPublished} slug={slug} BuyButton={BuyButton} />
+          <BlockItem
+            block={block}
+            tickets={tickets}
+            isPublished={isPublished}
+            slug={slug}
+            eventConfig={eventConfig}
+            BuyButton={BuyButton}
+          />
         </div>
       ))}
     </>
@@ -58,12 +82,14 @@ function BlockItem({
   tickets,
   isPublished,
   slug,
+  eventConfig,
   BuyButton,
 }: {
   block: Block;
   tickets: PublicTicket[];
   isPublished: boolean;
   slug: string;
+  eventConfig: EventConfigData;
   BuyButton: (props: { slug: string; ticketId: string; highlighted: boolean }) => React.JSX.Element;
 }) {
   const textAlign = block.styles?.textAlign;
@@ -168,8 +194,104 @@ function BlockItem({
     );
   }
 
-  // Rendu générique (image/video/gallery/countdown/faq/schedule/testimonials/sponsors) —
-  // seuls titre + contenu sont éditables sur ces types dans le Builder.
+  if (block.type === 'countdown') {
+    return <Countdown targetDate={eventConfig.startDate} />;
+  }
+
+  if (block.type === 'faq') {
+    if (eventConfig.faqs.length === 0) return null;
+    return (
+      <div className="px-6 py-8 md:px-9">
+        <div className="mb-3 text-xs font-bold uppercase tracking-[0.04em] text-manatee dark:text-waterloo">
+          Questions fréquentes
+        </div>
+        <Accordion type="single" collapsible>
+          {eventConfig.faqs.map((faq) => (
+            <AccordionItem key={faq.id} value={faq.id}>
+              <AccordionTrigger>{faq.question}</AccordionTrigger>
+              <AccordionContent>{faq.answer}</AccordionContent>
+            </AccordionItem>
+          ))}
+        </Accordion>
+      </div>
+    );
+  }
+
+  if (block.type === 'schedule') {
+    if (eventConfig.schedule.length === 0) return null;
+    const sortedSchedule = [...eventConfig.schedule].sort(
+      (a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime(),
+    );
+    return (
+      <div className="px-6 py-8 md:px-9">
+        <div className="mb-3 text-xs font-bold uppercase tracking-[0.04em] text-manatee dark:text-waterloo">
+          Programme
+        </div>
+        <div className="flex flex-col gap-3">
+          {sortedSchedule.map((entry) => (
+            <div key={entry.id} className="flex gap-4 rounded-xl border border-stroke p-4 dark:border-strokedark">
+              <div className="w-28 shrink-0 text-xs font-semibold text-accent-terracotta dark:text-accent-terracotta-dark">
+                {new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium', timeStyle: 'short' }).format(
+                  new Date(entry.startsAt),
+                )}
+              </div>
+              <div>
+                <div className="font-semibold">{entry.title}</div>
+                {entry.description && (
+                  <div className="mt-0.5 text-sm text-waterloo dark:text-manatee">{entry.description}</div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (block.type === 'speakers') {
+    if (eventConfig.speakers.length === 0) return null;
+    return (
+      <div className="px-6 py-8 md:px-9">
+        <div className="mb-3 text-xs font-bold uppercase tracking-[0.04em] text-manatee dark:text-waterloo">
+          Speakers
+        </div>
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
+          {eventConfig.speakers.map((speaker) => (
+            <div key={speaker.id} className="flex flex-col items-center text-center">
+              {speaker.photoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={speaker.photoUrl} alt={speaker.name} className="size-20 rounded-full object-cover" />
+              ) : (
+                <div className="size-20 rounded-full bg-secondary" />
+              )}
+              <div className="mt-2 text-sm font-semibold">{speaker.name}</div>
+              <div className="text-xs text-waterloo dark:text-manatee">{speaker.role}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (block.type === 'gallery') {
+    if (eventConfig.galleryImages.length === 0) return null;
+    return (
+      <div className="grid grid-cols-2 gap-2 px-6 py-8 md:grid-cols-3 md:px-9">
+        {eventConfig.galleryImages.map((img) => (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img key={img.id} src={img.url} alt="" className="aspect-square w-full rounded-xl object-cover" />
+        ))}
+      </div>
+    );
+  }
+
+  if (block.type === 'sponsors') {
+    if (eventConfig.sponsorImages.length === 0) return null;
+    return <SponsorsCarousel images={eventConfig.sponsorImages} />;
+  }
+
+  // Rendu générique (image/video/testimonials) — seuls titre + contenu sont
+  // éditables sur ces types dans le Builder.
   return (
     <div className="px-6 py-4 md:px-9" style={{ textAlign }}>
       {(block.props.title as string) && (

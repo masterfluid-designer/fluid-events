@@ -1,9 +1,11 @@
-import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { InputJsonValue } from '@prisma/client/runtime/library';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { ErrorCodes } from '@saas-events/types';
+import { isAllowedImageUrl } from '../storage/image-whitelist.util';
 
 /** Code d'erreur Prisma — violation de contrainte d'unicité. */
 const UNIQUE_VIOLATION = 'P2002';
@@ -48,14 +50,48 @@ export class EventsService {
       });
     }
 
+    this.assertImagesAllowed(data);
+
+    const { faqs, schedule, speakers, galleryImages, sponsorImages, startDate, endDate, ...rest } = data;
+
     return this.prisma.event.update({
       where: { id: event.id },
       data: {
-        ...data,
-        startDate: data.startDate ? new Date(data.startDate) : undefined,
-        endDate: data.endDate ? new Date(data.endDate) : undefined,
+        ...rest,
+        startDate: startDate ? new Date(startDate) : undefined,
+        endDate: endDate ? new Date(endDate) : undefined,
+        faqs: faqs as unknown as InputJsonValue | undefined,
+        schedule: schedule as unknown as InputJsonValue | undefined,
+        speakers: speakers as unknown as InputJsonValue | undefined,
+        galleryImages: galleryImages as unknown as InputJsonValue | undefined,
+        sponsorImages: sponsorImages as unknown as InputJsonValue | undefined,
       },
     });
+  }
+
+  /**
+   * Whitelist d'URL (RULES.md §6) — revalidée à l'écriture pour toute image
+   * référencée dans le contenu centralisé de l'événement (logo, couverture,
+   * photos de speakers, galerie, sponsors), pas seulement au rendu. `@IsUrl`
+   * ne garantit qu'une forme d'URL valide, jamais une origine autorisée.
+   */
+  private assertImagesAllowed(data: UpdateEventDto) {
+    const urls = [
+      data.logoUrl,
+      data.coverImageUrl,
+      ...(data.speakers?.map((s) => s.photoUrl) ?? []),
+      ...(data.galleryImages?.map((m) => m.url) ?? []),
+      ...(data.sponsorImages?.map((m) => m.url) ?? []),
+    ].filter((url): url is string => typeof url === 'string' && url.length > 0);
+
+    for (const url of urls) {
+      if (!isAllowedImageUrl(url)) {
+        throw new BadRequestException({
+          code: ErrorCodes.DESIGN_IMAGE_URL_INVALID,
+          message: `URL d'image non autorisée : ${url} — utilisez POST /api/storage/upload.`,
+        });
+      }
+    }
   }
 
   async getEvent(id: string) {

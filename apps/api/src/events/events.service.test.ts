@@ -3,8 +3,8 @@
  * Vue manager (mine/overview) et participants — ownership + agrégats réels
  * (CDC §1.4 : 1 Manager = 1 Event ; RULES.md §1 : ownership check en service).
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { EventsService } from './events.service';
 
@@ -84,6 +84,86 @@ describe('EventsService.updateMyEvent()', () => {
     prisma.event.findUnique.mockResolvedValue(null);
     await expect(service.updateMyEvent('mgr-1', { title: 'X' } as any)).rejects.toThrow(NotFoundException);
     expect(prisma.event.update).not.toHaveBeenCalled();
+  });
+
+  it('persiste les champs de contenu centralisé (faqs/schedule/speakers/galleryImages/sponsorImages)', async () => {
+    prisma.event.findUnique.mockResolvedValue({ id: 'ev-1' });
+    prisma.event.update.mockResolvedValue({ id: 'ev-1' });
+
+    const faqs = [{ id: 'f1', question: 'Q ?', answer: 'R.' }];
+    const schedule = [{ id: 's1', startsAt: '2026-12-31T20:00:00.000Z', title: 'Ouverture des portes' }];
+    const speakers = [{ id: 'sp1', name: 'Jane Doe', role: 'Keynote' }];
+
+    await service.updateMyEvent('mgr-1', { faqs, schedule, speakers } as any);
+
+    expect(prisma.event.update).toHaveBeenCalledWith({
+      where: { id: 'ev-1' },
+      data: expect.objectContaining({ faqs, schedule, speakers }),
+    });
+  });
+
+  describe("whitelist d'URL image (RULES.md §6)", () => {
+    const ORIGINAL_ENV = { ...process.env };
+
+    beforeEach(() => {
+      process.env.STORAGE_ENDPOINT = 'http://localhost:9000';
+      process.env.STORAGE_BUCKET = 'fluid-events';
+    });
+
+    afterEach(() => {
+      process.env = { ...ORIGINAL_ENV };
+    });
+
+    it('400 si logoUrl pointe vers un domaine hors whitelist', async () => {
+      prisma.event.findUnique.mockResolvedValue({ id: 'ev-1' });
+
+      await expect(
+        service.updateMyEvent('mgr-1', { logoUrl: 'https://evil.com/logo.png' } as any),
+      ).rejects.toThrow(BadRequestException);
+      expect(prisma.event.update).not.toHaveBeenCalled();
+    });
+
+    it("400 si la photo d'un speaker pointe vers un domaine hors whitelist", async () => {
+      prisma.event.findUnique.mockResolvedValue({ id: 'ev-1' });
+
+      await expect(
+        service.updateMyEvent('mgr-1', {
+          speakers: [{ id: 'sp1', name: 'Jane', role: 'Keynote', photoUrl: 'https://evil.com/x.png' }],
+        } as any),
+      ).rejects.toThrow(BadRequestException);
+      expect(prisma.event.update).not.toHaveBeenCalled();
+    });
+
+    it('400 si une image de galerie ou de sponsor pointe hors whitelist', async () => {
+      prisma.event.findUnique.mockResolvedValue({ id: 'ev-1' });
+
+      await expect(
+        service.updateMyEvent('mgr-1', {
+          galleryImages: [{ id: 'g1', url: 'https://evil.com/x.png' }],
+        } as any),
+      ).rejects.toThrow(BadRequestException);
+
+      await expect(
+        service.updateMyEvent('mgr-1', {
+          sponsorImages: [{ id: 'sp1', url: 'https://evil.com/x.png' }],
+        } as any),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('sauvegarde quand les images pointent vers le stockage whitelisté', async () => {
+      prisma.event.findUnique.mockResolvedValue({ id: 'ev-1' });
+      prisma.event.update.mockResolvedValue({ id: 'ev-1' });
+
+      const url = 'http://localhost:9000/fluid-events/uploads/mgr-1/x.png';
+      await service.updateMyEvent('mgr-1', {
+        logoUrl: url,
+        speakers: [{ id: 'sp1', name: 'Jane', role: 'Keynote', photoUrl: url }],
+        galleryImages: [{ id: 'g1', url }],
+        sponsorImages: [{ id: 'sp1', url }],
+      } as any);
+
+      expect(prisma.event.update).toHaveBeenCalled();
+    });
   });
 });
 

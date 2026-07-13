@@ -110,6 +110,11 @@
   --animate-line3: line 9s linear infinite;
   --animate-fade-in: fadeIn 0.6s ease-out forwards;
   --animate-slide-up: slideUp 0.6s ease-out forwards;
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+  /* Carrousel sponsors (bloc "sponsors", décision produit 2026-07-13) —
+     défilement infini pur CSS, pas de librairie JS. */
+  --animate-marquee: marquee 30s linear infinite;
 
   @keyframes line {
     0%,
@@ -136,6 +141,30 @@
     to {
       opacity: 1;
       transform: translateY(0);
+    }
+  }
+  @keyframes accordion-down {
+    from {
+      height: 0;
+    }
+    to {
+      height: var(--radix-accordion-content-height);
+    }
+  }
+  @keyframes accordion-up {
+    from {
+      height: var(--radix-accordion-content-height);
+    }
+    to {
+      height: 0;
+    }
+  }
+  @keyframes marquee {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-50%);
     }
   }
 }

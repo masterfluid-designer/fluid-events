@@ -312,9 +312,9 @@ export class PaymentsService {
    * d'ownership a posteriori nécessaire (RULES.md §1 : la sécurité vit dans
    * le service, ici via le WHERE lui-même).
    */
-  async listOrdersForClient(user: RequestUser) {
+  async listOrdersForClient(user: RequestUser, eventSlug?: string) {
     const orders = await this.prisma.order.findMany({
-      where: { clientId: user.id },
+      where: { clientId: user.id, event: eventSlug ? { slug: eventSlug } : undefined },
       orderBy: { createdAt: 'desc' },
       select: {
         id: true,
@@ -324,12 +324,13 @@ export class PaymentsService {
         currency: true,
         paidAt: true,
         createdAt: true,
-        event: { select: { title: true, startDate: true, location: true } },
+        event: { select: { slug: true, title: true, startDate: true, location: true } },
         items: {
           select: {
             id: true,
             isScanned: true,
             qrCode: true,
+            qrCodeUrl: true,
             ticket: { select: { name: true } },
           },
         },
@@ -350,6 +351,7 @@ export class PaymentsService {
         ticketName: item.ticket.name,
         hasTicket: Boolean(item.qrCode),
         isScanned: item.isScanned,
+        qrCodeUrl: item.qrCodeUrl,
       })),
     }));
   }

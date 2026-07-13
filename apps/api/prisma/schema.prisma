@@ -69,6 +69,17 @@ model Event {
   createdAt                DateTime            @default(now())
   updatedAt                DateTime            @updatedAt
 
+  // Contenu centralisé de l'événement (décision produit 2026-07-13) — édité
+  // depuis l'onglet "Config" du Builder, consommé par les blocs de placement
+  // correspondants (faq/schedule/speakers/gallery/sponsors) : un seul jeu de
+  // contenu par événement, pas un contenu dupliqué par instance de bloc.
+  logoUrl        String?
+  faqs           Json    @default("[]") // FaqEntry[] — max 5, validé par UpdateEventDto
+  schedule       Json    @default("[]") // ScheduleEntry[] — "Programme"
+  speakers       Json    @default("[]") // SpeakerEntry[]
+  galleryImages  Json    @default("[]") // MediaEntry[]
+  sponsorImages  Json    @default("[]") // MediaEntry[] — carrousel infini
+
   // V1 : 1 Manager = 1 Event — contrainte volontaire (CDC §1.4)
   managerId String @unique
   manager   User   @relation("EventManager", fields: [managerId], references: [id])

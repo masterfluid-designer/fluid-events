@@ -196,7 +196,45 @@ export type BlockType =
   | 'schedule'
   | 'testimonials'
   | 'sponsors'
+  | 'speakers'
   | 'html';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Contenu centralisé de l'événement (décision produit 2026-07-13)
+//
+// Un seul jeu de contenu par événement (FAQ, Programme, Speakers, Galerie,
+// Sponsors), édité depuis l'onglet "Config" du Builder. Les blocs `faq`/
+// `schedule`/`speakers`/`gallery`/`sponsors` sont de simples marqueurs de
+// placement sur la page — ils n'ont pas de `props` propres, ils affichent ce
+// contenu quand ils sont posés sur la page.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface FaqEntry {
+  id: string;
+  question: string;
+  answer: string;
+}
+
+export interface ScheduleEntry {
+  id: string;
+  /** ISO datetime — date ET heure précises de l'entrée de programme. */
+  startsAt: string;
+  title: string;
+  description?: string;
+}
+
+export interface SpeakerEntry {
+  id: string;
+  name: string;
+  role: string;
+  photoUrl?: string;
+}
+
+/** Entrée générique image (galerie, sponsors) — juste une URL whitelistée. */
+export interface MediaEntry {
+  id: string;
+  url: string;
+}
 
 export interface BlockStyles {
   /** HEX uniquement — validé par Zod côté backend */

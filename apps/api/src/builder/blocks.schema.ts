@@ -10,7 +10,7 @@ import { z } from 'zod';
  *
  * Types de blocs autorisés (CDC §11.1 + décision produit 2026-07-13) :
  *  hero, text, image, video, gallery, countdown, tickets, faq, schedule,
- *  testimonials, sponsors, html.
+ *  testimonials, sponsors, speakers, html.
  */
 
 // HEX strict 6 chiffres — bloque toute injection CSS via backgroundColor
@@ -42,7 +42,7 @@ const BlockSchema = z.object({
   type: z.enum([
     'hero', 'text', 'image', 'video', 'gallery',
     'countdown', 'tickets', 'faq', 'schedule',
-    'testimonials', 'sponsors', 'html',
+    'testimonials', 'sponsors', 'speakers', 'html',
   ]),
   order: z.number().int().min(0),
   // props est un record libre (validé plus finement par bloc au rendu si besoin)

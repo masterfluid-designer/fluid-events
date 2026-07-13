@@ -451,6 +451,20 @@ describe('PaymentsService.listOrdersForClient()', () => {
     const result = await service.listOrdersForClient(REQUEST_USER);
     expect(result).toEqual([]);
   });
+
+  it('filtre par eventSlug quand fourni (bouton "Mon ticket" du header événement, 2026-07-13)', async () => {
+    const deps = makeDeps();
+    const prisma = makePrisma({ orders: [] });
+    const service = makeService(deps, prisma);
+
+    await service.listOrdersForClient(REQUEST_USER, 'concert-festa-2026');
+
+    expect(prisma.order.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { clientId: 'user-1', event: { slug: 'concert-festa-2026' } },
+      }),
+    );
+  });
 });
 
 describe('PaymentsService.handleKkiapayWebhook()', () => {

@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import QRCode from 'qrcode';
 import { Calendar, MapPin, QrCode, X } from 'lucide-react';
@@ -14,6 +15,11 @@ import { api } from '@/lib/api';
  * Dashboard Client — Mes billets (GET /api/payments/orders).
  * Chaque billet = 1 QR (généré après confirmation webhook). L'ownership est
  * vérifiée côté backend (clientId === jwt.sub) — jamais côté frontend.
+ *
+ * `?event={slug}` (décision produit 2026-07-13, bouton "Mon ticket" du header
+ * événement public) restreint la liste aux commandes de cet événement — le
+ * filtre est appliqué côté serveur (`GET /api/payments/orders?eventSlug=`),
+ * jamais recalculé seulement côté client.
  */
 
 type OrderStatus = 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED' | 'CANCELLED';
@@ -25,18 +31,29 @@ interface ClientOrder {
   totalAmount: number;
   currency: string;
   paidAt: string | null;
-  event: { title: string; startDate: string; location: string | null };
+  event: { slug: string; title: string; startDate: string; location: string | null };
   items: Array<{ id: string; ticketName: string; hasTicket: boolean; isScanned: boolean }>;
 }
 
-async function fetchOrders(): Promise<ClientOrder[]> {
-  return api<ClientOrder[]>('/api/payments/orders');
+async function fetchOrders(eventSlug: string | null): Promise<ClientOrder[]> {
+  return api<ClientOrder[]>('/api/payments/orders', { params: { eventSlug: eventSlug ?? undefined } });
 }
 
 export default function ClientTicketsPage() {
+  return (
+    <Suspense fallback={null}>
+      <ClientTicketsContent />
+    </Suspense>
+  );
+}
+
+function ClientTicketsContent() {
+  const searchParams = useSearchParams();
+  const eventSlug = searchParams.get('event');
+
   const { data: orders, isLoading, isError } = useQuery({
-    queryKey: ['client-orders'],
-    queryFn: fetchOrders,
+    queryKey: ['client-orders', eventSlug],
+    queryFn: () => fetchOrders(eventSlug),
   });
   const [qrModalItemId, setQrModalItemId] = useState<{ orderId: string; itemId: string } | null>(null);
 
@@ -49,7 +66,9 @@ export default function ClientTicketsPage() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Mes billets</h1>
         <p className="text-sm text-muted-foreground">
-          Présentez le QR à l&apos;entrée pour accéder à vos événements
+          {eventSlug
+            ? 'Vos billets pour cet événement'
+            : "Présentez le QR à l'entrée pour accéder à vos événements"}
         </p>
       </div>
 

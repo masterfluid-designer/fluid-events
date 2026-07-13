@@ -29,7 +29,7 @@ describe('BlockSchema', () => {
     const types = [
       'hero', 'text', 'image', 'video', 'gallery',
       'countdown', 'tickets', 'faq', 'schedule',
-      'testimonials', 'sponsors', 'html',
+      'testimonials', 'sponsors', 'speakers', 'html',
     ];
     for (const type of types) {
       const result = BlockSchema.safeParse(validBlock({ type }));

@@ -118,6 +118,19 @@ authentifié — pas de `:id` dans l'URL). Corps : tous les champs de
 sur `status` — seule sa validité dans l'enum `EventStatus` est vérifiée
 (BUSINESS.md §12 : cycle de vie complet non tranché produit).
 
+**Contenu centralisé de l'événement** (décision produit 2026-07-13, onglet
+Config du Builder) : `logoUrl`, `faqs` (max 5 `{id, question, answer}`),
+`schedule` (max 30 `{id, startsAt, title, description?}` — "Programme"),
+`speakers` (max 20 `{id, name, role, photoUrl?}`), `galleryImages`/
+`sponsorImages` (max 30 `{id, url}` chacun). Un seul jeu de contenu par
+événement (pas par bloc) — consommé par les blocs de placement `faq`/
+`schedule`/`speakers`/`gallery`/`sponsors` quand ils sont posés sur la page
+(voir ROADMAP.md Phase 4). Toute URL d'image (`logoUrl`, `coverImageUrl`,
+`speakers[].photoUrl`, `galleryImages[].url`, `sponsorImages[].url`) est
+revalidée contre la whitelist de stockage côté serveur (`400
+DESIGN_IMAGE_URL_INVALID` sinon) — même principe que la whitelist d'image du
+Builder (RULES.md §6).
+
 **Annulation/republication d'un événement** (décision produit du 2026-07-13,
 BUSINESS.md §12) : c'est une transition de statut, pas une suppression —
 `{ status: 'CANCELLED' }` / `{ status: 'PUBLISHED' }`, réversible. Aucune
@@ -317,7 +330,12 @@ Réservé au rôle `CLIENT`. Liste les commandes du client authentifié (scoping
 par `clientId` directement dans la requête), triées de la plus récente à la
 plus ancienne. Alimente le dashboard "Mes billets" (`apps/web/app/(dashboard)/client/page.tsx`).
 
-**Réponse:** tableau d'objets `{ id, orderNumber, status, totalAmount, currency, paidAt, createdAt, event: {title, startDate, location}, items: [{id, ticketName, hasTicket, isScanned}] }`.
+`?eventSlug=` (optionnel, décision produit 2026-07-13 — bouton "Mon ticket"
+du header événement public) restreint aux commandes de cet événement
+uniquement, filtré côté serveur (`WHERE clientId = ... AND event.slug =
+...`) — absent, comportement inchangé (toutes les commandes du client).
+
+**Réponse:** tableau d'objets `{ id, orderNumber, status, totalAmount, currency, paidAt, createdAt, event: {slug, title, startDate, location}, items: [{id, ticketName, hasTicket, isScanned, qrCodeUrl}] }`.
 
 #### GET /api/payments/orders/:id
 Réservé au rôle `CLIENT`, ownership vérifiée (`order.clientId === user.id`).

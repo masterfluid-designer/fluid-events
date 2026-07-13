@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, HttpCode, HttpStatus, Param, Post, Req, RawBodyRequest } from '@nestjs/common';
+import { Body, Controller, Get, Headers, HttpCode, HttpStatus, Param, Post, Query, Req, RawBodyRequest } from '@nestjs/common';
 import type { Request } from 'express';
 import { Role } from '@saas-events/types';
 import { Public } from '../common/decorators/public.decorator';
@@ -21,11 +21,17 @@ export class PaymentsController {
     return this.paymentsService.initPayment(user, dto);
   }
 
-  /** GET /api/payments/orders — commandes du client authentifié (dashboard "Mes billets"). */
+  /**
+   * GET /api/payments/orders — commandes du client authentifié (dashboard
+   * "Mes billets"). `?eventSlug=` (optionnel, décision produit 2026-07-13 —
+   * bouton "Mon ticket" du header événement) restreint aux commandes de cet
+   * événement uniquement, filtré côté serveur (jamais renvoyer au client des
+   * commandes d'autres événements qu'il n'a pas demandées).
+   */
   @Roles(Role.CLIENT)
   @Get('orders')
-  async listOrders(@CurrentUser() user: RequestUser) {
-    return this.paymentsService.listOrdersForClient(user);
+  async listOrders(@CurrentUser() user: RequestUser, @Query('eventSlug') eventSlug?: string) {
+    return this.paymentsService.listOrdersForClient(user, eventSlug);
   }
 
   /**
