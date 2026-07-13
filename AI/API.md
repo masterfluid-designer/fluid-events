@@ -198,22 +198,25 @@ doc fournis pour l'instant — voir `ROADMAP.md`).
 #### POST /api/payments/init
 Réservé au rôle `CLIENT`. Vérifie le billet/événement/fenêtre de vente/stock,
 réserve le stock atomiquement et crée un `Order` (`PENDING`) + `OrderItem`
-dans une `$transaction`. Kkiapay n'a pas de "checkoutUrl" serveur : le
-paiement s'initie côté client via son widget JS — cette route renvoie donc
-les paramètres nécessaires à `openKkiapayWidget(...)`, pas une URL de
-redirection.
+dans une `$transaction`.
 
-La `PaymentProviderConfig` est résolue par `(eventId, provider)` — pas
-globalement — depuis le 2026-07-13 (config par événement, voir ROADMAP.md
-§2). `503 PROVIDER_NOT_ACTIVE` si rien n'est configuré/actif pour
-l'événement du billet.
+**Pas de champ `provider` dans le body** (retiré le 2026-07-13) : le client
+ne choisit ni ne connaît jamais le fournisseur — `PaymentsService` le déduit
+de `PaymentProviderConfig.findFirst({ eventId, isActive: true })` (au plus un
+provider actif par événement, config par événement — voir ROADMAP.md §2).
+`503 PROVIDER_NOT_ACTIVE` si rien n'est configuré/actif pour l'événement du
+billet.
 
 **Body:**
 ```json
-{ "ticketId": "tk-1", "provider": "KKIAPAY" }
+{ "ticketId": "tk-1" }
 ```
 
-**Réponse (`KkiapayInitResult`):**
+**Réponse (`PaymentInitResult`, union discriminée par `provider`) :**
+
+Kkiapay n'a pas de "checkoutUrl" serveur : le paiement s'initie côté client
+via son widget JS — la réponse contient donc les paramètres nécessaires à
+`openKkiapayWidget(...)` :
 ```json
 {
   "provider": "KKIAPAY",
@@ -228,6 +231,23 @@ l'événement du billet.
 `partnerId` (= `orderId`) doit être passé tel quel au widget Kkiapay
 (`partnerId` / `data`) — c'est la donnée de corrélation retrouvée dans le
 webhook.
+
+CinetPay/FedaPay renvoient une URL de paiement hébergée par le provider —
+pas de widget, le frontend redirige simplement le navigateur :
+```json
+{ "provider": "CINETPAY", "orderId": "order-1", "checkoutUrl": "https://checkout.cinetpay.com/payment/..." }
+```
+Le retour (`return_url`/`callback_url`, configuré côté serveur) pointe vers
+`FRONTEND_URL/e/{slug}?resume=1&orderId={orderId}` — `ResumeCheckout`
+(frontend) y détecte `orderId` et reprend directement le polling
+`GET /api/payments/orders/:id` (le webhook reste la seule source de vérité,
+cette page n'affiche qu'un état d'attente).
+
+**Erreurs** : si l'appel externe d'initiation échoue (CinetPay/FedaPay,
+ex. identifiants invalides), l'`Order` créé juste avant est annulé et le
+stock relâché atomiquement (`PaymentsService.abortFailedInit`) — sinon la
+réservation resterait bloquée indéfiniment sans qu'aucun webhook ne vienne
+jamais la confirmer. `503 PAYMENT_INIT_FAILED` dans ce cas.
 
 #### POST /api/payments/webhook/kkiapay
 Route `@Public()` (pas de JWT), authentifiée via l'en-tête `x-kkiapay-secret`
@@ -256,6 +276,41 @@ montant retourné avec `order.totalAmount`, avant de marquer la commande payée.
 - Échec ou incohérence de vérification → `Order.status = FAILED`, stock
   relâché (`StockService.releaseStockAtomic`).
 - Toujours répond `200 OK` sauf signature invalide (`401`).
+
+#### POST /api/payments/webhook/cinetpay
+Route `@Public()`, authentifiée via l'en-tête **`x-token`** — HMAC-SHA256
+(`CinetPayService.computeCinetPayHmac`, fonction pure testée isolément) sur
+la concaténation exacte des champs `cpm_*` documentée par CinetPay, avec le
+`webhookSecret` de l'événement (config par événement, comme Kkiapay). Le
+`transaction_id` transmis à l'init = notre `Order.id` (comme `partnerId`
+Kkiapay) — pas de résolution indirecte nécessaire pour retrouver l'Order.
+
+⚠️ Anti-fraude obligatoire (même principe que Kkiapay) : toujours
+re-vérifié via `POST /v2/payment/check` (`CinetPayService.checkTransaction`)
+avant de marquer la commande payée — jamais le seul `x-token`.
+
+Mêmes effets de bord/format de réponse que le webhook Kkiapay (QR, PDF,
+stock relâché sur échec, idempotent, `200 OK` sauf signature invalide `401`).
+
+#### POST /api/payments/webhook/fedapay
+Route `@Public()`, authentifiée via l'en-tête `X-FEDAPAY-SIGNATURE`, vérifié
+via le SDK Node officiel (`Webhook.constructEvent`, `FedaPayService.constructWebhookEvent`)
+— pas de réimplémentation maison de l'algorithme (non documenté publiquement).
+Nécessite le **corps brut** (`req.rawBody`, `rawBody: true` activé dans
+`main.ts`) : le SDK signe la chaîne brute, pas le JSON re-sérialisé par le
+body-parser.
+
+FedaPay assigne son propre id de transaction (pas nous, contrairement à
+Kkiapay/CinetPay) : stocké sur `Order.paymentRef` dès `POST /api/payments/init`
+pour permettre à ce webhook de résoudre l'Order (`findFirst({paymentProvider:
+'FEDAPAY', paymentRef: transactionId})`), avant même de vérifier la
+signature — même logique que la résolution Order→eventId de Kkiapay/CinetPay.
+
+⚠️ Anti-fraude obligatoire (même principe) : toujours re-vérifié via
+`GET /v1/transactions/{id}` (`FedaPayService.getTransactionStatus`) avant de
+marquer la commande payée — jamais le seul événement webhook.
+
+Mêmes effets de bord/format de réponse que les deux autres webhooks.
 
 #### GET /api/payments/orders
 Réservé au rôle `CLIENT`. Liste les commandes du client authentifié (scoping
@@ -383,15 +438,14 @@ CINETPAY ; `environment` pour FEDAPAY.
 avant stockage. Si `isActive: true`, désactive automatiquement tout autre
 provider déjà actif pour cet événement (au plus un actif à la fois).
 
-**Erreurs** : `400` (`PROVIDER_EXECUTION_NOT_SUPPORTED` — tentative
-d'activer CINETPAY/FEDAPAY, exécution non branchée, voir ROADMAP.md §6 ;
-erreurs de validation class-validator sinon), `404` (`EVENT_NOT_FOUND`).
+**Erreurs** : `400` (erreurs de validation class-validator), `404`
+(`EVENT_NOT_FOUND`). Les 3 providers (KKIAPAY/CINETPAY/FEDAPAY) sont
+exécutables depuis le 2026-07-13 (`SUPPORTED_PAYMENT_PROVIDERS`, voir
+ROADMAP.md §2/§6) — `PROVIDER_EXECUTION_NOT_SUPPORTED` n'existe plus.
 
 #### PATCH /api/admin/events/:eventId/payment-config/:provider
 Réservé au rôle `SUPER_ADMIN`. Active/désactive un provider **déjà
 configuré** sans toucher aux identifiants. Body : `{ isActive: boolean }`.
-Même règle `PROVIDER_EXECUTION_NOT_SUPPORTED` que ci-dessus si `isActive:
-true` sur un provider non exécutable ; désactiver reste toujours permis.
 `404` si aucune config n'existe encore pour ce provider sur cet événement.
 
 #### DELETE /api/admin/events/:eventId/payment-config/:provider
@@ -404,7 +458,6 @@ Ces routes existent dans le cahier des charges mais n'ont **aucun controller
 NestJS correspondant** dans `apps/api/src` pour l'instant :
 
 - `POST /api/tickets/purchase`, `GET /api/tickets/:id` (achat côté client — le CRUD Manager existe, pas encore le flux d'achat public)
-- `POST /api/payments/webhook/cinetpay`, `POST /api/payments/webhook/fedapay`
 
 Ne pas les appeler depuis le frontend tant qu'ils ne sont pas livrés.
 

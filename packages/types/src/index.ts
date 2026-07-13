@@ -104,35 +104,9 @@ export interface QrTokenPayload {
 // Paiements (CDC §8.1)
 // ─────────────────────────────────────────────────────────────────────────────
 
-export interface InitPaymentParams {
-  /** En centimes */
-  amount: number;
-  /** XOF, XAF, GNF... */
-  currency: string;
-  orderId: string;
-  description: string;
-  /** URL webhook */
-  callbackUrl: string;
-  /** Redirect succès */
-  returnUrl: string;
-  /** Redirect annulation */
-  cancelUrl: string;
-  customerEmail: string;
-  customerName: string;
-  customerPhone?: string;
-}
-
-export interface PaymentInitResult {
-  checkoutUrl: string;
-  transactionId: string;
-  orderId: string;
-}
-
-export type TransactionStatus = 'SUCCESS' | 'FAILED' | 'PENDING';
-
+/** Pas de `provider` : déterminé côté serveur depuis la config active de l'événement (2026-07-13). */
 export interface InitPaymentDto {
   ticketId: string;
-  provider: PaymentProviderType;
 }
 
 /**
@@ -153,6 +127,20 @@ export interface KkiapayInitResult {
   publicKey: string;
   sandbox: boolean;
 }
+
+/**
+ * Réponse de POST /api/payments/init pour CinetPay/FedaPay — contrairement à
+ * Kkiapay, ces deux providers renvoient une URL de paiement hébergée server-side
+ * (CinetPay `payment_url`, FedaPay `transactions/{id}/token` → `url`) : le
+ * frontend redirige simplement le navigateur, pas de widget JS embarqué.
+ */
+export interface RedirectPaymentInitResult {
+  provider: 'CINETPAY' | 'FEDAPAY';
+  orderId: string;
+  checkoutUrl: string;
+}
+
+export type PaymentInitResult = KkiapayInitResult | RedirectPaymentInitResult;
 
 /**
  * Payload webhook Kkiapay (POST /api/payments/webhook/kkiapay).

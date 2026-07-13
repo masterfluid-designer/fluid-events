@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useKKiaPay } from 'kkiapay-react';
 import toast from 'react-hot-toast';
 import { CheckCircle2, XCircle } from 'lucide-react';
+import type { PaymentInitResult } from '@saas-events/types';
 import { consumeIntent } from '@/lib/auth';
 import { api, apiPost, ApiError } from '@/lib/api';
 import { Button } from '@/components/ui/button';
@@ -12,22 +13,17 @@ import { Spinner } from '@/components/ui/spinner';
 /**
  * ResumeCheckout — Reprise du tunnel d'achat après retour d'OAuth (CDC §7.4, §8).
  *
- * Kkiapay n'a pas de "checkoutUrl" serveur : le paiement s'initie via son
- * widget JS côté client. Le webhook backend reste la SEULE source de vérité
- * de confirmation (RULES.md) — le callback `success` du widget ne fait que
- * déclencher un polling de `GET /api/payments/orders/:id`, jamais une
- * confirmation directe.
+ * Le fournisseur n'est jamais choisi côté client : `POST /api/payments/init`
+ * le détermine depuis la config active de l'événement (décision produit
+ * 2026-07-13, un seul provider actif par événement). Kkiapay n'a pas de
+ * "checkoutUrl" serveur (paiement via widget JS) ; CinetPay/FedaPay renvoient
+ * une URL de paiement hébergée — on redirige simplement le navigateur.
+ *
+ * Dans tous les cas, le webhook backend reste la SEULE source de vérité de
+ * confirmation (RULES.md) — ni le callback `success` du widget, ni le retour
+ * de redirection, ne déclenchent autre chose qu'un polling de
+ * `GET /api/payments/orders/:id`, jamais une confirmation directe.
  */
-
-interface KkiapayInitResult {
-  provider: 'KKIAPAY';
-  orderId: string;
-  partnerId: string;
-  amount: number;
-  currency: string;
-  publicKey: string;
-  sandbox: boolean;
-}
 
 interface OrderStatus {
   id: string;
@@ -46,7 +42,16 @@ type FlowState =
 const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS = 60_000;
 
-export function ResumeCheckout({ slug, resume }: { slug: string; resume: boolean }) {
+export function ResumeCheckout({
+  slug,
+  resume,
+  orderId,
+}: {
+  slug: string;
+  resume: boolean;
+  /** Présent au retour d'une redirection CinetPay/FedaPay — reprend directement le polling. */
+  orderId?: string;
+}) {
   const { openKkiapayWidget, addSuccessListener, addFailedListener, removeKkiapayListener } =
     useKKiaPay();
   const [state, setState] = useState<FlowState>({ step: 'idle' });
@@ -55,18 +60,24 @@ export function ResumeCheckout({ slug, resume }: { slug: string; resume: boolean
   async function startCheckout(ticketId: string) {
     setState({ step: 'initializing' });
     try {
-      const init = await apiPost<KkiapayInitResult>('/api/payments/init', {
-        ticketId,
-        provider: 'KKIAPAY',
-      });
+      const init = await apiPost<PaymentInitResult>('/api/payments/init', { ticketId });
+
+      if (init.provider === 'KKIAPAY') {
+        setState({ step: 'awaiting-payment' });
+        openKkiapayWidget({
+          amount: init.amount,
+          key: init.publicKey,
+          sandbox: init.sandbox,
+          partnerId: init.partnerId,
+          data: init.partnerId,
+        });
+        return;
+      }
+
+      // CinetPay/FedaPay : pas de widget, redirection vers la page de
+      // paiement hébergée par le provider — le webhook confirmera ensuite.
       setState({ step: 'awaiting-payment' });
-      openKkiapayWidget({
-        amount: init.amount,
-        key: init.publicKey,
-        sandbox: init.sandbox,
-        partnerId: init.partnerId,
-        data: init.partnerId,
-      });
+      window.location.href = init.checkoutUrl;
     } catch (err) {
       const message =
         err instanceof ApiError ? err.message : 'Impossible de démarrer le paiement.';
@@ -75,9 +86,19 @@ export function ResumeCheckout({ slug, resume }: { slug: string; resume: boolean
     }
   }
 
-  // Reprise de l'intent sauvegardé avant l'OAuth (une seule fois au montage).
+  // Reprise après retour d'une redirection CinetPay/FedaPay : l'Order existe
+  // déjà (créé à l'init), on saute directement au polling — jamais de
+  // confirmation basée sur le seul retour de redirection (RULES.md).
   useEffect(() => {
-    if (!resume || startedRef.current) return;
+    if (!orderId || startedRef.current) return;
+    startedRef.current = true;
+    setState({ step: 'confirming', orderId });
+  }, [orderId]);
+
+  // Reprise de l'intent sauvegardé avant l'OAuth (une seule fois au montage,
+  // flux widget Kkiapay uniquement — un `orderId` déjà connu prend le dessus).
+  useEffect(() => {
+    if (!resume || orderId || startedRef.current) return;
     startedRef.current = true;
     const intent = consumeIntent(slug);
     if (!intent) {
@@ -89,7 +110,7 @@ export function ResumeCheckout({ slug, resume }: { slug: string; resume: boolean
     }
     void startCheckout(intent.ticketId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resume, slug]);
+  }, [resume, slug, orderId]);
 
   // Écoute des callbacks du widget Kkiapay — enregistrés une seule fois.
   useEffect(() => {
@@ -158,7 +179,7 @@ export function ResumeCheckout({ slug, resume }: { slug: string; resume: boolean
             <p className="mt-4 text-sm text-manatee dark:text-waterloo">
               {state.step === 'initializing' && 'Préparation du paiement...'}
               {state.step === 'awaiting-payment' &&
-                'Finalisez votre paiement dans la fenêtre Kkiapay.'}
+                'Finalisez votre paiement...'}
               {state.step === 'confirming' && 'Confirmation du paiement en cours...'}
             </p>
           </>

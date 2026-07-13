@@ -64,10 +64,10 @@ export default async function EventPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ resume?: string }>;
+  searchParams: Promise<{ resume?: string; orderId?: string }>;
 }) {
   const { slug } = await params;
-  const { resume } = await searchParams;
+  const { resume, orderId } = await searchParams;
   const event = await fetchEvent(slug);
   if (!event) notFound();
 
@@ -212,7 +212,7 @@ export default async function EventPage({
           )}
         </div>
       </div>
-      <ResumeCheckout slug={slug} resume={resume === '1'} />
+      <ResumeCheckout slug={slug} resume={resume === '1'} orderId={orderId} />
     </main>
   );
 }

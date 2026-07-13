@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Headers, HttpCode, HttpStatus, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Headers, HttpCode, HttpStatus, Param, Post, Req, RawBodyRequest } from '@nestjs/common';
+import type { Request } from 'express';
 import { Role } from '@saas-events/types';
 import { Public } from '../common/decorators/public.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -7,6 +8,7 @@ import type { RequestUser } from '../auth/strategies/jwt.strategy';
 import { PaymentsService } from './payments.service';
 import { InitPaymentDto } from './dto/init-payment.dto';
 import { KkiapayWebhookDto } from './dto/kkiapay-webhook.dto';
+import { CinetPayNotificationDto } from './dto/cinetpay-notification.dto';
 
 @Controller('payments')
 export class PaymentsController {
@@ -50,6 +52,39 @@ export class PaymentsController {
     @Headers('x-kkiapay-secret') secret: string | undefined,
   ) {
     await this.paymentsService.handleKkiapayWebhook(dto, secret);
+    return { received: true };
+  }
+
+  /**
+   * POST /api/payments/webhook/cinetpay — authentifié par le header `x-token`
+   * (HMAC-SHA256 sur les champs `cpm_*`, voir CinetPayService.computeCinetPayHmac).
+   */
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @Post('webhook/cinetpay')
+  async webhookCinetPay(
+    @Body() dto: CinetPayNotificationDto,
+    @Headers('x-token') xToken: string | undefined,
+  ) {
+    await this.paymentsService.handleCinetPayWebhook(dto, xToken);
+    return { received: true };
+  }
+
+  /**
+   * POST /api/payments/webhook/fedapay — authentifié par le header
+   * `X-FEDAPAY-SIGNATURE`, vérifié via le SDK officiel (`Webhook.constructEvent`)
+   * qui a besoin du corps BRUT (`req.rawBody`, activé dans main.ts), pas du
+   * JSON re-sérialisé par le body-parser.
+   */
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @Post('webhook/fedapay')
+  async webhookFedaPay(
+    @Req() req: RawBodyRequest<Request>,
+    @Headers('x-fedapay-signature') signature: string | undefined,
+  ) {
+    const rawBody = req.rawBody?.toString('utf8') ?? '';
+    await this.paymentsService.handleFedaPayWebhook(rawBody, signature);
     return { received: true };
   }
 }

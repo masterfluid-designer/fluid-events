@@ -47,7 +47,7 @@ function LoginForm() {
         MANAGER: "/manager",
         CLIENT: redirectTo,
       };
-      window.location.href = destinations[body?.role] ?? redirectTo;
+      window.location.href = destinations[body?.data?.role] ?? redirectTo;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erreur");
     } finally {

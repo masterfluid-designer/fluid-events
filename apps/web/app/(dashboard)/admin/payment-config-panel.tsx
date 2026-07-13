@@ -15,9 +15,9 @@ import { api, apiPut, apiPatch, ApiError } from '@/lib/api';
  * ÉVÉNEMENT par l'Admin (décision produit 2026-07-13, supersède
  * BUSINESS.md §6 "un seul compte Kkiapay global").
  *
- * CinetPay/FedaPay : les identifiants peuvent être enregistrés (prêts pour
- * plus tard) mais ne peuvent PAS être activés — seule l'exécution Kkiapay
- * est branchée aujourd'hui (backend : SUPPORTED_PAYMENT_PROVIDERS).
+ * Les 3 providers (Kkiapay, CinetPay, FedaPay) sont exécutables — le backend
+ * (`SUPPORTED_PAYMENT_PROVIDERS`) reste la source de vérité si jamais un
+ * provider redevenait "identifiants seulement" à l'avenir.
  */
 
 type Provider = 'KKIAPAY' | 'CINETPAY' | 'FEDAPAY';
@@ -36,8 +36,6 @@ const PROVIDER_LABELS: Record<Provider, string> = {
   CINETPAY: 'CinetPay',
   FEDAPAY: 'FedaPay',
 };
-
-const EXECUTABLE_PROVIDERS: Provider[] = ['KKIAPAY'];
 
 export function PaymentConfigPanel({ eventId }: { eventId: string }) {
   const queryClient = useQueryClient();
@@ -135,16 +133,14 @@ export function PaymentConfigPanel({ eventId }: { eventId: string }) {
               </div>
               <div className="flex items-center gap-2">
                 <Badge variant={c.isActive ? 'success' : 'outline'}>{c.isActive ? 'Actif' : 'Inactif'}</Badge>
-                {EXECUTABLE_PROVIDERS.includes(c.provider) && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={toggleActive.isPending}
-                    onClick={() => toggleActive.mutate({ provider: c.provider, isActive: !c.isActive })}
-                  >
-                    {c.isActive ? 'Désactiver' : 'Activer'}
-                  </Button>
-                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={toggleActive.isPending}
+                  onClick={() => toggleActive.mutate({ provider: c.provider, isActive: !c.isActive })}
+                >
+                  {c.isActive ? 'Désactiver' : 'Activer'}
+                </Button>
                 <button
                   type="button"
                   aria-label="Supprimer"
@@ -174,7 +170,6 @@ export function PaymentConfigPanel({ eventId }: { eventId: string }) {
           {(Object.keys(PROVIDER_LABELS) as Provider[]).map((p) => (
             <option key={p} value={p}>
               {PROVIDER_LABELS[p]}
-              {!EXECUTABLE_PROVIDERS.includes(p) ? ' (identifiants seulement — exécution non branchée)' : ''}
             </option>
           ))}
         </select>
@@ -219,13 +214,9 @@ export function PaymentConfigPanel({ eventId }: { eventId: string }) {
           <input
             type="checkbox"
             checked={activateOnSave}
-            disabled={!EXECUTABLE_PROVIDERS.includes(provider)}
             onChange={(e) => setActivateOnSave(e.target.checked)}
           />
           Activer immédiatement
-          {!EXECUTABLE_PROVIDERS.includes(provider) && (
-            <span className="text-xs text-muted-foreground">(exécution {PROVIDER_LABELS[provider]} pas encore branchée)</span>
-          )}
         </label>
 
         <Button type="submit" size="sm" disabled={save.isPending} className="md:col-span-2 w-fit">

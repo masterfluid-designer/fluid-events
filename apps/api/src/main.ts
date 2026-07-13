@@ -12,10 +12,13 @@ import { AppModule } from './app.module';
  *  - prefix global /api : cohérent avec la structure de routes du CDC §6
  *  - cookie-parser : peuple req.cookies — requis par JwtStrategy pour lire
  *    access_token depuis le cookie httpOnly posé par AuthController
+ *  - rawBody : true — expose `req.rawBody` (Buffer), requis par le webhook
+ *    FedaPay (`Webhook.constructEvent` du SDK signe la chaîne brute, pas le
+ *    JSON re-sérialisé par le body-parser — voir PaymentsController)
  */
 async function bootstrap(): Promise<void> {
   const logger = new Logger('Bootstrap');
-  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  const app = await NestFactory.create(AppModule, { bufferLogs: true, rawBody: true });
 
   app.use(cookieParser());
 

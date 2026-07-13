@@ -9,6 +9,8 @@ import { StockService } from './stock.service';
 import { WebhookIdempotencyService } from './webhook-idempotency.service';
 import { ClientProfileService } from './client-profile.service';
 import { KkiapayService } from './kkiapay.service';
+import { CinetPayService } from './cinetpay.service';
+import { FedaPayService } from './fedapay.service';
 import { PaymentsService } from './payments.service';
 import { PaymentsController } from './payments.controller';
 
@@ -20,6 +22,8 @@ import { PaymentsController } from './payments.controller';
     WebhookIdempotencyService,
     ClientProfileService,
     KkiapayService,
+    CinetPayService,
+    FedaPayService,
     PaymentsService,
   ],
   controllers: [PaymentsController],

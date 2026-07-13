@@ -83,6 +83,9 @@ importers:
       dotenv:
         specifier: ^17.4.2
         version: 17.4.2
+      fedapay:
+        specifier: ^1.2.5
+        version: 1.2.5
       ioredis:
         specifier: ^5.3.2
         version: 5.11.1
@@ -2176,6 +2179,9 @@ packages:
   '@types/passport@1.0.17':
     resolution: {integrity: sha512-aciLyx+wDwT2t2/kJGJR2AEeBz0nJU4WuRX04Wu9Dqc5lSUtwu0WERPHYsLhF9PtseiAMPBGNUOtFjxZ56prsg==}
 
+  '@types/pluralize@0.0.28':
+    resolution: {integrity: sha512-WR/XtQMjTx4phclpWhfuoFURYPOwiBZD89gCCTG6RETzE70AZPAGGJ0h/t+a/E27MCVf1s2Z+wvH1pVTyckIcA==}
+
   '@types/qrcode@1.5.6':
     resolution: {integrity: sha512-te7NQcV2BOvdj2b1hCAHzAoMNuj65kNBMz0KBaxM6c3VGBOhU0dURQKOtH8CFNI/dsKkwlv32p26qYQTWoB5bw==}
 
@@ -2621,6 +2627,9 @@ packages:
 
   axios@0.27.2:
     resolution: {integrity: sha512-t+yRIyySRTp/wua5xEr+z1q60QmLq8ABsS5O9Me1AsE5dfKqgnCFzwiCZZ/cGNd1lq4/7akDWMxdhVlucjmnOQ==}
+
+  axios@0.28.1:
+    resolution: {integrity: sha512-iUcGA5a7p0mVb4Gm/sy+FSECNkPFT4y7wt6OM/CDpO/OnNCvSs3PoMG8ibrC9jRoGYU0gUK5pXVC4NPXq6lHRQ==}
 
   axios@1.18.1:
     resolution: {integrity: sha512-3nTvFlvpn9Zu/RkHUqtc7/+al4UpRW5az71ap5zccp6e8RAYEzhMTecX8Dz1wWDYrPpUoB1HAQEGEAEvUr7S9g==}
@@ -3333,6 +3342,9 @@ packages:
     peerDependenciesMeta:
       picomatch:
         optional: true
+
+  fedapay@1.2.5:
+    resolution: {integrity: sha512-KwbUbjCrG1R9/691uz+bbZ3xMiOTQlTT8hFgxOkVv7/ZuZ7LVKSBqcTv2ZW2pzcugCagjtkblvY+wD2msMcJ2A==}
 
   fflate@0.8.3:
     resolution: {integrity: sha512-tbZNuJrLwGUp3zshBtdy4W+ORxZuIh8a5ilyIEQDC5rY1f3U20JMry0Ll3WBzU58EZKsEuJFXhb5gwv8CsPvgA==}
@@ -4380,6 +4392,10 @@ packages:
     resolution: {integrity: sha512-QP88BAKvMam/3NxH6vj2o21R6MjxZUAd6nlwAS/pnGvN9IVLocLHxGYIzFhg6fUQ+5th6P4dv4eW9jX3DSIj7A==}
     engines: {node: '>=12'}
 
+  pluralize@7.0.0:
+    resolution: {integrity: sha512-ARhBOdzS3e41FbkW/XWrTEtukqqLoK5+Z/4UeDaLuSW+39JPeFgs4gCGqsrJHVZX0fUrx//4OF0K1CUGwlIFow==}
+    engines: {node: '>=4'}
+
   pluralize@8.0.0:
     resolution: {integrity: sha512-Nc3IT5yHzflTfbjgqWcCPpo7DaKy4FnpB0l/zCAW0Tc7jxAiuqSxHasntB3D7887LSrA93kDJ9IXovxJYxyLCA==}
     engines: {node: '>=4'}
@@ -4475,6 +4491,9 @@ packages:
   proxy-addr@2.0.7:
     resolution: {integrity: sha512-llQsMLSUDUPT44jdrU/O37qlnifitDP+ZwrmmZcoSKyLKvtZxpyV0n2/bD/N4tBAAZ/gJEdZU7KMraoK1+XYAg==}
     engines: {node: '>= 0.10'}
+
+  proxy-from-env@1.1.0:
+    resolution: {integrity: sha512-D+zkORCbA9f1tdWRK0RaCR3GPv50cMxcrz4X8k5LTSUD1Dkw47mKJEZQNunItRTkWwgtaUSo1RVFRIG9ZXiFYg==}
 
   proxy-from-env@2.1.0:
     resolution: {integrity: sha512-cJ+oHTW1VAEa8cJslgmUZrc+sjRKgAKl3Zyse6+PV38hZe/V6Z14TbCuXcan9F9ghlz4QrFr2c92TNF82UkYHA==}
@@ -7372,6 +7391,8 @@ snapshots:
     dependencies:
       '@types/express': 5.0.6
 
+  '@types/pluralize@0.0.28': {}
+
   '@types/qrcode@1.5.6':
     dependencies:
       '@types/node': 22.20.0
@@ -7874,6 +7895,14 @@ snapshots:
     dependencies:
       follow-redirects: 1.16.0
       form-data: 4.0.6
+    transitivePeerDependencies:
+      - debug
+
+  axios@0.28.1:
+    dependencies:
+      follow-redirects: 1.16.0
+      form-data: 4.0.6
+      proxy-from-env: 1.1.0
     transitivePeerDependencies:
       - debug
 
@@ -8763,6 +8792,15 @@ snapshots:
   fdir@6.5.0(picomatch@4.0.4):
     optionalDependencies:
       picomatch: 4.0.4
+
+  fedapay@1.2.5:
+    dependencies:
+      '@types/pluralize': 0.0.28
+      axios: 0.28.1
+      lodash.isplainobject: 4.0.6
+      pluralize: 7.0.0
+    transitivePeerDependencies:
+      - debug
 
   fflate@0.8.3: {}
 
@@ -9834,6 +9872,8 @@ snapshots:
 
   picomatch@4.0.4: {}
 
+  pluralize@7.0.0: {}
+
   pluralize@8.0.0: {}
 
   pngjs@5.0.0: {}
@@ -9876,6 +9916,8 @@ snapshots:
     dependencies:
       forwarded: 0.2.0
       ipaddr.js: 1.9.1
+
+  proxy-from-env@1.1.0: {}
 
   proxy-from-env@2.1.0: {}
 

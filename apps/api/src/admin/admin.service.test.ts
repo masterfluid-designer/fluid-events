@@ -4,7 +4,7 @@
  * ÉVÉNEMENT (décision produit 2026-07-13, supersède BUSINESS.md §6).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { NotFoundException } from '@nestjs/common';
 import { AdminService } from './admin.service';
 
 function makePrisma() {
@@ -206,7 +206,7 @@ describe('AdminService.upsertEventPaymentConfig()', () => {
     );
   });
 
-  it("400 si isActive=true pour un provider dont l'exécution n'est pas branchée (CINETPAY/FEDAPAY)", async () => {
+  it('permet d’activer CINETPAY (exécution branchée depuis le 2026-07-13)', async () => {
     await expect(
       service.upsertEventPaymentConfig('ev-1', {
         provider: 'CINETPAY',
@@ -215,11 +215,11 @@ describe('AdminService.upsertEventPaymentConfig()', () => {
         siteId: 'site-123',
         isActive: true,
       } as any),
-    ).rejects.toThrow(BadRequestException);
-    expect(prisma._tx.paymentProviderConfig.upsert).not.toHaveBeenCalled();
+    ).resolves.toBeDefined();
+    expect(prisma._tx.paymentProviderConfig.upsert).toHaveBeenCalled();
   });
 
-  it("permet d'enregistrer CINETPAY/FEDAPAY avec isActive=false (préparation, pas d'exécution)", async () => {
+  it("permet d'enregistrer CINETPAY/FEDAPAY avec isActive=false (préparation)", async () => {
     await expect(
       service.upsertEventPaymentConfig('ev-1', {
         provider: 'FEDAPAY',
@@ -276,11 +276,9 @@ describe('AdminService.setEventPaymentConfigActive()', () => {
     );
   });
 
-  it("400 si on tente d'activer CINETPAY/FEDAPAY (exécution non branchée)", async () => {
+  it('permet d’activer CINETPAY (exécution branchée depuis le 2026-07-13)', async () => {
     prisma.paymentProviderConfig.findUnique.mockResolvedValue({ id: 'cfg-1' });
-    await expect(service.setEventPaymentConfigActive('ev-1', 'CINETPAY' as any, true)).rejects.toThrow(
-      BadRequestException,
-    );
+    await expect(service.setEventPaymentConfigActive('ev-1', 'CINETPAY' as any, true)).resolves.toBeDefined();
   });
 
   it('désactiver reste toujours permis, quel que soit le provider', async () => {
