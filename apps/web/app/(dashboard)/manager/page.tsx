@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { DollarSign, Ticket, ScanLine, Radio, Clock } from 'lucide-react';
+import { DollarSign, Ticket, ScanLine, Radio, Clock, AlertTriangle } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -29,6 +29,7 @@ interface Overview {
   ticketsSold: number;
   revenueByTicketType: Array<{ name: string; revenue: number; count: number }>;
   scansByScanner: Array<{ name: string; scans: number; lastScanAt: string | null }>;
+  paymentStatus: { configured: boolean; provider: string | null };
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -139,6 +140,22 @@ export default function ManagerDashboardPage() {
           )}
         </div>
       </div>
+
+      {overview.paymentStatus.configured ? (
+        <div className="flex items-center gap-2 rounded-lg border border-border bg-secondary/50 px-4 py-2.5 text-sm">
+          <span className="inline-block size-2 rounded-full bg-emerald-500" />
+          Paiement actif : <span className="font-semibold">{overview.paymentStatus.provider}</span>
+        </div>
+      ) : (
+        <div className="flex items-center gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-400">
+          <AlertTriangle className="size-4 shrink-0" />
+          <span>
+            Aucun moyen de paiement n&apos;est configuré pour votre événement — vos clients ne peuvent pas encore
+            acheter de billets. <span className="font-semibold">Contactez l&apos;administrateur de la plateforme</span> pour
+            activer les paiements.
+          </span>
+        </div>
+      )}
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {stats.map((s) => (

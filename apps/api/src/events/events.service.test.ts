@@ -133,6 +133,7 @@ describe('EventsService.getMyEventOverview()', () => {
           ],
         },
       ],
+      paymentProviderConfigs: [{ provider: 'KKIAPAY' }],
     });
     prisma.order.findMany.mockResolvedValue([
       {
@@ -159,11 +160,28 @@ describe('EventsService.getMyEventOverview()', () => {
     expect(result.scansByScanner).toEqual([
       { name: 'Entrée Nord', scans: 2, lastScanAt: new Date('2026-07-01T11:00:00Z') },
     ]);
+    expect(result.paymentStatus).toEqual({ configured: true, provider: 'KKIAPAY' });
   });
 
   it("404 si le manager n'a pas d'événement", async () => {
     prisma.event.findUnique.mockResolvedValue(null);
     await expect(service.getMyEventOverview('mgr-1')).rejects.toThrow(NotFoundException);
+  });
+
+  it("paymentStatus.configured=false si aucun provider actif pour l'événement", async () => {
+    prisma.event.findUnique.mockResolvedValue({
+      id: 'ev-1',
+      title: 'Concert',
+      slug: 'concert',
+      status: 'PUBLISHED',
+      scanners: [],
+      paymentProviderConfigs: [],
+    });
+    prisma.order.findMany.mockResolvedValue([]);
+
+    const result = await service.getMyEventOverview('mgr-1');
+
+    expect(result.paymentStatus).toEqual({ configured: false, provider: null });
   });
 });
 

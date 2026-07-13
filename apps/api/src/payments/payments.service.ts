@@ -19,10 +19,8 @@ import { PdfQueueService } from '../pdf-queue/pdf-queue.service';
 import { InitPaymentDto } from './dto/init-payment.dto';
 import { KkiapayWebhookDto } from './dto/kkiapay-webhook.dto';
 import { ErrorCodes, KkiapayInitResult, PaymentProviderType } from '@saas-events/types';
+import { SUPPORTED_PAYMENT_PROVIDERS } from '../common/supported-payment-providers';
 import type { RequestUser } from '../auth/strategies/jwt.strategy';
-
-/** V1 : un seul provider réellement branché (CDC — se concentrer sur Kkiapay). */
-const SUPPORTED_PROVIDERS: PaymentProviderType[] = [PaymentProviderType.KKIAPAY];
 
 /** true hors production — même flag utilisé à l'init (widget) et à la vérification serveur. */
 function isSandboxMode(): boolean {
@@ -56,7 +54,7 @@ export class PaymentsService {
   ) {}
 
   async initPayment(user: RequestUser, dto: InitPaymentDto): Promise<KkiapayInitResult> {
-    if (!SUPPORTED_PROVIDERS.includes(dto.provider)) {
+    if (!SUPPORTED_PAYMENT_PROVIDERS.includes(dto.provider)) {
       throw new ServiceUnavailableException({
         code: ErrorCodes.PROVIDER_NOT_ACTIVE,
         message: `Le provider ${dto.provider} n'est pas encore disponible.`,
@@ -100,12 +98,12 @@ export class PaymentsService {
     }
 
     const providerConfig = await this.prisma.paymentProviderConfig.findUnique({
-      where: { provider: PaymentProviderType.KKIAPAY },
+      where: { eventId_provider: { eventId: ticket.event.id, provider: PaymentProviderType.KKIAPAY } },
     });
     if (!providerConfig || !providerConfig.isActive || !providerConfig.publicKey) {
       throw new ServiceUnavailableException({
         code: ErrorCodes.PROVIDER_NOT_ACTIVE,
-        message: 'Le paiement Kkiapay n\'est pas configuré.',
+        message: "Le paiement n'est pas configuré pour cet événement — contactez l'administrateur.",
       });
     }
 
@@ -259,8 +257,37 @@ export class PaymentsService {
   }
 
   async handleKkiapayWebhook(payload: KkiapayWebhookDto, signatureHeader: string | undefined): Promise<void> {
+    // La config webhook est PAR ÉVÉNEMENT (décision produit 2026-07-13) : il
+    // faut d'abord résoudre l'Order → eventId avant de savoir quel secret
+    // vérifier — Kkiapay ne transmet pas l'événement directement, seulement
+    // `partnerId` (notre Order.id).
+    if (!payload.partnerId) {
+      this.logger.warn(`Webhook Kkiapay sans partnerId — transaction ${payload.transactionId} ignorée.`);
+      await this.audit.log('payment.webhook.failed', 'Order', null, {
+        transactionId: payload.transactionId,
+        reason: 'missing_partner_id',
+      });
+      return;
+    }
+
+    const order = await this.prisma.order.findUnique({
+      where: { id: payload.partnerId },
+      include: {
+        event: { select: { id: true, endDate: true } },
+        items: { select: { id: true, ticketId: true, ticket: { select: { stock: true } } } },
+      },
+    });
+    if (!order) {
+      this.logger.warn(`Webhook Kkiapay — Order ${payload.partnerId} introuvable.`);
+      await this.audit.log('payment.webhook.failed', 'Order', null, {
+        transactionId: payload.transactionId,
+        reason: 'order_not_found',
+      });
+      return;
+    }
+
     const providerConfig = await this.prisma.paymentProviderConfig.findUnique({
-      where: { provider: PaymentProviderType.KKIAPAY },
+      where: { eventId_provider: { eventId: order.event.id, provider: PaymentProviderType.KKIAPAY } },
     });
     if (!providerConfig || !providerConfig.webhookSecret) {
       throw new UnauthorizedException({
@@ -285,30 +312,6 @@ export class PaymentsService {
       return;
     }
 
-    if (!payload.partnerId) {
-      this.logger.warn(`Webhook Kkiapay sans partnerId — transaction ${payload.transactionId} ignorée.`);
-      await this.audit.log('payment.webhook.failed', 'Order', null, {
-        transactionId: payload.transactionId,
-        reason: 'missing_partner_id',
-      });
-      return;
-    }
-
-    const order = await this.prisma.order.findUnique({
-      where: { id: payload.partnerId },
-      include: {
-        event: { select: { endDate: true } },
-        items: { select: { id: true, ticketId: true, ticket: { select: { stock: true } } } },
-      },
-    });
-    if (!order) {
-      this.logger.warn(`Webhook Kkiapay — Order ${payload.partnerId} introuvable.`);
-      await this.audit.log('payment.webhook.failed', 'Order', null, {
-        transactionId: payload.transactionId,
-        reason: 'order_not_found',
-      });
-      return;
-    }
     if (order.status !== 'PENDING') {
       // Déjà traité par un webhook précédent (hors idempotence stricte transactionId) — no-op.
       return;

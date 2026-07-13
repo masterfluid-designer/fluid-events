@@ -123,23 +123,23 @@ async function main() {
 
   console.log(`✅ Created event: ${event.slug}`);
 
-  // Provider Kkiapay (CDC §8) — clés placeholder SANDBOX. Remplacer par de
-  // vraies clés de compte marchand Kkiapay pour tester un paiement réel ;
-  // sans ça, POST /api/payments/init fonctionne (Order réservé) mais le
-  // widget/la vérification serveur échoueront (clés invalides côté Kkiapay).
+  // Provider Kkiapay (CDC §8) — config PAR ÉVÉNEMENT depuis le 2026-07-13
+  // (décision produit, supersède BUSINESS.md §6). Clés placeholder SANDBOX :
+  // POST /api/payments/init fonctionne (Order réservé) mais le widget/la
+  // vérification serveur échoueront (clés invalides côté Kkiapay).
   await prisma.paymentProviderConfig.upsert({
-    where: { provider: 'KKIAPAY' },
+    where: { eventId_provider: { eventId: event.id, provider: 'KKIAPAY' } },
     update: {},
     create: {
+      eventId: event.id,
       provider: 'KKIAPAY',
       isActive: true,
-      isDefault: true,
       publicKey: 'sandbox_placeholder_public_key',
       privateKey: encrypt('sandbox_placeholder_private_key'),
       webhookSecret: encrypt('sandbox_placeholder_webhook_secret'),
     },
   });
-  console.log('✅ Created payment provider config: KKIAPAY (clés placeholder sandbox — à remplacer pour un vrai test)');
+  console.log(`✅ Created payment provider config: KKIAPAY for ${event.slug} (clés placeholder sandbox — à remplacer pour un vrai test)`);
 
   // Create a test scanner account (email/password login, CDC §7.5)
   const scannerPasswordHash = await bcrypt.hash('scanner123', 10);

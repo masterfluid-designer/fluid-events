@@ -78,6 +78,7 @@ model Event {
   scanners  Scanner[]
   eventPage EventPage?
   analytics EventAnalytics?
+  paymentProviderConfigs PaymentProviderConfig[]
 
   @@map("events")
 }
@@ -253,17 +254,26 @@ enum ScanResult {
 // PAIEMENTS PROVIDERS
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Config par événement (décision produit 2026-07-13 — supersede BUSINESS.md §6
+// "un seul compte Kkiapay global" : chaque Admin configure désormais le
+// fournisseur de paiement événement par événement ; 1 Manager = 1 Event en V1
+// donc c'est de facto une config par Manager, assumé explicitement).
 model PaymentProviderConfig {
   id            String              @id @default(cuid())
-  provider      PaymentProviderType @unique
+  eventId       String
+  event         Event               @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  provider      PaymentProviderType
+  // Au plus une ligne isActive=true par événement (contrainte applicative,
+  // PaymentsAdminService désactive les autres à l'activation d'une nouvelle).
   isActive      Boolean             @default(false)
-  isDefault     Boolean             @default(false)
   publicKey     String?
   privateKey    String // Chiffré AES-256-GCM avant stockage
   webhookSecret String? // Chiffré AES-256-GCM avant stockage
   config        Json?
+  createdAt     DateTime            @default(now())
   updatedAt     DateTime            @updatedAt
 
+  @@unique([eventId, provider])
   @@map("payment_provider_configs")
 }
 

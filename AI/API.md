@@ -102,7 +102,13 @@ Réservé au rôle `MANAGER`. Retourne l'événement du manager authentifié (CD
 Réservé au rôle `MANAGER`. Statistiques réelles calculées à la volée depuis
 les commandes payées et les logs de scan : `{ event, totalRevenue, currency,
 ticketsSold, revenueByTicketType: [{name, revenue, count}], scansByScanner:
-[{name, scans, lastScanAt}] }`.
+[{name, scans, lastScanAt}], paymentStatus: {configured, provider} }`.
+
+`paymentStatus` (ajouté 2026-07-13, config paiement par événement) reflète
+`PaymentProviderConfig` pour l'événement du manager — `configured: true` s'il
+existe une ligne `isActive: true`, `provider` le nom du fournisseur actif
+(`null` sinon). Jamais d'identifiant renvoyé, uniquement ce statut — alimente
+le panneau/l'alerte "contactez l'administrateur" du dashboard Manager.
 
 #### PATCH /api/events/mine
 Réservé au rôle `MANAGER`, ownership implicite (l'événement du manager
@@ -197,6 +203,11 @@ paiement s'initie côté client via son widget JS — cette route renvoie donc
 les paramètres nécessaires à `openKkiapayWidget(...)`, pas une URL de
 redirection.
 
+La `PaymentProviderConfig` est résolue par `(eventId, provider)` — pas
+globalement — depuis le 2026-07-13 (config par événement, voir ROADMAP.md
+§2). `503 PROVIDER_NOT_ACTIVE` si rien n'est configuré/actif pour
+l'événement du billet.
+
 **Body:**
 ```json
 { "ticketId": "tk-1", "provider": "KKIAPAY" }
@@ -222,6 +233,14 @@ webhook.
 Route `@Public()` (pas de JWT), authentifiée via l'en-tête `x-kkiapay-secret`
 (secret partagé configuré sur le dashboard Kkiapay, comparé en temps constant
 via `CryptoService.safeEqual`). Idempotent (`WebhookIdempotencyService`).
+
+Config par événement (2026-07-13) : le secret vérifié est celui de
+l'événement de la commande (`Order.eventId`), pas un secret global. Comme
+Kkiapay ne transmet pas l'événement directement (seulement `partnerId` =
+notre `Order.id`), l'Order est résolu **avant** la vérification de signature
+pour connaître son `eventId` — un secret valide pour un autre événement est
+rejeté (`401 WEBHOOK_SIGNATURE_INVALID`), vérifié en conditions réelles avec
+deux événements ayant chacun leur propre secret.
 
 ⚠️ Anti-fraude obligatoire (doc Kkiapay) : le webhook seul n'est **jamais**
 suffisant — la transaction est re-vérifiée côté serveur via `k.verify()`
@@ -325,18 +344,59 @@ relecture, 409 sur `lastKnownUpdatedAt` périmé, 400 sur couleur non-HEX, 403
 cross-manager, 401 sans session, 403 rôle `CLIENT`, sauvegarde réussie avec
 `updatedAt` à jour.
 
-⚠️ Le frontend `apps/web/app/(dashboard)/manager/builder/page.tsx` reste une
-maquette statique sans appel réseau — pas encore branché sur ces endpoints.
+`apps/web/app/(dashboard)/manager/builder/page.tsx` est branché sur ces
+endpoints (React Query + `apiPut`) depuis le 2026-07-13 — voir ROADMAP.md
+Phase 4.
 
 ### Admin (`AdminController`, préfixe `/api/admin`)
 
 #### GET /api/admin/overview
 Réservé au rôle `SUPER_ADMIN`. Vue plateforme calculée à la volée : `{
 activeEvents, managersCount, revenue30d, currency, ticketsSold, managers:
-[{name, email, isActive, eventTitle, eventStatus}], providers: [{name,
-configured, isActive, isDefault}], recentLogs: [{action, createdAt}] }`.
-`providers` couvre toujours les 3 providers connus (`KKIAPAY`, `CINETPAY`,
-`FEDAPAY`), `configured: false` si aucune ligne `PaymentProviderConfig`.
+[{name, email, isActive, eventId, eventTitle, eventStatus, paymentProvider}],
+recentLogs: [{action, createdAt}] }`.
+
+`paymentProvider` (par manager/événement, ajouté 2026-07-13 — remplace
+l'ancien `providers` global) est le nom du fournisseur `isActive: true` pour
+l'événement de ce manager, ou `null` si aucun n'est configuré/actif.
+
+#### GET /api/admin/events/:eventId/payment-config
+Réservé au rôle `SUPER_ADMIN`. Liste les configs de paiement de l'événement
+(jamais les secrets) : `{ event: {id, title}, configs: [{id, provider,
+isActive, publicKey, config, updatedAt}] }`. `config` est un JSON libre par
+provider (`{siteId}` pour CinetPay, `{environment}` pour FedaPay).
+
+#### PUT /api/admin/events/:eventId/payment-config
+Réservé au rôle `SUPER_ADMIN`. Crée/remplace intégralement les identifiants
+d'un fournisseur pour cet événement — pas de mise à jour partielle des
+secrets (on renvoie toujours `privateKey`/`webhookSecret` en entier, jamais
+"garder l'ancien").
+
+**Body** (`UpsertPaymentConfigDto`) : `{ provider: 'KKIAPAY'|'CINETPAY'|'FEDAPAY',
+isActive?: boolean, publicKey?: string, privateKey: string, webhookSecret:
+string, siteId?: string, environment?: 'sandbox'|'live' }`. Champs requis
+selon le provider (voir ROADMAP.md §6 pour le détail des identifiants
+CinetPay/FedaPay) : `publicKey` pour KKIAPAY/FEDAPAY ; `siteId` pour
+CINETPAY ; `environment` pour FEDAPAY.
+
+`privateKey`/`webhookSecret` sont chiffrés (AES-256-GCM, `CryptoService`)
+avant stockage. Si `isActive: true`, désactive automatiquement tout autre
+provider déjà actif pour cet événement (au plus un actif à la fois).
+
+**Erreurs** : `400` (`PROVIDER_EXECUTION_NOT_SUPPORTED` — tentative
+d'activer CINETPAY/FEDAPAY, exécution non branchée, voir ROADMAP.md §6 ;
+erreurs de validation class-validator sinon), `404` (`EVENT_NOT_FOUND`).
+
+#### PATCH /api/admin/events/:eventId/payment-config/:provider
+Réservé au rôle `SUPER_ADMIN`. Active/désactive un provider **déjà
+configuré** sans toucher aux identifiants. Body : `{ isActive: boolean }`.
+Même règle `PROVIDER_EXECUTION_NOT_SUPPORTED` que ci-dessus si `isActive:
+true` sur un provider non exécutable ; désactiver reste toujours permis.
+`404` si aucune config n'existe encore pour ce provider sur cet événement.
+
+#### DELETE /api/admin/events/:eventId/payment-config/:provider
+Réservé au rôle `SUPER_ADMIN`. Supprime la config du provider pour cet
+événement.
 
 ## 🚧 Prévu, pas encore implémenté
 

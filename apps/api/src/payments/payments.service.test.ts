@@ -31,9 +31,9 @@ const ACTIVE_TICKET = {
 };
 
 const PROVIDER_CONFIG = {
+  eventId: 'ev-1',
   provider: 'KKIAPAY',
   isActive: true,
-  isDefault: true,
   publicKey: 'pub-key',
   privateKey: 'enc:priv',
   webhookSecret: 'enc:secret',
@@ -343,7 +343,7 @@ describe('PaymentsService.handleKkiapayWebhook()', () => {
     status: 'PENDING',
     totalAmount: 5000,
     currency: 'XOF',
-    event: { endDate: new Date(Date.now() + 3600_000) },
+    event: { id: 'ev-1', endDate: new Date(Date.now() + 3600_000) },
     items: [{ id: 'oi-1', ticketId: 'tk-1', ticket: { stock: 100 } }],
   };
 
@@ -358,7 +358,9 @@ describe('PaymentsService.handleKkiapayWebhook()', () => {
   it('rejette (401) une signature webhook invalide', async () => {
     const deps = makeDeps();
     deps.crypto.safeEqual.mockReturnValue(false);
-    const prisma = makePrisma({ providerConfig: PROVIDER_CONFIG });
+    // La config est résolue par (eventId, provider) — l'Order doit être
+    // trouvé pour connaître l'événement avant même de vérifier la signature.
+    const prisma = makePrisma({ providerConfig: PROVIDER_CONFIG, order: PENDING_ORDER });
     const service = makeService(deps, prisma);
 
     await expect(service.handleKkiapayWebhook(SUCCESS_PAYLOAD as any, 'wrong-secret')).rejects.toThrow(
@@ -367,9 +369,9 @@ describe('PaymentsService.handleKkiapayWebhook()', () => {
     expect(deps.kkiapayService.verifyTransaction).not.toHaveBeenCalled();
   });
 
-  it('rejette (401) si aucun provider Kkiapay configuré', async () => {
+  it('rejette (401) si aucun provider Kkiapay configuré pour cet événement', async () => {
     const deps = makeDeps();
-    const prisma = makePrisma({ providerConfig: null });
+    const prisma = makePrisma({ providerConfig: null, order: PENDING_ORDER });
     const service = makeService(deps, prisma);
 
     await expect(service.handleKkiapayWebhook(SUCCESS_PAYLOAD as any, 'secret')).rejects.toThrow(
@@ -385,7 +387,6 @@ describe('PaymentsService.handleKkiapayWebhook()', () => {
 
     await service.handleKkiapayWebhook(SUCCESS_PAYLOAD as any, 'secret');
 
-    expect(prisma.order.findUnique).not.toHaveBeenCalled();
     expect(deps.kkiapayService.verifyTransaction).not.toHaveBeenCalled();
   });
 

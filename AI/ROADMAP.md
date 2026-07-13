@@ -18,7 +18,7 @@
 |---|---|
 | Gestion événements | ✅ Basic CRUD (`EventsService`) |
 | Billetterie | ✅ CRUD Tickets (ownership Manager) |
-| Paiement | ✅ Kkiapay (`init` + webhook + anti-fraude serveur) ; CinetPay/FedaPay à faire |
+| Paiement | ✅ Kkiapay (`init` + webhook + anti-fraude serveur), config **par événement** (décision produit 2026-07-13, Admin configure/active, Manager voit un statut + alerte) ; CinetPay/FedaPay : identifiants configurables (Admin), doc technique réunie, exécution non branchée |
 | Scanner PWA | ✅ Page caméra + store Zustand + logique de décision + `POST /api/scan/validate` |
 | Event Builder | ✅ `GET /api/builder/mine` + `PUT /api/builder/:eventId/blocks` branchés bout-en-bout (ownership + validation Zod + concurrence optimiste + ajout/édition/réordonnancement/suppression de blocs + color picker HEX + upload d'image whitelisté) ; page publique `/e/[slug]` rend réellement les blocs sauvegardés (`BlockRenderer`, fallback sur l'ancien template statique si aucun bloc). Testé en conditions réelles de bout en bout (backend + navigateur réel) ; reste à faire : preview iframe dans le Builder, drag & drop |
 | Auth | ✅ Google OAuth + Scanner login + login email/password générique + JWT événementiel + RBAC + auth par cookie httpOnly, testé en conditions réelles (voir RULES.md §13-14) |
@@ -51,12 +51,16 @@
 ### Phase 2 — Scanner & Paiements 🔴 En cours
 
 - [x] Controller + service Scanner (`POST /api/scan/validate` + verrou atomique anti-double-scan)
-- [x] Controller + provider Paiement Kkiapay (`POST /api/payments/init`) — CinetPay/FedaPay non branchés (pas de SDK/doc fournie, V1 se concentre sur Kkiapay)
+- [x] Controller + provider Paiement Kkiapay (`POST /api/payments/init`) — CinetPay/FedaPay : identifiants configurables, exécution non branchée (voir point dédié ci-dessous)
 - [x] Endpoint webhook Kkiapay avec idempotence + décrément/relâche stock atomique + re-vérification serveur anti-fraude (`k.verify()`)
 - [x] Flux d'achat client bout-en-bout : intent horodaté → OAuth (eventSlug + redirect propagés via `state`) → reprise sur `/e/[slug]?resume=1` → widget Kkiapay → `GET /api/payments/orders/:id` (polling, le webhook reste seule source de vérité)
   - Testé en conditions réelles (Docker Postgres/Redis, vraie DB) jusqu'à l'ouverture du widget Kkiapay : login, réservation stock atomique, création Order, signature/idempotence webhook, échec+relâche de stock. Non testé : un paiement Kkiapay réellement abouti (nécessite de vraies clés marchand sandbox — `PaymentProviderConfig` seedé avec des clés placeholder non fonctionnelles, à remplacer dans `prisma/seed.ts`).
 - [x] Setup BullMQ pour génération PDF asynchrone (`PdfQueueService` + `PdfProcessor`, testé en conditions réelles : PDF de 56 Ko généré, uploadé et téléchargeable publiquement)
 - [x] Génération QR dans `OrderItem` après paiement confirmé
+- [x] Config paiement **par événement** (décision produit 2026-07-13, Admin — supersède BUSINESS.md §6 "un seul compte Kkiapay global") : `PaymentProviderConfig` gagne un `eventId` (migration `20260713120000_payment_provider_config_per_event`, `@@unique([eventId, provider])`), `PaymentsService.initPayment`/`handleKkiapayWebhook` résolvent la config par `(eventId, provider)` au lieu d'une ligne globale. Nouveaux endpoints `SUPER_ADMIN` : `GET/PUT/PATCH/DELETE /api/admin/events/:eventId/payment-config` (identifiants chiffrés AES-256-GCM via `CryptoService`, jamais renvoyés en clair). Le webhook Kkiapay résout désormais l'Order → eventId AVANT de vérifier la signature (il ne connaissait pas l'événement avant, la config étant globale) — comportement volontairement réordonné, voir `PaymentsService.handleKkiapayWebhook`.
+  - `GET /api/events/mine/overview` expose `paymentStatus: { configured, provider }` (jamais les identifiants) — alimente le panneau Manager (`apps/web/app/(dashboard)/manager/page.tsx`) : badge "Paiement actif : X" ou bannière d'alerte "contactez l'administrateur" si non configuré.
+  - Seul KKIAPAY peut être **activé** (`SUPPORTED_PAYMENT_PROVIDERS`, `apps/api/src/common/supported-payment-providers.ts`) — CinetPay/FedaPay acceptent l'enregistrement des identifiants (préparation) mais `isActive: true` est rejeté (400 `PROVIDER_EXECUTION_NOT_SUPPORTED`) tant que leur exécution n'est pas codée, pour éviter qu'un événement affiche "paiement actif" alors que l'achat échouerait réellement.
+  - Testé en conditions réelles (Docker Postgres, navigateur réel, deux comptes Manager distincts) : configuration KKIAPAY + activation, tentative d'activation CINETPAY rejetée (400), isolation confirmée entre deux événements (chacun son propre secret webhook, un secret d'un événement rejeté sur l'autre — 401), panneau Manager mis à jour en temps réel après action Admin, régression vérifiée sur le flux d'achat déjà testé (paiement toujours résolu correctement par événement).
 
 ### Phase 3 — Events & Tickets 🟡
 
@@ -96,7 +100,8 @@
 | Scanner `/api/scan/validate` | ✅ Fait | §9.5 |
 | Tickets CRUD | ✅ Fait | §6.3 |
 | Payments init + webhook (Kkiapay) | ✅ Fait | §8 |
-| Payments CinetPay / FedaPay | 🟡 Moyenne (pas de SDK/doc fournie) | §8 |
+| Payments CinetPay / FedaPay — exécution (init + webhook) | 🟡 Moyenne (doc technique réunie 2026-07-13, voir §7 ci-dessous — plus bloqué par l'absence de doc, mais pas encore codé) | §8 |
+| Config paiement par événement (Admin + statut Manager) | ✅ Fait | §8 |
 | Events PATCH/DELETE | ✅ Fait (annulation douce via statut, décision produit 2026-07-13 — voir BUSINESS.md §12) | §6.2 |
 | Builder endpoints (backend) | ✅ Fait | §11 |
 | Builder — frontend branché (ajout/édition/réorg/suppression/color picker) | ✅ Fait | §11 |
@@ -113,7 +118,41 @@
 - Analytics avancées
 - Storage S3 en production (au-delà de l'abstraction déjà prête)
 
-## 6. Comment maintenir ce fichier
+## 6. CinetPay / FedaPay — doc technique réunie (2026-07-13), exécution pas encore codée
+
+Recherche faite pour lever le blocage "pas de SDK/doc fournie" — l'Admin peut
+déjà enregistrer les identifiants des deux (voir §2 ci-dessus), mais
+`SUPPORTED_PAYMENT_PROVIDERS` (`apps/api/src/common/supported-payment-providers.ts`)
+ne contient que `KKIAPAY` : personne n'a encore codé l'init/webhook pour ces
+deux providers. Repères techniques pour ce travail futur :
+
+**FedaPay** (SDK Node officiel — `npm install fedapay`) :
+- `FedaPay.setApiKey(secretKey)` + `FedaPay.setEnvironment('sandbox'|'live')`
+- Créer une transaction : `POST https://api.fedapay.com/v1/transactions`
+  (ou `sandbox-api.fedapay.com`) — `{ description, amount, currency: { iso: 'XOF' }, callback_url, customer }`
+- Récupérer/vérifier : `GET /v1/transactions/{id}` → `status` ∈ `pending|approved|declined|canceled|refunded`
+  (équivalent de `k.verify()` pour Kkiapay)
+- Webhook : header `X-FEDAPAY-SIGNATURE`, vérifié via `Webhook.constructEvent(body, sig, endpointSecret)`
+  du SDK (secret par endpoint, différent sandbox/live, dans Workbench → Webhooks du dashboard FedaPay)
+- Events : `transaction.approved` / `transaction.declined` / `transaction.canceled` / etc.
+
+**CinetPay** (pas de SDK Node officiel — REST pur, `axios`/`fetch`) :
+- Init : `POST https://api-checkout.cinetpay.com/v2/payment` —
+  `{ apikey, site_id, transaction_id, amount, currency, description, notify_url, return_url, channels }`
+  → réponse `{ code: '201', data: { payment_token, payment_url } }` (rediriger le client vers `payment_url`)
+- Vérification : `POST https://api-checkout.cinetpay.com/v2/payment/check` —
+  `{ apikey, site_id, transaction_id }` (équivalent de `k.verify()`)
+- Notification : POST vers `notify_url` avec `cpm_trans_id` + champs `cpm_*`, header **`x-token`** =
+  HMAC-SHA256(secret_key, concat(cpm_site_id + cpm_trans_id + cpm_trans_date + cpm_amount + cpm_currency + signature + payment_method + cel_phone_num + cpm_phone_prefixe + cpm_language + cpm_version + cpm_payment_config + cpm_page_action + cpm_custom + cpm_designation + cpm_error_message))
+  — secret_key distinct de l'apikey, récupéré sur cinetpay.com (compte marchand)
+- ⚠️ Toujours re-vérifier via `/v2/payment/check` après notification, jamais se fier au seul `x-token`
+  (même principe anti-fraude que Kkiapay, RULES.md §2)
+
+Champs déjà prévus dans `UpsertPaymentConfigDto`/`PaymentProviderConfig.config` (JSON) pour ces deux
+providers : `siteId` (CinetPay) et `environment: 'sandbox'|'live'` (FedaPay) — prêts à l'usage le jour
+où l'exécution sera codée.
+
+## 7. Comment maintenir ce fichier
 
 - À chaque fin de sous-tâche cochée dans une phase, mettre à jour la case correspondante.
 - À chaque fin de phase, mettre à jour la section "État global" (section 1) et l'état des modules (section 2).

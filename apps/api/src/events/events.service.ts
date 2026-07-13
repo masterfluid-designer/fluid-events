@@ -116,6 +116,10 @@ export class EventsService {
       where: { managerId },
       include: {
         scanners: { include: { logs: { select: { result: true, scannedAt: true } } } },
+        // Statut paiement (décision produit 2026-07-13, config par événement,
+        // supersède BUSINESS.md §6) — le manager ne voit qu'un statut actif/
+        // inactif, jamais les identifiants (RULES.md §9).
+        paymentProviderConfigs: { where: { isActive: true }, select: { provider: true } },
       },
     });
     if (!event) {
@@ -168,6 +172,10 @@ export class EventsService {
       ticketsSold,
       revenueByTicketType: Array.from(revenueByTicket.values()),
       scansByScanner,
+      paymentStatus: {
+        configured: event.paymentProviderConfigs.length > 0,
+        provider: event.paymentProviderConfigs[0]?.provider ?? null,
+      },
     };
   }
 
