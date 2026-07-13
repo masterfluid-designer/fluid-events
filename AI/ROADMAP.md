@@ -20,7 +20,7 @@
 | Billetterie | ✅ CRUD Tickets (ownership Manager) |
 | Paiement | ✅ Kkiapay (`init` + webhook + anti-fraude serveur) ; CinetPay/FedaPay à faire |
 | Scanner PWA | ✅ Page caméra + store Zustand + logique de décision + `POST /api/scan/validate` |
-| Event Builder | 🟡 `GET /api/builder/mine` + `PUT /api/builder/:eventId/blocks` (ownership + validation Zod + concurrence optimiste), testé en conditions réelles ; frontend `manager/builder` encore maquette statique sans appel réseau |
+| Event Builder | 🟡 `GET /api/builder/mine` + `PUT /api/builder/:eventId/blocks` branchés bout-en-bout (ownership + validation Zod + concurrence optimiste + ajout/édition/réordonnancement/suppression de blocs + color picker HEX), testé en conditions réelles (backend + navigateur réel) ; reste à faire : upload image (whitelist), preview iframe de la page publique, drag & drop |
 | Auth | ✅ Google OAuth + Scanner login + login email/password générique + JWT événementiel + RBAC + auth par cookie httpOnly, testé en conditions réelles (voir RULES.md §13-14) |
 | Dashboard | ✅ Client (Mes billets), Manager (overview/billets/participants) et Admin (vue plateforme) branchés sur données réelles ; pages "commandes"/"profil" client et "Page builder" manager encore mockées |
 | Notifications | ✅ `PhoneService` (validation E.164) ; Email/WhatsApp à coder |
@@ -69,10 +69,12 @@
 
 - [x] Controller + service Builder (`GET /api/builder/mine`, `PUT /api/builder/:eventId/blocks` — ownership Manager, validation `SaveBlocksDto` (Zod), concurrence optimiste `detectConcurrencyConflict` → 409 `BUILDER_CONFLICT`, upsert atomique sur `EventPage`)
   - Testé en conditions réelles (Docker Postgres) : sauvegarde initiale, relecture, 409 sur `lastKnownUpdatedAt` périmé, 400 sur couleur non-HEX, 403 cross-manager, 401 sans session, 403 rôle CLIENT, sauvegarde réussie avec `updatedAt` à jour.
+- [x] Page `manager/builder` branchée sur les vrais endpoints (React Query + `apiPut`) : chargement des blocs existants, ajout de bloc depuis la bibliothèque (10 types), édition des propriétés (titre/contenu/alignement), color picker HEX pour le fond du hero, réordonnancement (haut/bas), suppression, sauvegarde explicite avec gestion du conflit 409 (toast + rechargement automatique des données à jour). Le bloc "Billets" affiche les vrais billets de l'événement (`GET /api/events/mine`).
+  - Testé en conditions réelles dans un navigateur réel contre le serveur de dev + Docker Postgres : login, chargement, ajout/édition/réordonnancement/suppression de blocs, sauvegarde persistée après rechargement complet de la page, conflit 409 déclenché volontairement (sauvegarde concurrente via l'API) et récupéré proprement côté UI.
 - [ ] Upload image design billet (whitelist d'URL) — réutiliser le pattern `sanitizeImageUrl`/`buildAllowedImageBase` de `packages/utils` déjà utilisé par `TicketDesignService`
-- [ ] Color picker HEX strict (frontend)
-- [ ] Preview iframe (frontend)
-- [ ] Page `manager/builder` : encore une maquette statique sans appel réseau (pas de chargement des blocs existants, bouton "Publier" sans handler, pas de drag & drop réel) — à brancher sur `GET /api/builder/mine` / `PUT /api/builder/:eventId/blocks`
+- [ ] Preview iframe de la page publique (le toggle desktop/mobile actuel ne fait que changer la largeur du canvas, ce n'est pas un rendu réel de `/e/[slug]`)
+- [ ] Drag & drop réel dans le canvas (l'ajout se fait aujourd'hui en cliquant sur un bloc de la bibliothèque, pas en le glissant)
+- [ ] La page publique `/e/[slug]` ne consomme toujours pas `EventPage.blocks` (template statique séparé) — nécessaire pour que la sauvegarde builder ait un effet visible côté visiteur
 
 ### Phase 5 — Polish & Prod 🔵
 
@@ -93,7 +95,8 @@
 | Payments CinetPay / FedaPay | 🟡 Moyenne (pas de SDK/doc fournie) | §8 |
 | Events PATCH/DELETE | 🟡 Moyenne | §6.2 |
 | Builder endpoints (backend) | ✅ Fait | §11 |
-| Builder — upload image / color picker / preview / frontend | 🟡 Moyenne | §11 |
+| Builder — frontend branché (ajout/édition/réorg/suppression/color picker) | ✅ Fait | §11 |
+| Builder — upload image / preview iframe / drag & drop | 🟡 Moyenne | §11 |
 | Admin endpoints | 🟢 Basse | §6.11 |
 
 ## 5. Hors périmètre actuel (backlog non scopé)

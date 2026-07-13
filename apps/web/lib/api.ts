@@ -76,4 +76,13 @@ export function apiPatch<T = unknown>(
   return api<T>(path, { ...init, method: 'PATCH', body: JSON.stringify(data) });
 }
 
+/** Helper PUT avec body JSON typé. */
+export function apiPut<T = unknown>(
+  path: string,
+  data: unknown,
+  init?: ApiOptions,
+): Promise<T> {
+  return api<T>(path, { ...init, method: 'PUT', body: JSON.stringify(data) });
+}
+
 export { API_URL };
