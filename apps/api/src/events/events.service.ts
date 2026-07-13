@@ -78,6 +78,9 @@ export class EventsService {
           where: { isActive: true },
           orderBy: { price: 'asc' },
         },
+        // Blocs Builder (CDC §11) — le frontend retombe sur le template
+        // statique si `blocks` est vide (page jamais construite).
+        eventPage: { select: { blocks: true } },
       },
     });
 

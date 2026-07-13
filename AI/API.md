@@ -79,6 +79,14 @@ code (`events.controller.ts`) — à sécuriser avant mise en production.
 Récupérer la page publique d'un événement par son slug (route publique,
 `@Public()`). Note : le slug est bien après `public/`, pas avant.
 
+Inclut désormais `eventPage: { blocks: Block[] } | null` — le frontend
+(`apps/web/app/(public)/e/[slug]/page.tsx`) rend ces blocs via `BlockRenderer`
+si `blocks.length > 0`, sinon retombe sur le template statique historique
+(événement n'ayant jamais utilisé le Builder). Le rendu du bloc `tickets`
+réutilise exactement la même liste `tickets` et la même URL
+`/api/buy-redirect` que le template statique — aucune divergence du flux
+d'achat entre les deux modes de rendu.
+
 #### GET /api/events/:id
 Récupérer un événement par id.
 

@@ -20,9 +20,9 @@
 | Billetterie | ✅ CRUD Tickets (ownership Manager) |
 | Paiement | ✅ Kkiapay (`init` + webhook + anti-fraude serveur) ; CinetPay/FedaPay à faire |
 | Scanner PWA | ✅ Page caméra + store Zustand + logique de décision + `POST /api/scan/validate` |
-| Event Builder | 🟡 `GET /api/builder/mine` + `PUT /api/builder/:eventId/blocks` branchés bout-en-bout (ownership + validation Zod + concurrence optimiste + ajout/édition/réordonnancement/suppression de blocs + color picker HEX + upload d'image whitelisté), testé en conditions réelles (backend + navigateur réel) ; reste à faire : preview iframe de la page publique, drag & drop, page publique qui consomme réellement les blocs |
+| Event Builder | ✅ `GET /api/builder/mine` + `PUT /api/builder/:eventId/blocks` branchés bout-en-bout (ownership + validation Zod + concurrence optimiste + ajout/édition/réordonnancement/suppression de blocs + color picker HEX + upload d'image whitelisté) ; page publique `/e/[slug]` rend réellement les blocs sauvegardés (`BlockRenderer`, fallback sur l'ancien template statique si aucun bloc). Testé en conditions réelles de bout en bout (backend + navigateur réel) ; reste à faire : preview iframe dans le Builder, drag & drop |
 | Auth | ✅ Google OAuth + Scanner login + login email/password générique + JWT événementiel + RBAC + auth par cookie httpOnly, testé en conditions réelles (voir RULES.md §13-14) |
-| Dashboard | ✅ Client (Mes billets), Manager (overview/billets/participants) et Admin (vue plateforme) branchés sur données réelles ; pages "commandes"/"profil" client et "Page builder" manager encore mockées |
+| Dashboard | ✅ Client (Mes billets), Manager (overview/billets/participants/builder) et Admin (vue plateforme) branchés sur données réelles ; page "commandes" client encore mockée |
 | Notifications | ✅ `PhoneService` (validation E.164) ; Email/WhatsApp à coder |
 | Design billet | ✅ QR generation + validation + `buildHtml` sanitisé |
 | Analytics | ❌ Pas commencé |
@@ -75,9 +75,10 @@
 - [x] Upload image design billet + blocs Builder (whitelist d'URL, RULES.md §6) : `POST /api/storage/upload` (Manager, PNG/JPEG/WEBP, 5 Mo max, jamais SVG — risque XSS), stocké via `StorageService.uploadBuffer`. Whitelist revalidée à l'écriture (pas seulement au rendu) : `isAllowedImageUrl()` (nouveau, `apps/api/src/storage/image-whitelist.util.ts`) accepte le bucket Supabase (`buildAllowedImageBase`, prod) et/ou le stockage S3-compatible configuré (`buildAllowedStorageBase`, nouveau dans `packages/utils`, RustFS/MinIO dev) ; utilisé par `TicketsService` (`designImageUrl`) et `BuilderService` (`props.imageUrl` de chaque bloc). `ImageUploadField`/`ColorField` extraits en composants partagés (`apps/web/components/ui/`), réutilisés par le Builder (image de couverture du hero) et le formulaire de création de billet (design du billet, jusqu'ici totalement absent du frontend).
   - Bug corrigé au passage : `@IsUrl()` (class-validator) rejette `localhost` par défaut (pas de TLD) — bloquant en dev où `STORAGE_ENDPOINT=http://localhost:9000`. Ajout de `{ require_tld: false }` sur `CreateTicketDto`/`UpdateTicketDto.designImageUrl` (la whitelist applicative reste la vraie garde de sécurité, pas ce validateur de forme).
   - Testé en conditions réelles (Docker Postgres + MinIO) : upload réel d'un PNG → URL publique accessible (200 OK) → acceptée par `PATCH`/`PUT` billet et Builder → une URL externe (`https://evil.com/...`) rejetée (400) dans les deux ; vérifié aussi en navigateur réel (aperçu image dans le panneau de propriétés Builder, formulaire billet).
-- [ ] Preview iframe de la page publique (le toggle desktop/mobile actuel ne fait que changer la largeur du canvas, ce n'est pas un rendu réel de `/e/[slug]`)
+- [x] La page publique `/e/[slug]` consomme désormais `EventPage.blocks` — c'est la pièce qui referme la boucle du Builder (avant ça, sauvegarder une page n'avait aucun effet visible côté visiteur). `GET /api/events/public/:slug` inclut maintenant `eventPage.blocks` ; nouveau `BlockRenderer` (`apps/web/app/(public)/e/[slug]/block-renderer.tsx`) rend hero (image + titre + alignement + couleur de fond), texte, billets (réutilise exactement la même liste/logique d'achat que l'ancien template — même URL `buy-redirect`, aucune divergence du flux de paiement), et un rendu générique titre+contenu pour les 7 autres types (cohérent avec ce que le Builder édite réellement aujourd'hui). Si `blocks` est vide (page jamais construite), la page retombe sur l'ancien template statique — zéro régression pour tout événement n'ayant jamais touché au Builder.
+  - Testé en conditions réelles (Docker Postgres + navigateur réel) : page construite avec hero (image uploadée)+texte+billets → rendu correct, image de fond chargée (200 OK), bouton "Acheter" pointant vers la même URL `buy-redirect` que l'ancien template ; blocs vidés → retour immédiat au template statique (aucune régression) ; piège de cache Next.js (`fetch(..., {next:{revalidate:30}})` sert du stale-while-revalidate persistant sur disque entre redémarrages du serveur dev — un premier chargement après une sauvegarde peut encore montrer l'ancien contenu, un second chargement est à jour) rencontré et documenté ici pour ne pas re-déboguer ça la prochaine fois.
+- [ ] Preview iframe dans le Builder manager (le toggle desktop/mobile actuel ne fait que changer la largeur du canvas, ce n'est pas un rendu réel de `/e/[slug]` — maintenant que la page publique rend les blocs, un vrai iframe pointant vers `/e/[slug]` devient possible)
 - [ ] Drag & drop réel dans le canvas (l'ajout se fait aujourd'hui en cliquant sur un bloc de la bibliothèque, pas en le glissant)
-- [ ] La page publique `/e/[slug]` ne consomme toujours pas `EventPage.blocks` (template statique séparé) — nécessaire pour que la sauvegarde builder ait un effet visible côté visiteur
 
 ### Phase 5 — Polish & Prod 🔵
 
@@ -100,6 +101,7 @@
 | Builder endpoints (backend) | ✅ Fait | §11 |
 | Builder — frontend branché (ajout/édition/réorg/suppression/color picker) | ✅ Fait | §11 |
 | Upload image whitelisté (billet + Builder) | ✅ Fait | §11 |
+| Page publique consommant les blocs Builder | ✅ Fait | §11 |
 | Builder — preview iframe / drag & drop | 🟡 Moyenne | §11 |
 | Admin endpoints | 🟢 Basse | §6.11 |
 

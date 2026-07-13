@@ -214,3 +214,42 @@ describe('EventsService.getParticipants()', () => {
     await expect(service.getParticipants('ev-1', 'mgr-1')).rejects.toThrow(ForbiddenException);
   });
 });
+
+describe('EventsService.getPublicEventBySlug()', () => {
+  let prisma: ReturnType<typeof makePrisma>;
+  let service: EventsService;
+
+  beforeEach(() => {
+    prisma = makePrisma();
+    service = new EventsService(prisma as any);
+  });
+
+  it('retourne l’événement publié avec ses billets et les blocs Builder', async () => {
+    prisma.event.findUnique.mockResolvedValue({
+      id: 'ev-1',
+      slug: 'concert-2026',
+      status: 'PUBLISHED',
+      tickets: [{ id: 'tk-1' }],
+      eventPage: { blocks: [{ id: 'b-1', type: 'hero', order: 0, props: {} }] },
+    });
+
+    const result = await service.getPublicEventBySlug('concert-2026');
+
+    expect(result.eventPage?.blocks).toEqual([{ id: 'b-1', type: 'hero', order: 0, props: {} }]);
+    expect(prisma.event.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        include: expect.objectContaining({ eventPage: { select: { blocks: true } } }),
+      }),
+    );
+  });
+
+  it("404 si l'événement n'existe pas", async () => {
+    prisma.event.findUnique.mockResolvedValue(null);
+    await expect(service.getPublicEventBySlug('unknown')).rejects.toThrow(NotFoundException);
+  });
+
+  it("404 si l'événement n'est pas PUBLISHED (ex: CANCELLED)", async () => {
+    prisma.event.findUnique.mockResolvedValue({ id: 'ev-1', status: 'CANCELLED' });
+    await expect(service.getPublicEventBySlug('concert-2026')).rejects.toThrow(NotFoundException);
+  });
+});
