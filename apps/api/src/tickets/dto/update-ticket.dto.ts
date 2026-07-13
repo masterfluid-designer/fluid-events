@@ -57,8 +57,9 @@ export class UpdateTicketDto {
   @IsDateString()
   saleEndDate?: string;
 
+  // require_tld: false — voir CreateTicketDto (stockage dev sur localhost).
   @IsOptional()
-  @IsUrl()
+  @IsUrl({ require_tld: false })
   designImageUrl?: string;
 
   @IsOptional()

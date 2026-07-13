@@ -24,6 +24,8 @@ import type { Block, BlockType } from '@saas-events/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
+import { ColorField } from '@/components/ui/color-field';
+import { ImageUploadField } from '@/components/ui/image-upload-field';
 import { api, apiPut, ApiError } from '@/lib/api';
 
 /**
@@ -270,16 +272,22 @@ export default function EventBuilderPage() {
               const outline = isSelected ? 'outline-[oklch(58%_0.16_40)]' : 'outline-transparent';
 
               if (block.type === 'hero') {
+                const imageUrl = block.props.imageUrl as string | undefined;
                 return (
                   <button
                     key={block.id}
                     type="button"
                     onClick={() => setSelectedId(block.id)}
                     style={{
-                      backgroundColor: (block.styles?.backgroundColor as string) || undefined,
+                      backgroundColor: block.styles?.backgroundColor || undefined,
+                      backgroundImage: imageUrl ? `url(${imageUrl})` : undefined,
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center',
                       textAlign: block.styles?.textAlign,
                     }}
-                    className={`relative block h-40 w-full bg-[repeating-linear-gradient(135deg,#EFEDE7_0_12px,#E7E4DE_12px_24px)] text-left outline-2 -outline-offset-2 ${outline}`}
+                    className={`relative block h-40 w-full text-left outline-2 -outline-offset-2 ${outline} ${
+                      imageUrl ? '' : 'bg-[repeating-linear-gradient(135deg,#EFEDE7_0_12px,#E7E4DE_12px_24px)]'
+                    }`}
                   >
                     <span className="absolute bottom-3.5 left-4 font-serif text-xl text-white">
                       {(block.props.title as string) || 'Titre du hero'}
@@ -381,6 +389,11 @@ export default function EventBuilderPage() {
 
               {selected.type === 'hero' && (
                 <>
+                  <ImageUploadField
+                    label="Image de couverture"
+                    value={selected.props.imageUrl as string | undefined}
+                    onChange={(imageUrl) => updateSelectedProps({ imageUrl })}
+                  />
                   <div>
                     <label className="mb-1.5 block text-xs font-semibold">Titre</label>
                     <Input
@@ -485,44 +498,3 @@ function TextAlignPicker({
   );
 }
 
-const HEX_PATTERN = /^#[0-9A-Fa-f]{6}$/;
-
-function ColorField({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value?: string;
-  onChange: (value: string | undefined) => void;
-}) {
-  const [text, setText] = useState(value ?? '');
-
-  useEffect(() => setText(value ?? ''), [value]);
-
-  return (
-    <div>
-      <label className="mb-1.5 block text-xs font-semibold">{label}</label>
-      <div className="flex items-center gap-2">
-        <input
-          type="color"
-          value={HEX_PATTERN.test(text) ? text : '#000000'}
-          onChange={(e) => {
-            setText(e.target.value);
-            onChange(e.target.value);
-          }}
-          className="size-8 shrink-0 cursor-pointer rounded border border-input bg-transparent p-0.5"
-        />
-        <Input
-          value={text}
-          placeholder="#000000"
-          onChange={(e) => {
-            const next = e.target.value;
-            setText(next);
-            onChange(HEX_PATTERN.test(next) ? next : undefined);
-          }}
-        />
-      </div>
-    </div>
-  );
-}

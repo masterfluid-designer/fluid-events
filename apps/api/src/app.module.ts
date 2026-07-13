@@ -13,6 +13,7 @@ import { PdfQueueModule } from './pdf-queue/pdf-queue.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { AdminModule } from './admin/admin.module';
 import { TicketDesignModule } from './ticket-design/ticket-design.module';
+import { StorageModule } from './storage/storage.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { HttpExceptionFilter } from './common/filters/http-exception-filter';
@@ -51,6 +52,7 @@ import { ResponseInterceptor } from './common/interceptors/response.interceptor'
     NotificationsModule,
     AdminModule,
     TicketDesignModule,
+    StorageModule,
   ],
   providers: [
     // Sécurité transverse globale

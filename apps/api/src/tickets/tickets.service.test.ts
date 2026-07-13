@@ -3,8 +3,8 @@
  * Ownership Manager obligatoire (RULES.md §1) : un Manager ne peut créer/lire/
  * modifier/supprimer un billet QUE sur son propre événement.
  */
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { ForbiddenException, NotFoundException, ConflictException } from '@nestjs/common';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { BadRequestException, ForbiddenException, NotFoundException, ConflictException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { TicketsService } from './tickets.service';
 
@@ -65,6 +65,47 @@ describe('TicketsService', () => {
       await expect(
         service.createTicket('unknown', 'mgr-1', { name: 'VIP', price: 5000, stock: 100 } as any),
       ).rejects.toThrow(NotFoundException);
+    });
+
+    describe("whitelist designImageUrl (RULES.md §6)", () => {
+      const ORIGINAL_ENV = { ...process.env };
+
+      beforeEach(() => {
+        process.env.STORAGE_ENDPOINT = 'http://localhost:9000';
+        process.env.STORAGE_BUCKET = 'fluid-events';
+      });
+
+      afterEach(() => {
+        process.env = { ...ORIGINAL_ENV };
+      });
+
+      it('400 si designImageUrl pointe vers un domaine hors whitelist', async () => {
+        prisma.event.findUnique.mockResolvedValue(OWNED_EVENT);
+
+        await expect(
+          service.createTicket('ev-1', 'mgr-1', {
+            name: 'VIP',
+            price: 5000,
+            stock: 100,
+            designImageUrl: 'https://evil.com/x.png',
+          } as any),
+        ).rejects.toThrow(BadRequestException);
+        expect(prisma.ticket.create).not.toHaveBeenCalled();
+      });
+
+      it('crée le ticket quand designImageUrl pointe vers le stockage whitelisté', async () => {
+        prisma.event.findUnique.mockResolvedValue(OWNED_EVENT);
+        prisma.ticket.create.mockResolvedValue({ id: 'tk-1' });
+
+        await service.createTicket('ev-1', 'mgr-1', {
+          name: 'VIP',
+          price: 5000,
+          stock: 100,
+          designImageUrl: 'http://localhost:9000/fluid-events/uploads/mgr-1/x.png',
+        } as any);
+
+        expect(prisma.ticket.create).toHaveBeenCalled();
+      });
     });
   });
 

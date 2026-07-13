@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -9,6 +10,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 import { UpdateTicketDto } from './dto/update-ticket.dto';
 import { ErrorCodes } from '@saas-events/types';
+import { isAllowedImageUrl } from '../storage/image-whitelist.util';
 
 /** Code d'erreur Prisma — violation de contrainte de clé étrangère. */
 const FOREIGN_KEY_VIOLATION = 'P2003';
@@ -64,8 +66,19 @@ export class TicketsService {
     return ticket;
   }
 
+  /** Whitelist d'URL (RULES.md §6) — ne bloque que si une image est réellement fournie. */
+  private assertValidDesignImageUrl(designImageUrl: string | undefined): void {
+    if (designImageUrl && !isAllowedImageUrl(designImageUrl)) {
+      throw new BadRequestException({
+        code: ErrorCodes.DESIGN_IMAGE_URL_INVALID,
+        message: "URL d'image non autorisée — utilisez POST /api/storage/upload pour héberger l'image.",
+      });
+    }
+  }
+
   async createTicket(eventId: string, managerId: string, dto: CreateTicketDto) {
     await this.getOwnedEventOrThrow(eventId, managerId);
+    this.assertValidDesignImageUrl(dto.designImageUrl);
 
     return this.prisma.ticket.create({
       data: {
@@ -101,6 +114,7 @@ export class TicketsService {
 
   async updateTicket(ticketId: string, managerId: string, dto: UpdateTicketDto) {
     await this.getOwnedTicketOrThrow(ticketId, managerId);
+    this.assertValidDesignImageUrl(dto.designImageUrl);
 
     return this.prisma.ticket.update({
       where: { id: ticketId },

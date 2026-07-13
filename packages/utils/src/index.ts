@@ -62,6 +62,16 @@ export function buildAllowedImageBase(supabaseUrl: string): string {
 }
 
 /**
+ * Équivalent de `buildAllowedImageBase` pour le stockage S3-compatible générique
+ * (RustFS/MinIO en dev, ou Supabase Storage via son endpoint S3 — `STORAGE_*`,
+ * voir `StorageService`), qui construit ses URLs publiques en
+ * `${endpoint}/${bucket}/${key}` (path-style), pas via l'API REST Supabase.
+ */
+export function buildAllowedStorageBase(endpoint: string, bucket: string): string {
+  return `${endpoint.replace(/\/$/, '')}/${bucket}/`;
+}
+
+/**
  * Valide qu'une URL pointe vers le bucket Supabase autorisé.
  * - Rejette les URLs malformées (retourne '')
  * - Rejette les protocoles non-HTTP (data:, javascript:, file:)

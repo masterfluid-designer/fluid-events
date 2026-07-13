@@ -172,6 +172,10 @@ Supprime un ticket. Renvoie `409 CONFLICT` (`TICKET_HAS_ORDERS`) si des
 commandes existent déjà pour ce ticket (contrainte FK Prisma) — désactiver
 (`isActive: false`) plutôt que supprimer dans ce cas.
 
+`designImageUrl` (POST/PATCH) est revalidé à l'écriture contre la whitelist de
+stockage (`isAllowedImageUrl`, RULES.md §6) — `400 DESIGN_IMAGE_URL_INVALID`
+si l'URL ne provient pas de `POST /api/storage/upload` (voir §Storage).
+
 ### Payments (`PaymentsController`, préfixe `/api/payments`)
 
 V1 se concentre sur **Kkiapay** uniquement (CinetPay/FedaPay : aucun SDK ni
@@ -283,6 +287,30 @@ possible dans ce cas.
 Upsert atomique sur `EventPage` (1:1 avec `Event`, `eventId` unique) — ne
 touche que le champ `blocks` ; `theme`/`isPublished` sont hors scope de cet
 endpoint pour l'instant.
+
+Toute `props.imageUrl` référencée par un bloc est revalidée à l'écriture
+contre la whitelist de stockage (`isAllowedImageUrl`, voir §Storage
+ci-dessous) — `400 BUILDER_SCHEMA_INVALID` si l'URL ne pointe pas vers un
+stockage whitelisté (RULES.md §6).
+
+### Storage (`StorageController`, préfixe `/api/storage`)
+
+#### POST /api/storage/upload
+Réservé au rôle `MANAGER`. Upload multipart (`multipart/form-data`, champ
+`file`) — PNG/JPEG/WEBP uniquement (jamais SVG, risque XSS via script
+embarqué), 5 Mo max. Stocké via `StorageService.uploadBuffer` sous
+`uploads/{managerId}/{uuid}.{ext}`. Retourne `{ url }` — l'URL publique du
+fichier, à réutiliser ensuite comme `designImageUrl` (`PATCH /api/tickets/:id`)
+ou `props.imageUrl` d'un bloc (`PUT /api/builder/:eventId/blocks`), tous deux
+revalidés à l'écriture (`isAllowedImageUrl`, `apps/api/src/storage/
+image-whitelist.util.ts`) contre le bucket Supabase (`SUPABASE_URL`, prod)
+et/ou le stockage S3-compatible configuré (`STORAGE_ENDPOINT`/`STORAGE_BUCKET`
+— RustFS/MinIO en dev). Ne fournit une URL utilisable QUE via cet endpoint —
+une URL externe arbitraire est toujours rejetée à l'écriture, même si elle
+"a l'air" d'une image valide.
+
+**Erreurs** : `400` (`DESIGN_IMAGE_FORMAT_INVALID` — fichier absent ou format
+non supporté ; `DESIGN_IMAGE_TOO_LARGE` — >5 Mo).
 
 Testé en conditions réelles (Docker Postgres) : sauvegarde initiale,
 relecture, 409 sur `lastKnownUpdatedAt` périmé, 400 sur couleur non-HEX, 403

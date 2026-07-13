@@ -85,4 +85,31 @@ export function apiPut<T = unknown>(
   return api<T>(path, { ...init, method: 'PUT', body: JSON.stringify(data) });
 }
 
+/**
+ * Upload un fichier (multipart) vers POST /api/storage/upload et retourne son
+ * URL publique — image hébergée sur le bucket whitelisté (RULES.md §6), à
+ * réutiliser ensuite comme designImageUrl (billet) ou props.imageUrl (Builder).
+ * Ne passe pas par `api()` : un upload multipart ne doit jamais fixer
+ * Content-Type manuellement (le navigateur pose la boundary lui-même).
+ */
+export async function apiUpload(path: string, file: File): Promise<{ url: string }> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await fetch(`${API_URL}${path}`, {
+    method: 'POST',
+    body: formData,
+    credentials: 'include',
+  });
+
+  const body = await response.json().catch(() => null);
+
+  if (!response.ok || !body?.success) {
+    const err = body?.error ?? { code: 'NETWORK_ERROR', message: response.statusText };
+    throw new ApiError(err.code, err.message ?? 'Erreur', response.status, err.details);
+  }
+
+  return body.data as { url: string };
+}
+
 export { API_URL };

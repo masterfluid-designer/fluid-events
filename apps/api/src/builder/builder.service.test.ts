@@ -3,7 +3,7 @@
  * Ownership Manager (RULES.md §1), validation Zod (RULES.md §6) et
  * concurrence optimiste (RULES.md §5) sur la sauvegarde des blocs.
  */
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { BuilderService } from './builder.service';
 
@@ -165,6 +165,59 @@ describe('BuilderService', () => {
       });
 
       expect(prisma.eventPage.upsert).toHaveBeenCalled();
+    });
+
+    describe("whitelist d'URL image (RULES.md §6)", () => {
+      const ORIGINAL_ENV = { ...process.env };
+
+      beforeEach(() => {
+        process.env.STORAGE_ENDPOINT = 'http://localhost:9000';
+        process.env.STORAGE_BUCKET = 'fluid-events';
+      });
+
+      afterEach(() => {
+        process.env = { ...ORIGINAL_ENV };
+      });
+
+      it("400 si props.imageUrl pointe vers un domaine hors whitelist", async () => {
+        prisma.event.findUnique.mockResolvedValue(OWNED_EVENT);
+
+        await expect(
+          service.saveBlocks('ev-1', 'mgr-1', {
+            blocks: [
+              {
+                id: '11111111-1111-1111-1111-111111111111',
+                type: 'image',
+                order: 0,
+                props: { imageUrl: 'https://evil.com/x.png' },
+              },
+            ],
+            lastKnownUpdatedAt: null,
+          }),
+        ).rejects.toThrow(BadRequestException);
+        expect(prisma.eventPage.upsert).not.toHaveBeenCalled();
+      });
+
+      it('sauvegarde quand props.imageUrl pointe vers le stockage whitelisté', async () => {
+        prisma.event.findUnique.mockResolvedValue(OWNED_EVENT);
+        prisma.eventPage.findUnique.mockResolvedValue(null);
+        prisma.eventPage.upsert.mockResolvedValue({ eventId: 'ev-1' });
+
+        const imageUrl = 'http://localhost:9000/fluid-events/uploads/mgr-1/x.png';
+        await service.saveBlocks('ev-1', 'mgr-1', {
+          blocks: [
+            {
+              id: '11111111-1111-1111-1111-111111111111',
+              type: 'image',
+              order: 0,
+              props: { imageUrl },
+            },
+          ],
+          lastKnownUpdatedAt: null,
+        });
+
+        expect(prisma.eventPage.upsert).toHaveBeenCalled();
+      });
     });
   });
 });

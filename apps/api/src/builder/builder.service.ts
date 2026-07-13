@@ -10,6 +10,7 @@ import { ErrorCodes } from '@saas-events/types';
 import { PrismaService } from '../prisma/prisma.service';
 import { SaveBlocksDto } from './blocks.schema';
 import { detectConcurrencyConflict } from './builder.concurrency';
+import { isAllowedImageUrl } from '../storage/image-whitelist.util';
 
 /**
  * BuilderService — orchestration de la sauvegarde des blocs Event Builder
@@ -71,6 +72,18 @@ export class BuilderService {
         message: 'Structure de blocs invalide.',
         issues: parsed.error.issues,
       });
+    }
+
+    // Whitelist d'URL (RULES.md §6) — toute image référencée dans les props
+    // d'un bloc doit pointer vers un stockage whitelisté, jamais une URL externe.
+    for (const block of parsed.data.blocks) {
+      const imageUrl = block.props.imageUrl;
+      if (typeof imageUrl === 'string' && imageUrl && !isAllowedImageUrl(imageUrl)) {
+        throw new BadRequestException({
+          code: ErrorCodes.BUILDER_SCHEMA_INVALID,
+          message: `Bloc "${block.id}" : URL d'image non autorisée — utilisez POST /api/storage/upload.`,
+        });
+      }
     }
 
     const existingPage = await this.prisma.eventPage.findUnique({

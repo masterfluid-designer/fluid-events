@@ -8,6 +8,7 @@ import {
   isValidHexColor,
   sanitizeBgColor,
   buildAllowedImageBase,
+  buildAllowedStorageBase,
   sanitizeImageUrl,
   escapeHtml,
   normalizeCountryCode,
@@ -150,6 +151,28 @@ describe('sanitizeImageUrl', () => {
     expect(sanitizeImageUrl('pas une url', allowedBase)).toBe('');
     expect(sanitizeImageUrl('', allowedBase)).toBe('');
     expect(sanitizeImageUrl(null, allowedBase)).toBe('');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+describe('buildAllowedStorageBase', () => {
+  it('construit le préfixe path-style (endpoint/bucket/)', () => {
+    expect(buildAllowedStorageBase('http://localhost:9000', 'fluid-events')).toBe(
+      'http://localhost:9000/fluid-events/',
+    );
+  });
+
+  it("retire un slash final sur l'endpoint avant de composer", () => {
+    expect(buildAllowedStorageBase('http://localhost:9000/', 'fluid-events')).toBe(
+      'http://localhost:9000/fluid-events/',
+    );
+  });
+
+  it('fonctionne avec sanitizeImageUrl comme buildAllowedImageBase', () => {
+    const base = buildAllowedStorageBase('http://localhost:9000', 'fluid-events');
+    const url = `${base}uploads/u1/img.png`;
+    expect(sanitizeImageUrl(url, base)).toBe(url);
+    expect(sanitizeImageUrl('http://localhost:9000/other-bucket/img.png', base)).toBe('');
   });
 });
 

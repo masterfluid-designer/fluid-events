@@ -20,7 +20,7 @@
 | Billetterie | ✅ CRUD Tickets (ownership Manager) |
 | Paiement | ✅ Kkiapay (`init` + webhook + anti-fraude serveur) ; CinetPay/FedaPay à faire |
 | Scanner PWA | ✅ Page caméra + store Zustand + logique de décision + `POST /api/scan/validate` |
-| Event Builder | 🟡 `GET /api/builder/mine` + `PUT /api/builder/:eventId/blocks` branchés bout-en-bout (ownership + validation Zod + concurrence optimiste + ajout/édition/réordonnancement/suppression de blocs + color picker HEX), testé en conditions réelles (backend + navigateur réel) ; reste à faire : upload image (whitelist), preview iframe de la page publique, drag & drop |
+| Event Builder | 🟡 `GET /api/builder/mine` + `PUT /api/builder/:eventId/blocks` branchés bout-en-bout (ownership + validation Zod + concurrence optimiste + ajout/édition/réordonnancement/suppression de blocs + color picker HEX + upload d'image whitelisté), testé en conditions réelles (backend + navigateur réel) ; reste à faire : preview iframe de la page publique, drag & drop, page publique qui consomme réellement les blocs |
 | Auth | ✅ Google OAuth + Scanner login + login email/password générique + JWT événementiel + RBAC + auth par cookie httpOnly, testé en conditions réelles (voir RULES.md §13-14) |
 | Dashboard | ✅ Client (Mes billets), Manager (overview/billets/participants) et Admin (vue plateforme) branchés sur données réelles ; pages "commandes"/"profil" client et "Page builder" manager encore mockées |
 | Notifications | ✅ `PhoneService` (validation E.164) ; Email/WhatsApp à coder |
@@ -72,7 +72,9 @@
   - Testé en conditions réelles (Docker Postgres) : sauvegarde initiale, relecture, 409 sur `lastKnownUpdatedAt` périmé, 400 sur couleur non-HEX, 403 cross-manager, 401 sans session, 403 rôle CLIENT, sauvegarde réussie avec `updatedAt` à jour.
 - [x] Page `manager/builder` branchée sur les vrais endpoints (React Query + `apiPut`) : chargement des blocs existants, ajout de bloc depuis la bibliothèque (10 types), édition des propriétés (titre/contenu/alignement), color picker HEX pour le fond du hero, réordonnancement (haut/bas), suppression, sauvegarde explicite avec gestion du conflit 409 (toast + rechargement automatique des données à jour). Le bloc "Billets" affiche les vrais billets de l'événement (`GET /api/events/mine`).
   - Testé en conditions réelles dans un navigateur réel contre le serveur de dev + Docker Postgres : login, chargement, ajout/édition/réordonnancement/suppression de blocs, sauvegarde persistée après rechargement complet de la page, conflit 409 déclenché volontairement (sauvegarde concurrente via l'API) et récupéré proprement côté UI.
-- [ ] Upload image design billet (whitelist d'URL) — réutiliser le pattern `sanitizeImageUrl`/`buildAllowedImageBase` de `packages/utils` déjà utilisé par `TicketDesignService`
+- [x] Upload image design billet + blocs Builder (whitelist d'URL, RULES.md §6) : `POST /api/storage/upload` (Manager, PNG/JPEG/WEBP, 5 Mo max, jamais SVG — risque XSS), stocké via `StorageService.uploadBuffer`. Whitelist revalidée à l'écriture (pas seulement au rendu) : `isAllowedImageUrl()` (nouveau, `apps/api/src/storage/image-whitelist.util.ts`) accepte le bucket Supabase (`buildAllowedImageBase`, prod) et/ou le stockage S3-compatible configuré (`buildAllowedStorageBase`, nouveau dans `packages/utils`, RustFS/MinIO dev) ; utilisé par `TicketsService` (`designImageUrl`) et `BuilderService` (`props.imageUrl` de chaque bloc). `ImageUploadField`/`ColorField` extraits en composants partagés (`apps/web/components/ui/`), réutilisés par le Builder (image de couverture du hero) et le formulaire de création de billet (design du billet, jusqu'ici totalement absent du frontend).
+  - Bug corrigé au passage : `@IsUrl()` (class-validator) rejette `localhost` par défaut (pas de TLD) — bloquant en dev où `STORAGE_ENDPOINT=http://localhost:9000`. Ajout de `{ require_tld: false }` sur `CreateTicketDto`/`UpdateTicketDto.designImageUrl` (la whitelist applicative reste la vraie garde de sécurité, pas ce validateur de forme).
+  - Testé en conditions réelles (Docker Postgres + MinIO) : upload réel d'un PNG → URL publique accessible (200 OK) → acceptée par `PATCH`/`PUT` billet et Builder → une URL externe (`https://evil.com/...`) rejetée (400) dans les deux ; vérifié aussi en navigateur réel (aperçu image dans le panneau de propriétés Builder, formulaire billet).
 - [ ] Preview iframe de la page publique (le toggle desktop/mobile actuel ne fait que changer la largeur du canvas, ce n'est pas un rendu réel de `/e/[slug]`)
 - [ ] Drag & drop réel dans le canvas (l'ajout se fait aujourd'hui en cliquant sur un bloc de la bibliothèque, pas en le glissant)
 - [ ] La page publique `/e/[slug]` ne consomme toujours pas `EventPage.blocks` (template statique séparé) — nécessaire pour que la sauvegarde builder ait un effet visible côté visiteur
@@ -97,7 +99,8 @@
 | Events PATCH/DELETE | ✅ Fait (annulation douce via statut, décision produit 2026-07-13 — voir BUSINESS.md §12) | §6.2 |
 | Builder endpoints (backend) | ✅ Fait | §11 |
 | Builder — frontend branché (ajout/édition/réorg/suppression/color picker) | ✅ Fait | §11 |
-| Builder — upload image / preview iframe / drag & drop | 🟡 Moyenne | §11 |
+| Upload image whitelisté (billet + Builder) | ✅ Fait | §11 |
+| Builder — preview iframe / drag & drop | 🟡 Moyenne | §11 |
 | Admin endpoints | 🟢 Basse | §6.11 |
 
 ## 5. Hors périmètre actuel (backlog non scopé)

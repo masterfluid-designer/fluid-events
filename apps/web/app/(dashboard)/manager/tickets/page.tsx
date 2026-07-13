@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Spinner } from '@/components/ui/spinner';
+import { ColorField } from '@/components/ui/color-field';
+import { ImageUploadField } from '@/components/ui/image-upload-field';
 import { api, apiPost, ApiError } from '@/lib/api';
 
 /**
@@ -38,6 +40,8 @@ export default function ManagerTicketsPage() {
   const [price, setPrice] = useState('');
   const [stock, setStock] = useState('');
   const [description, setDescription] = useState('');
+  const [designImageUrl, setDesignImageUrl] = useState<string | undefined>(undefined);
+  const [designBgColor, setDesignBgColor] = useState<string | undefined>(undefined);
 
   const { data: event, isLoading, isError } = useQuery({
     queryKey: ['manager-event'],
@@ -51,6 +55,8 @@ export default function ManagerTicketsPage() {
         price: Number(price),
         stock: Number(stock),
         description: description || undefined,
+        designImageUrl,
+        designBgColor,
       }),
     onSuccess: () => {
       toast.success('Billet créé');
@@ -59,6 +65,8 @@ export default function ManagerTicketsPage() {
       setPrice('');
       setStock('');
       setDescription('');
+      setDesignImageUrl(undefined);
+      setDesignBgColor(undefined);
       queryClient.invalidateQueries({ queryKey: ['manager-event'] });
     },
     onError: (err) => {
@@ -139,6 +147,18 @@ export default function ManagerTicketsPage() {
               onChange={(e) => setDescription(e.target.value)}
               className="rounded-md border border-input bg-background px-3 py-2 text-sm"
             />
+            <div className="md:col-span-4 grid gap-3 md:grid-cols-2">
+              <ImageUploadField
+                label="Image de design du billet (optionnel)"
+                value={designImageUrl}
+                onChange={setDesignImageUrl}
+              />
+              <ColorField
+                label="Couleur de fond du billet (optionnel)"
+                value={designBgColor}
+                onChange={setDesignBgColor}
+              />
+            </div>
             <Button type="submit" disabled={createTicket.isPending} className="md:col-span-4 w-fit">
               {createTicket.isPending ? 'Création...' : 'Créer le billet'}
             </Button>

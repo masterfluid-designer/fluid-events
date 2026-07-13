@@ -58,8 +58,11 @@ export class CreateTicketDto {
   @IsDateString()
   saleEndDate?: string;
 
+  // require_tld: false — le stockage S3-compatible en dev tourne sur
+  // http://localhost:9000 (RustFS/MinIO), sans TLD ; isAllowedImageUrl()
+  // (whitelist, TicketsService) reste la vraie garde de sécurité ici.
   @IsOptional()
-  @IsUrl()
+  @IsUrl({ require_tld: false })
   designImageUrl?: string;
 
   @IsOptional()
