@@ -1,6 +1,8 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
 import { DollarSign, Ticket, ScanLine, Radio, Clock } from 'lucide-react';
 import {
   Card,
@@ -10,8 +12,9 @@ import {
   CardDescription,
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
-import { api } from '@/lib/api';
+import { api, apiPatch, ApiError } from '@/lib/api';
 
 /**
  * Dashboard Manager (CDC §14.3 — KPIs événement géré).
@@ -36,9 +39,23 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 export default function ManagerDashboardPage() {
+  const queryClient = useQueryClient();
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
   const { data: overview, isLoading, isError } = useQuery({
     queryKey: ['manager-overview'],
     queryFn: () => api<Overview>('/api/events/mine/overview'),
+  });
+
+  const setStatus = useMutation({
+    mutationFn: (status: 'PUBLISHED' | 'CANCELLED') => apiPatch('/api/events/mine', { status }),
+    onSuccess: (_data, status) => {
+      toast.success(status === 'CANCELLED' ? 'Événement annulé' : 'Événement republié');
+      setConfirmingCancel(false);
+      queryClient.invalidateQueries({ queryKey: ['manager-overview'] });
+    },
+    onError: (err) => {
+      toast.error(err instanceof ApiError ? err.message : "Impossible de changer le statut de l'événement");
+    },
   });
 
   if (isLoading) {
@@ -76,9 +93,51 @@ export default function ManagerDashboardPage() {
           <h1 className="text-2xl font-bold tracking-tight">{overview.event.title}</h1>
           <p className="text-sm text-muted-foreground">Tableau de bord de votre événement</p>
         </div>
-        <Badge variant={overview.event.status === 'PUBLISHED' ? 'success' : 'secondary'}>
-          ● {STATUS_LABELS[overview.event.status] ?? overview.event.status}
-        </Badge>
+        <div className="flex items-center gap-3">
+          <Badge
+            variant={
+              overview.event.status === 'PUBLISHED'
+                ? 'success'
+                : overview.event.status === 'CANCELLED'
+                  ? 'destructive'
+                  : 'secondary'
+            }
+          >
+            ● {STATUS_LABELS[overview.event.status] ?? overview.event.status}
+          </Badge>
+          {overview.event.status === 'PUBLISHED' && !confirmingCancel && (
+            <Button variant="outline" size="sm" onClick={() => setConfirmingCancel(true)}>
+              Annuler l&apos;événement
+            </Button>
+          )}
+          {overview.event.status === 'PUBLISHED' && confirmingCancel && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">
+                Les billets déjà vendus restent valides en base, sans remboursement automatique. Confirmer ?
+              </span>
+              <Button
+                variant="destructive"
+                size="sm"
+                disabled={setStatus.isPending}
+                onClick={() => setStatus.mutate('CANCELLED')}
+              >
+                {setStatus.isPending ? 'Annulation...' : 'Confirmer'}
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setConfirmingCancel(false)}>
+                Retour
+              </Button>
+            </div>
+          )}
+          {overview.event.status === 'CANCELLED' && (
+            <Button
+              size="sm"
+              disabled={setStatus.isPending}
+              onClick={() => setStatus.mutate('PUBLISHED')}
+            >
+              Republier l&apos;événement
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

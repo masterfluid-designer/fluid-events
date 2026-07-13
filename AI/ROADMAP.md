@@ -64,6 +64,7 @@
 - [x] CRUD Tickets (stock, prix, dates de vente, ownership Manager)
 - [x] Pages événement publiques SSR (`/e/[slug]`)
 - [x] Export CSV des participants (généré côté client depuis `GET /api/events/:eventId/participants` déjà chargé, pas d'endpoint dédié)
+- [x] "Suppression" d'événement — décision produit (2026-07-13, BUSINESS.md §12) : annulation douce via `PATCH /api/events/mine { status: 'CANCELLED' }` (déjà accepté par `UpdateEventDto`, zéro changement backend requis), pas de hard-delete. Réversible (`PUBLISHED` ↔ `CANCELLED`). Bouton "Annuler l'événement" / "Republier l'événement" ajouté au dashboard Manager (`apps/web/app/(dashboard)/manager/page.tsx`). Un événement `CANCELLED` : disparaît de la page publique, bloque `POST /api/payments/init`, et le scanner renvoie `EXPIRED` — les trois découlaient déjà du contrôle existant `status === 'PUBLISHED'`, sans code additionnel.
 
 ### Phase 4 — Builder & Design 🔴 En cours
 
@@ -93,7 +94,7 @@
 | Tickets CRUD | ✅ Fait | §6.3 |
 | Payments init + webhook (Kkiapay) | ✅ Fait | §8 |
 | Payments CinetPay / FedaPay | 🟡 Moyenne (pas de SDK/doc fournie) | §8 |
-| Events PATCH/DELETE | 🟡 Moyenne | §6.2 |
+| Events PATCH/DELETE | ✅ Fait (annulation douce via statut, décision produit 2026-07-13 — voir BUSINESS.md §12) | §6.2 |
 | Builder endpoints (backend) | ✅ Fait | §11 |
 | Builder — frontend branché (ajout/édition/réorg/suppression/color picker) | ✅ Fait | §11 |
 | Builder — upload image / preview iframe / drag & drop | 🟡 Moyenne | §11 |

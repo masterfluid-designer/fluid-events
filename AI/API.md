@@ -96,6 +96,25 @@ les commandes payées et les logs de scan : `{ event, totalRevenue, currency,
 ticketsSold, revenueByTicketType: [{name, revenue, count}], scansByScanner:
 [{name, scans, lastScanAt}] }`.
 
+#### PATCH /api/events/mine
+Réservé au rôle `MANAGER`, ownership implicite (l'événement du manager
+authentifié — pas de `:id` dans l'URL). Corps : tous les champs de
+`UpdateEventDto` sont optionnels (`title`, `description`, `coverImageUrl`,
+`location`, `startDate`, `endDate`, `status`). Aucune state-machine imposée
+sur `status` — seule sa validité dans l'enum `EventStatus` est vérifiée
+(BUSINESS.md §12 : cycle de vie complet non tranché produit).
+
+**Annulation/republication d'un événement** (décision produit du 2026-07-13,
+BUSINESS.md §12) : c'est une transition de statut, pas une suppression —
+`{ status: 'CANCELLED' }` / `{ status: 'PUBLISHED' }`, réversible. Aucune
+commande/billet n'est touché ; aucun remboursement automatique. Un événement
+`CANCELLED` disparaît de `GET /api/events/public/:slug` (404), bloque
+`POST /api/payments/init` (403/erreur métier) et fait renvoyer `EXPIRED` par
+`POST /api/scan/validate` — les trois découlent du contrôle déjà existant
+`event.status === 'PUBLISHED'`, aucun code supplémentaire n'a été nécessaire.
+UI : bouton "Annuler l'événement" / "Republier l'événement" sur le dashboard
+Manager (`apps/web/app/(dashboard)/manager/page.tsx`).
+
 #### GET /api/events/:eventId/participants
 Réservé au rôle `MANAGER`, ownership vérifiée. Liste les participants
 (billets **payés** uniquement) : `{ orderNumber, clientName, clientEmail,
