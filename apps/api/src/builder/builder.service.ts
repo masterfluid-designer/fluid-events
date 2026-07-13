@@ -11,6 +11,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { SaveBlocksDto } from './blocks.schema';
 import { detectConcurrencyConflict } from './builder.concurrency';
 import { isAllowedImageUrl } from '../storage/image-whitelist.util';
+import { sanitizeBlockHtml } from './html-sanitizer.util';
 
 /**
  * BuilderService — orchestration de la sauvegarde des blocs Event Builder
@@ -83,6 +84,12 @@ export class BuilderService {
           code: ErrorCodes.BUILDER_SCHEMA_INVALID,
           message: `Bloc "${block.id}" : URL d'image non autorisée — utilisez POST /api/storage/upload.`,
         });
+      }
+      // Bloc HTML (décision produit 2026-07-13) : nettoyé AVANT persistance,
+      // jamais au seul rendu — la page publique fait ensuite confiance à ce
+      // qui est en base (dangerouslySetInnerHTML côté BlockRenderer).
+      if (block.type === 'html' && typeof block.props.htmlContent === 'string') {
+        block.props.htmlContent = sanitizeBlockHtml(block.props.htmlContent);
       }
     }
 

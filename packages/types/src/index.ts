@@ -195,13 +195,24 @@ export type BlockType =
   | 'faq'
   | 'schedule'
   | 'testimonials'
-  | 'sponsors';
+  | 'sponsors'
+  | 'html';
 
 export interface BlockStyles {
   /** HEX uniquement — validé par Zod côté backend */
   backgroundColor?: string;
   paddingY?: 'sm' | 'md' | 'lg' | 'xl';
   textAlign?: 'left' | 'center' | 'right';
+  /**
+   * Classes Tailwind libres ajoutées au conteneur du bloc (décision produit
+   * 2026-07-13). Validées côté backend par une regex restreinte à la syntaxe
+   * Tailwind (RULES.md — jamais de confiance aveugle dans du texte libre),
+   * mais Tailwind v4 ne génère du CSS que pour les classes détectées dans le
+   * code source au build : une classe totalement inédite tapée à l'exécution
+   * n'aura aucun effet visuel tant qu'elle n'existe pas déjà ailleurs dans le
+   * bundle compilé (ou dans un `@source inline(...)` dédié, non ajouté ici).
+   */
+  customClassName?: string;
 }
 
 export interface Block {

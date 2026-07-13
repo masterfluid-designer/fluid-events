@@ -29,7 +29,7 @@ describe('BlockSchema', () => {
     const types = [
       'hero', 'text', 'image', 'video', 'gallery',
       'countdown', 'tickets', 'faq', 'schedule',
-      'testimonials', 'sponsors',
+      'testimonials', 'sponsors', 'html',
     ];
     for (const type of types) {
       const result = BlockSchema.safeParse(validBlock({ type }));
@@ -90,6 +90,27 @@ describe('BlockSchema', () => {
       validBlock({ styles: undefined }),
     );
     expect(result.success).toBe(true);
+  });
+
+  it('accepte customClassName avec des classes Tailwind valides (variants, valeurs arbitraires)', () => {
+    const result = BlockSchema.safeParse(
+      validBlock({ styles: { customClassName: 'mt-4 md:mt-8 bg-[#ff0000] hover:opacity-80' } }),
+    );
+    expect(result.success).toBe(true);
+  });
+
+  it('rejette customClassName contenant des caractères hors syntaxe Tailwind (tentative d\'injection)', () => {
+    const result = BlockSchema.safeParse(
+      validBlock({ styles: { customClassName: '"><script>alert(1)</script>' } }),
+    );
+    expect(result.success).toBe(false);
+  });
+
+  it('rejette customClassName trop long (>300 caractères)', () => {
+    const result = BlockSchema.safeParse(
+      validBlock({ styles: { customClassName: 'a-'.repeat(200) } }),
+    );
+    expect(result.success).toBe(false);
   });
 });
 

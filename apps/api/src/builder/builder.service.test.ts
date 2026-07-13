@@ -219,5 +219,47 @@ describe('BuilderService', () => {
         expect(prisma.eventPage.upsert).toHaveBeenCalled();
       });
     });
+
+    describe('nettoyage du bloc html (décision produit 2026-07-13)', () => {
+      it('retire le <script> de props.htmlContent avant persistance', async () => {
+        prisma.event.findUnique.mockResolvedValue(OWNED_EVENT);
+        prisma.eventPage.findUnique.mockResolvedValue(null);
+        prisma.eventPage.upsert.mockResolvedValue({ eventId: 'ev-1' });
+
+        await service.saveBlocks('ev-1', 'mgr-1', {
+          blocks: [
+            {
+              id: '11111111-1111-1111-1111-111111111111',
+              type: 'html',
+              order: 0,
+              props: { htmlContent: '<p>Bonjour</p><script>alert(1)</script>' },
+            },
+          ],
+          lastKnownUpdatedAt: null,
+        });
+
+        const upsertArg = prisma.eventPage.upsert.mock.calls[0][0];
+        const savedHtml = upsertArg.create.blocks[0].props.htmlContent;
+        expect(savedHtml).not.toContain('<script');
+        expect(savedHtml).toContain('<p>Bonjour</p>');
+      });
+
+      it("n'affecte pas les blocs d'un autre type", async () => {
+        prisma.event.findUnique.mockResolvedValue(OWNED_EVENT);
+        prisma.eventPage.findUnique.mockResolvedValue(null);
+        prisma.eventPage.upsert.mockResolvedValue({ eventId: 'ev-1' });
+
+        await service.saveBlocks('ev-1', 'mgr-1', {
+          blocks: VALID_BLOCKS,
+          lastKnownUpdatedAt: null,
+        });
+
+        expect(prisma.eventPage.upsert).toHaveBeenCalledWith({
+          where: { eventId: 'ev-1' },
+          create: { eventId: 'ev-1', blocks: VALID_BLOCKS },
+          update: { blocks: VALID_BLOCKS },
+        });
+      });
+    });
   });
 });

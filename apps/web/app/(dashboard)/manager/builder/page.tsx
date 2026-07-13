@@ -19,6 +19,10 @@ import {
   CalendarDays,
   Users,
   Building2,
+  Code2,
+  Pencil,
+  Eye,
+  RefreshCw,
 } from 'lucide-react';
 import type { Block, BlockType } from '@saas-events/types';
 import { Button } from '@/components/ui/button';
@@ -64,6 +68,7 @@ const BLOCK_LIBRARY: { type: BlockType; icon: typeof ImageIcon; label: string }[
   { type: 'schedule', icon: CalendarDays, label: 'Programme' },
   { type: 'testimonials', icon: Users, label: 'Témoignages' },
   { type: 'sponsors', icon: Building2, label: 'Sponsors' },
+  { type: 'html', icon: Code2, label: 'HTML personnalisé' },
 ];
 
 const BLOCK_LABELS: Record<BlockType, string> = {
@@ -78,6 +83,7 @@ const BLOCK_LABELS: Record<BlockType, string> = {
   testimonials: 'Témoignages',
   sponsors: 'Sponsors',
   image: 'Image',
+  html: 'HTML personnalisé',
 };
 
 function createBlock(type: BlockType, order: number): Block {
@@ -87,10 +93,14 @@ function createBlock(type: BlockType, order: number): Block {
 export default function EventBuilderPage() {
   const queryClient = useQueryClient();
   const [device, setDevice] = useState<'desktop' | 'mobile'>('desktop');
+  const [mode, setMode] = useState<'edit' | 'preview'>('edit');
+  const [previewNonce, setPreviewNonce] = useState(0);
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [lastKnownUpdatedAt, setLastKnownUpdatedAt] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [draggingBlockId, setDraggingBlockId] = useState<string | null>(null);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['builder-mine'],
@@ -99,7 +109,7 @@ export default function EventBuilderPage() {
 
   const { data: eventData } = useQuery({
     queryKey: ['manager-event'],
-    queryFn: () => api<{ tickets: EventTicket[] }>('/api/events/mine'),
+    queryFn: () => api<{ slug: string; tickets: EventTicket[] }>('/api/events/mine'),
   });
 
   // Synchronise l'état local éditable avec la dernière version chargée/sauvegardée.
@@ -118,6 +128,7 @@ export default function EventBuilderPage() {
       toast.success('Page sauvegardée');
       setLastKnownUpdatedAt(saved.updatedAt);
       setSavedAt(new Date());
+      setPreviewNonce((n) => n + 1);
       queryClient.setQueryData(['builder-mine'], saved);
     },
     onError: (err) => {
@@ -149,10 +160,55 @@ export default function EventBuilderPage() {
   const selected = blocks.find((b) => b.id === selectedId) ?? null;
   const sortedBlocks = [...blocks].sort((a, b) => a.order - b.order);
 
-  function addBlock(type: BlockType) {
-    const block = createBlock(type, blocks.length);
-    setBlocks((prev) => [...prev, block]);
+  /** Insère un nouveau bloc à l'index donné (ordre parmi les blocs triés) et le sélectionne. */
+  function insertBlockAt(type: BlockType, index: number) {
+    const block = createBlock(type, index);
+    setBlocks((prev) => {
+      const ordered = [...prev].sort((a, b) => a.order - b.order);
+      ordered.splice(index, 0, block);
+      return ordered.map((b, i) => ({ ...b, order: i }));
+    });
     setSelectedId(block.id);
+  }
+
+  function addBlock(type: BlockType) {
+    insertBlockAt(type, blocks.length);
+  }
+
+  /** Déplace un bloc existant (glissé) vers l'index cible parmi les blocs triés. */
+  function moveBlockToIndex(id: string, targetIndex: number) {
+    setBlocks((prev) => {
+      const ordered = [...prev].sort((a, b) => a.order - b.order);
+      const fromIndex = ordered.findIndex((b) => b.id === id);
+      if (fromIndex === -1) return prev;
+      const [moved] = ordered.splice(fromIndex, 1);
+      const insertAt = fromIndex < targetIndex ? targetIndex - 1 : targetIndex;
+      ordered.splice(insertAt, 0, moved);
+      return ordered.map((b, i) => ({ ...b, order: i }));
+    });
+  }
+
+  /** Calcule l'index de dépôt (avant/après le bloc survolé) depuis la position du curseur. */
+  function handleDragOverBlock(e: React.DragEvent<HTMLDivElement>, index: number) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = draggingBlockId ? 'move' : 'copy';
+    const rect = e.currentTarget.getBoundingClientRect();
+    const isAfter = e.clientY - rect.top > rect.height / 2;
+    setDragOverIndex(isAfter ? index + 1 : index);
+  }
+
+  function handleDrop(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    const index = dragOverIndex ?? sortedBlocks.length;
+    const libraryType = e.dataTransfer.getData('application/x-block-type') as BlockType | '';
+    const reorderId = e.dataTransfer.getData('application/x-block-id');
+    if (libraryType) {
+      insertBlockAt(libraryType, index);
+    } else if (reorderId) {
+      moveBlockToIndex(reorderId, index);
+    }
+    setDragOverIndex(null);
+    setDraggingBlockId(null);
   }
 
   function updateSelected(patch: Partial<Block>) {
@@ -212,6 +268,27 @@ export default function EventBuilderPage() {
           <div className="flex overflow-hidden rounded-lg border border-border">
             <button
               type="button"
+              onClick={() => setMode('edit')}
+              aria-label="Mode édition"
+              className={`flex items-center gap-1.5 p-1.5 px-2.5 text-xs font-medium ${mode === 'edit' ? 'bg-card' : 'bg-transparent'}`}
+            >
+              <Pencil className="size-3.5" /> Éditer
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMode('preview');
+                setPreviewNonce((n) => n + 1);
+              }}
+              aria-label="Mode aperçu réel"
+              className={`flex items-center gap-1.5 border-l border-border p-1.5 px-2.5 text-xs font-medium ${mode === 'preview' ? 'bg-card' : 'bg-transparent'}`}
+            >
+              <Eye className="size-3.5" /> Aperçu réel
+            </button>
+          </div>
+          <div className="flex overflow-hidden rounded-lg border border-border">
+            <button
+              type="button"
               onClick={() => setDevice('desktop')}
               aria-label="Aperçu bureau"
               className={`p-1.5 px-2.5 ${device === 'desktop' ? 'bg-card' : 'bg-transparent'}`}
@@ -227,6 +304,16 @@ export default function EventBuilderPage() {
               <Smartphone className="size-3.5" />
             </button>
           </div>
+          {mode === 'preview' && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPreviewNonce((n) => n + 1)}
+              aria-label="Rafraîchir l'aperçu"
+            >
+              <RefreshCw className="size-3.5" />
+            </Button>
+          )}
           <Button size="sm" onClick={() => save.mutate()} disabled={save.isPending}>
             {save.isPending ? 'Sauvegarde...' : 'Enregistrer'}
           </Button>
@@ -235,47 +322,84 @@ export default function EventBuilderPage() {
 
       <div className="flex flex-1 overflow-hidden">
         {/* Block library */}
-        <aside className="w-55 shrink-0 overflow-y-auto border-r border-border p-4">
-          <div className="mb-2.5 text-xs font-bold uppercase tracking-[0.06em] text-muted-foreground">
-            Blocs
-          </div>
-          <div className="flex flex-col gap-1.5">
-            {BLOCK_LIBRARY.map((b) => (
-              <button
-                key={b.type}
-                type="button"
-                onClick={() => addBlock(b.type)}
-                className="flex items-center gap-2.5 rounded-lg border border-border px-2.5 py-2 text-left text-sm font-medium hover:bg-accent"
-              >
-                <b.icon className="size-4" />
-                {b.label}
-              </button>
-            ))}
-          </div>
-        </aside>
+        {mode === 'edit' && (
+          <aside className="w-55 shrink-0 overflow-y-auto border-r border-border p-4">
+            <div className="mb-2.5 text-xs font-bold uppercase tracking-[0.06em] text-muted-foreground">
+              Blocs
+            </div>
+            <p className="mb-2.5 text-[11px] text-muted-foreground">
+              Cliquez ou glissez un bloc dans l&apos;aperçu.
+            </p>
+            <div className="flex flex-col gap-1.5">
+              {BLOCK_LIBRARY.map((b) => (
+                <button
+                  key={b.type}
+                  type="button"
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData('application/x-block-type', b.type);
+                    e.dataTransfer.effectAllowed = 'copy';
+                  }}
+                  onClick={() => addBlock(b.type)}
+                  className="flex cursor-grab items-center gap-2.5 rounded-lg border border-border px-2.5 py-2 text-left text-sm font-medium hover:bg-accent active:cursor-grabbing"
+                >
+                  <b.icon className="size-4" />
+                  {b.label}
+                </button>
+              ))}
+            </div>
+          </aside>
+        )}
 
         {/* Canvas */}
         <div className="flex flex-1 justify-center overflow-y-auto bg-background p-6">
+          {mode === 'preview' ? (
+            <div
+              className={`h-full overflow-hidden rounded-xl border border-border bg-card shadow-solid-2 ${
+                device === 'mobile' ? 'w-95' : 'w-full max-w-4xl'
+              }`}
+            >
+              {eventData?.slug ? (
+                <iframe
+                  key={previewNonce}
+                  src={`/e/${eventData.slug}`}
+                  title="Aperçu de la page publique"
+                  className="h-full w-full"
+                />
+              ) : (
+                <div className="flex h-full items-center justify-center">
+                  <Spinner className="size-5" />
+                </div>
+              )}
+            </div>
+          ) : (
           <div
             className={`h-fit overflow-hidden rounded-xl bg-card shadow-solid-2 ${
               device === 'mobile' ? 'w-80' : 'w-130'
             }`}
+            onDragOver={(e) => {
+              e.preventDefault();
+              if (sortedBlocks.length === 0) setDragOverIndex(0);
+            }}
+            onDrop={handleDrop}
           >
             {sortedBlocks.length === 0 && (
               <div className="p-10 text-center text-xs text-muted-foreground">
-                Aucun bloc pour le moment — ajoutez-en un depuis la bibliothèque à gauche.
+                Aucun bloc pour le moment — ajoutez-en un depuis la bibliothèque à gauche
+                (clic ou glisser-déposer).
               </div>
             )}
 
-            {sortedBlocks.map((block) => {
+            {sortedBlocks.map((block, index) => {
               const isSelected = block.id === selectedId;
               const outline = isSelected ? 'outline-[oklch(58%_0.16_40)]' : 'outline-transparent';
 
+              let content: React.ReactNode;
+
               if (block.type === 'hero') {
                 const imageUrl = block.props.imageUrl as string | undefined;
-                return (
+                content = (
                   <button
-                    key={block.id}
                     type="button"
                     onClick={() => setSelectedId(block.id)}
                     style={{
@@ -294,12 +418,9 @@ export default function EventBuilderPage() {
                     </span>
                   </button>
                 );
-              }
-
-              if (block.type === 'text') {
-                return (
+              } else if (block.type === 'text') {
+                content = (
                   <button
-                    key={block.id}
                     type="button"
                     onClick={() => setSelectedId(block.id)}
                     style={{ textAlign: block.styles?.textAlign }}
@@ -308,12 +429,39 @@ export default function EventBuilderPage() {
                     {(block.props.content as string) || 'Bloc Texte — description de l’événement…'}
                   </button>
                 );
-              }
-
-              if (block.type === 'tickets') {
-                return (
+              } else if (block.type === 'html') {
+                // Jamais de dangerouslySetInnerHTML ici : ce contenu n'est pas
+                // encore passé par le nettoyage serveur (sanitizeBlockHtml,
+                // appliqué seulement à la sauvegarde) — l'interpréter en direct
+                // exécuterait n'importe quel gestionnaire d'événement inline
+                // tapé par le Manager dans son propre navigateur (self-XSS
+                // pendant l'édition). Aperçu texte brut ici ; le rendu réel
+                // (sanitisé) est visible via le mode "Aperçu réel" après
+                // sauvegarde.
+                content = (
                   <button
-                    key={block.id}
+                    type="button"
+                    onClick={() => setSelectedId(block.id)}
+                    className={`block w-full border-b border-dashed border-border p-4 text-left outline-2 -outline-offset-2 ${outline}`}
+                  >
+                    <div className="mb-1.5 text-xs font-bold uppercase tracking-[0.05em] text-muted-foreground">
+                      HTML personnalisé
+                    </div>
+                    {(block.props.htmlContent as string) ? (
+                      <div className="truncate whitespace-pre-wrap font-mono text-xs text-muted-foreground">
+                        {(block.props.htmlContent as string).slice(0, 140)}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">Bloc HTML vide — éditez-le à droite</span>
+                    )}
+                    <span className="mt-1 block text-[11px] italic text-muted-foreground">
+                      Aperçu non interprété — utilisez « Aperçu réel » après sauvegarde.
+                    </span>
+                  </button>
+                );
+              } else if (block.type === 'tickets') {
+                content = (
+                  <button
                     type="button"
                     onClick={() => setSelectedId(block.id)}
                     className={`flex w-full flex-col gap-2 p-4 text-left outline-2 -outline-offset-2 ${outline}`}
@@ -337,31 +485,67 @@ export default function EventBuilderPage() {
                     )}
                   </button>
                 );
+              } else {
+                content = (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedId(block.id)}
+                    className={`block w-full border-b border-dashed border-border p-4 text-left outline-2 -outline-offset-2 ${outline}`}
+                  >
+                    <div className="text-xs font-bold uppercase tracking-[0.05em] text-muted-foreground">
+                      {BLOCK_LABELS[block.type]}
+                    </div>
+                    {(block.props.title as string) && (
+                      <div className="mt-1 text-sm font-semibold">{block.props.title as string}</div>
+                    )}
+                    {(block.props.content as string) && (
+                      <div className="mt-1 text-xs text-muted-foreground">{block.props.content as string}</div>
+                    )}
+                  </button>
+                );
               }
 
               return (
-                <button
-                  key={block.id}
-                  type="button"
-                  onClick={() => setSelectedId(block.id)}
-                  className={`block w-full border-b border-dashed border-border p-4 text-left outline-2 -outline-offset-2 ${outline}`}
-                >
-                  <div className="text-xs font-bold uppercase tracking-[0.05em] text-muted-foreground">
-                    {BLOCK_LABELS[block.type]}
+                <div key={block.id}>
+                  {dragOverIndex === index && <div className="mx-2 h-1 rounded-full bg-accent-terracotta" />}
+                  <div
+                    draggable
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData('application/x-block-id', block.id);
+                      e.dataTransfer.effectAllowed = 'move';
+                      setDraggingBlockId(block.id);
+                    }}
+                    onDragEnd={() => {
+                      setDraggingBlockId(null);
+                      setDragOverIndex(null);
+                    }}
+                    onDragOver={(e) => handleDragOverBlock(e, index)}
+                    className={`cursor-grab active:cursor-grabbing ${block.styles?.customClassName ?? ''}`}
+                  >
+                    {content}
                   </div>
-                  {(block.props.title as string) && (
-                    <div className="mt-1 text-sm font-semibold">{block.props.title as string}</div>
-                  )}
-                  {(block.props.content as string) && (
-                    <div className="mt-1 text-xs text-muted-foreground">{block.props.content as string}</div>
-                  )}
-                </button>
+                </div>
               );
             })}
+
+            {dragOverIndex === sortedBlocks.length && sortedBlocks.length > 0 && (
+              <div className="mx-2 h-1 rounded-full bg-accent-terracotta" />
+            )}
+            {sortedBlocks.length > 0 && (
+              <div
+                className="h-8 w-full"
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setDragOverIndex(sortedBlocks.length);
+                }}
+              />
+            )}
           </div>
+          )}
         </div>
 
-        {/* Properties panel */}
+        {/* Properties panel — masqué en mode aperçu réel */}
+        {mode === 'edit' && (
         <aside className="w-65 shrink-0 overflow-y-auto border-l border-border p-4.5">
           {!selected ? (
             <div className="text-xs text-muted-foreground">
@@ -437,29 +621,66 @@ export default function EventBuilderPage() {
                 </p>
               )}
 
-              {selected.type !== 'hero' && selected.type !== 'text' && selected.type !== 'tickets' && (
-                <>
-                  <div>
-                    <label className="mb-1.5 block text-xs font-semibold">Titre</label>
-                    <Input
-                      value={(selected.props.title as string) ?? ''}
-                      onChange={(e) => updateSelectedProps({ title: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1.5 block text-xs font-semibold">Contenu</label>
-                    <textarea
-                      value={(selected.props.content as string) ?? ''}
-                      onChange={(e) => updateSelectedProps({ content: e.target.value })}
-                      rows={3}
-                      className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                    />
-                  </div>
-                </>
+              {selected.type === 'html' && (
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold">Code HTML</label>
+                  <textarea
+                    value={(selected.props.htmlContent as string) ?? ''}
+                    onChange={(e) => updateSelectedProps({ htmlContent: e.target.value })}
+                    rows={8}
+                    spellCheck={false}
+                    className="w-full rounded-md border border-input bg-transparent px-3 py-2 font-mono text-xs shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  />
+                  <p className="mt-1.5 text-[11px] text-muted-foreground">
+                    Nettoyé automatiquement à l&apos;enregistrement : scripts, gestionnaires
+                    d&apos;événements et balises dangereuses (iframe, object, style...) sont
+                    retirés avant publication.
+                  </p>
+                </div>
               )}
+
+              {selected.type !== 'hero' &&
+                selected.type !== 'text' &&
+                selected.type !== 'tickets' &&
+                selected.type !== 'html' && (
+                  <>
+                    <div>
+                      <label className="mb-1.5 block text-xs font-semibold">Titre</label>
+                      <Input
+                        value={(selected.props.title as string) ?? ''}
+                        onChange={(e) => updateSelectedProps({ title: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-xs font-semibold">Contenu</label>
+                      <textarea
+                        value={(selected.props.content as string) ?? ''}
+                        onChange={(e) => updateSelectedProps({ content: e.target.value })}
+                        rows={3}
+                        className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      />
+                    </div>
+                  </>
+                )}
+
+              <div className="border-t border-border pt-3.5">
+                <label className="mb-1.5 block text-xs font-semibold">Classes CSS personnalisées</label>
+                <Input
+                  value={selected.styles?.customClassName ?? ''}
+                  onChange={(e) => updateSelectedStyles({ customClassName: e.target.value })}
+                  placeholder="ex : mt-8 rounded-2xl shadow-lg"
+                  className="font-mono text-xs"
+                />
+                <p className="mt-1.5 text-[11px] text-muted-foreground">
+                  Classes Tailwind ajoutées au conteneur du bloc. Une classe totalement inédite
+                  n&apos;aura d&apos;effet que si elle existe déjà dans le design system —
+                  Tailwind ne génère pas de CSS à la volée pour du texte saisi ici.
+                </p>
+              </div>
             </div>
           )}
-        </aside>
+          </aside>
+        )}
       </div>
     </div>
   );

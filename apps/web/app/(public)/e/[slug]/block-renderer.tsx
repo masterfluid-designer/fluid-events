@@ -4,11 +4,18 @@ import type { Block, BlockType } from '@saas-events/types';
  * BlockRenderer — Rend les blocs Builder (CDC §11) sur la page publique.
  *
  * Rendu minimal cohérent avec ce que le Builder permet réellement d'éditer
- * (apps/web/app/(dashboard)/manager/builder/page.tsx) : hero/texte/billets ont
- * un rendu dédié, les autres types (image/vidéo/galerie/countdown/faq/
+ * (apps/web/app/(dashboard)/manager/builder/page.tsx) : hero/texte/billets/html
+ * ont un rendu dédié, les autres types (image/vidéo/galerie/countdown/faq/
  * schedule/testimonials/sponsors) un rendu générique titre + contenu — pas de
  * sur-conception pour des blocs dont le Builder n'édite encore que ces deux
  * champs communs.
+ *
+ * `styles.customClassName` (décision produit 2026-07-13) : classes Tailwind
+ * libres appliquées au conteneur de chaque bloc, validées côté backend par une
+ * regex restreinte à la syntaxe Tailwind (`blocks.schema.ts`). Limite connue :
+ * Tailwind v4 ne génère du CSS que pour les classes détectées au build — une
+ * classe inédite tapée à l'exécution n'aura d'effet que si elle existe déjà
+ * ailleurs dans le bundle compilé.
  */
 
 interface PublicTicket {
@@ -38,14 +45,9 @@ export function BlockRenderer({
   return (
     <>
       {sorted.map((block) => (
-        <BlockItem
-          key={block.id}
-          block={block}
-          tickets={tickets}
-          isPublished={isPublished}
-          slug={slug}
-          BuyButton={BuyButton}
-        />
+        <div key={block.id} className={block.styles?.customClassName}>
+          <BlockItem block={block} tickets={tickets} isPublished={isPublished} slug={slug} BuyButton={BuyButton} />
+        </div>
       ))}
     </>
   );
@@ -96,6 +98,20 @@ function BlockItem({
       >
         {(block.props.content as string) || ''}
       </p>
+    );
+  }
+
+  if (block.type === 'html') {
+    // Contenu déjà nettoyé côté serveur à l'écriture (BuilderService +
+    // sanitizeBlockHtml, décision produit 2026-07-13) — jamais de nouvelle
+    // passe de nettoyage ici, la BDD fait foi (même principe que la
+    // whitelist d'URL image).
+    return (
+      <div
+        className="px-6 py-4 md:px-9 [&_a]:underline [&_img]:max-w-full [&_img]:rounded-lg"
+        style={{ textAlign }}
+        dangerouslySetInnerHTML={{ __html: (block.props.htmlContent as string) || '' }}
+      />
     );
   }
 
