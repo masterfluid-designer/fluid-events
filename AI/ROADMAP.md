@@ -9,7 +9,7 @@
 - **Phase 1 — Fondations** : ✅ **Terminée**
 - **Phase 2 — Scanner & Paiements** : 🔴 **En cours**
 - **Phase 3 — Events & Tickets** : 🟡 À venir
-- **Phase 4 — Builder & Design** : 🟡 À venir
+- **Phase 4 — Builder & Design** : 🔴 **En cours**
 - **Phase 5 — Polish & Prod** : 🔵 À venir
 
 ## 2. État des modules V1
@@ -20,7 +20,7 @@
 | Billetterie | ✅ CRUD Tickets (ownership Manager) |
 | Paiement | ✅ Kkiapay (`init` + webhook + anti-fraude serveur) ; CinetPay/FedaPay à faire |
 | Scanner PWA | ✅ Page caméra + store Zustand + logique de décision + `POST /api/scan/validate` |
-| Event Builder | 🟡 Module vide, schémas Zod prêts |
+| Event Builder | 🟡 `GET /api/builder/mine` + `PUT /api/builder/:eventId/blocks` (ownership + validation Zod + concurrence optimiste), testé en conditions réelles ; frontend `manager/builder` encore maquette statique sans appel réseau |
 | Auth | ✅ Google OAuth + Scanner login + login email/password générique + JWT événementiel + RBAC + auth par cookie httpOnly, testé en conditions réelles (voir RULES.md §13-14) |
 | Dashboard | ✅ Client (Mes billets), Manager (overview/billets/participants) et Admin (vue plateforme) branchés sur données réelles ; pages "commandes"/"profil" client et "Page builder" manager encore mockées |
 | Notifications | ✅ `PhoneService` (validation E.164) ; Email/WhatsApp à coder |
@@ -65,12 +65,14 @@
 - [x] Pages événement publiques SSR (`/e/[slug]`)
 - [x] Export CSV des participants (généré côté client depuis `GET /api/events/:eventId/participants` déjà chargé, pas d'endpoint dédié)
 
-### Phase 4 — Builder & Design 🟡
+### Phase 4 — Builder & Design 🔴 En cours
 
-- [ ] Controller + service Builder (`saveBlocks` avec validation Zod + concurrence)
-- [ ] Upload image design billet (whitelist d'URL)
-- [ ] Color picker HEX strict
-- [ ] Preview iframe
+- [x] Controller + service Builder (`GET /api/builder/mine`, `PUT /api/builder/:eventId/blocks` — ownership Manager, validation `SaveBlocksDto` (Zod), concurrence optimiste `detectConcurrencyConflict` → 409 `BUILDER_CONFLICT`, upsert atomique sur `EventPage`)
+  - Testé en conditions réelles (Docker Postgres) : sauvegarde initiale, relecture, 409 sur `lastKnownUpdatedAt` périmé, 400 sur couleur non-HEX, 403 cross-manager, 401 sans session, 403 rôle CLIENT, sauvegarde réussie avec `updatedAt` à jour.
+- [ ] Upload image design billet (whitelist d'URL) — réutiliser le pattern `sanitizeImageUrl`/`buildAllowedImageBase` de `packages/utils` déjà utilisé par `TicketDesignService`
+- [ ] Color picker HEX strict (frontend)
+- [ ] Preview iframe (frontend)
+- [ ] Page `manager/builder` : encore une maquette statique sans appel réseau (pas de chargement des blocs existants, bouton "Publier" sans handler, pas de drag & drop réel) — à brancher sur `GET /api/builder/mine` / `PUT /api/builder/:eventId/blocks`
 
 ### Phase 5 — Polish & Prod 🔵
 
@@ -90,7 +92,8 @@
 | Payments init + webhook (Kkiapay) | ✅ Fait | §8 |
 | Payments CinetPay / FedaPay | 🟡 Moyenne (pas de SDK/doc fournie) | §8 |
 | Events PATCH/DELETE | 🟡 Moyenne | §6.2 |
-| Builder endpoints | 🟡 Moyenne | §11 |
+| Builder endpoints (backend) | ✅ Fait | §11 |
+| Builder — upload image / color picker / preview / frontend | 🟡 Moyenne | §11 |
 | Admin endpoints | 🟢 Basse | §6.11 |
 
 ## 5. Hors périmètre actuel (backlog non scopé)

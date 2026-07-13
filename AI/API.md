@@ -234,6 +234,45 @@ une confirmation — seul le webhook, re-vérifié serveur, fait foi).
 }
 ```
 
+### Builder (`BuilderController`, préfixe `/api/builder`)
+
+#### GET /api/builder/mine
+Réservé au rôle `MANAGER`. Retourne l'état actuel de l'`EventPage` de
+l'événement du manager authentifié : `{ eventId, blocks, theme, isPublished,
+updatedAt }`. Valeurs par défaut (`blocks: []`, `theme: {}`, `isPublished:
+false`, `updatedAt: null`) si aucune `EventPage` n'a encore été sauvegardée.
+
+#### PUT /api/builder/:eventId/blocks
+Réservé au rôle `MANAGER`, ownership vérifiée (`event.managerId === user.id`,
+`eventId` de l'URL jamais fait confiance sans ce contrôle — RULES.md §1).
+
+Corps attendu (validé par `SaveBlocksDto`, schéma Zod — jamais de
+`class-validator` ici, RULES.md §6) : `{ blocks: Block[], lastKnownUpdatedAt:
+string | null }`. `blocks` limité à 50 éléments, `styles.backgroundColor` en
+HEX strict 6 chiffres.
+
+Concurrence optimiste (RULES.md §5, CDC §11.3) : si `EventPage.updatedAt` en
+base est strictement postérieur à `lastKnownUpdatedAt`, renvoie `409` (`code:
+BUILDER_CONFLICT`) sans écraser le travail d'une autre session.
+`lastKnownUpdatedAt: null` signifie « première sauvegarde », jamais de conflit
+possible dans ce cas.
+
+**Erreurs** : `400` (`BUILDER_SCHEMA_INVALID`, corps invalide), `403`
+(`FORBIDDEN`, événement d'un autre manager), `404` (`EVENT_NOT_FOUND`), `409`
+(`BUILDER_CONFLICT`).
+
+Upsert atomique sur `EventPage` (1:1 avec `Event`, `eventId` unique) — ne
+touche que le champ `blocks` ; `theme`/`isPublished` sont hors scope de cet
+endpoint pour l'instant.
+
+Testé en conditions réelles (Docker Postgres) : sauvegarde initiale,
+relecture, 409 sur `lastKnownUpdatedAt` périmé, 400 sur couleur non-HEX, 403
+cross-manager, 401 sans session, 403 rôle `CLIENT`, sauvegarde réussie avec
+`updatedAt` à jour.
+
+⚠️ Le frontend `apps/web/app/(dashboard)/manager/builder/page.tsx` reste une
+maquette statique sans appel réseau — pas encore branché sur ces endpoints.
+
 ### Admin (`AdminController`, préfixe `/api/admin`)
 
 #### GET /api/admin/overview
@@ -251,7 +290,6 @@ NestJS correspondant** dans `apps/api/src` pour l'instant :
 
 - `POST /api/tickets/purchase`, `GET /api/tickets/:id` (achat côté client — le CRUD Manager existe, pas encore le flux d'achat public)
 - `POST /api/payments/webhook/cinetpay`, `POST /api/payments/webhook/fedapay`
-- `PUT /api/builder/:eventId/blocks`
 
 Ne pas les appeler depuis le frontend tant qu'ils ne sont pas livrés.
 
