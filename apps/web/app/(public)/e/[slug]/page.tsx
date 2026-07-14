@@ -38,7 +38,14 @@ interface EventDetail {
 }
 
 async function fetchEvent(slug: string): Promise<EventDetail | null> {
-  const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+  // Ce fetch tourne côté serveur (composant serveur, SSR) — dans le conteneur
+  // Docker `web`, "localhost:4000" ne pointe nulle part (c'est le conteneur
+  // web lui-même, pas `api`) : seul le navigateur peut atteindre localhost:4000
+  // via le port mappé sur l'hôte. INTERNAL_API_URL (docker-compose.yml,
+  // http://api:4000, DNS interne du réseau Docker) prend le pas côté serveur ;
+  // en dev natif (hors Docker) elle est absente, NEXT_PUBLIC_API_URL suffit.
+  const apiBase =
+    process.env.INTERNAL_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
   try {
     const res = await fetch(`${apiBase}/api/events/public/${slug}`, {
       next: { revalidate: 30 },

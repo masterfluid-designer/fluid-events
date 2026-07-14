@@ -4,7 +4,13 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  // "native" pour le dev natif hors Docker (Windows/macOS/glibc) ; l'image
+  // node:20-alpine (Docker) est musl + OpenSSL 3.x — sans ce binaryTarget
+  // explicite, Prisma génère par défaut un moteur linux-musl lié à OpenSSL
+  // 1.1, absent des images Alpine récentes (bug réel rencontré : "Error
+  // loading shared library libssl.so.1.1: No such file or directory").
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {

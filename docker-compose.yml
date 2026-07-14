@@ -5,7 +5,9 @@ services:
     container_name: fluid-events-postgres
     environment:
       POSTGRES_USER: fluid_user
-      POSTGRES_PASSWORD: fluid_password_dev
+      # Substitution ${VAR} (voir .env à la racine, gitignored) — jamais en
+      # clair ici, ce fichier est tracké et poussé sur un dépôt public.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD manquant — voir .env.example à la racine}
       POSTGRES_DB: fluid_events
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -83,30 +85,94 @@ services:
     container_name: fluid-events-api
     environment:
       NODE_ENV: development
-      DATABASE_URL: postgresql://fluid_user:[REDACTED]@postgres:5432/fluid_events?schema=public
+      PORT: 4000
+      # Substitutions ${VAR} (voir .env à la racine, gitignored) pour toutes
+      # les valeurs à caractère secret — jamais en clair dans ce fichier
+      # tracké/poussé sur un dépôt public (même principe que GOOGLE_CLIENT_*
+      # ci-dessous, déjà en place).
+      DATABASE_URL: postgresql://fluid_user:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD manquant — voir .env.example à la racine}@postgres:5432/fluid_events?schema=public
       REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET manquant — voir .env.example à la racine}
+      JWT_EXPIRATION: 86400
+      JWT_ALGORITHM: HS256
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_CALLBACK_URL: http://localhost:4000/api/auth/google/callback
       STORAGE_ENDPOINT: http://minio:9000
       STORAGE_ACCESS_KEY: minioadmin
       STORAGE_SECRET_KEY: minioadmin
       STORAGE_BUCKET: fluid-events
       STORAGE_REGION: us-east-1
+      STORAGE_USE_PATH_STYLE_ENDPOINT: "true"
       SMTP_HOST: mailpit
       SMTP_PORT: "1025"
+      SMTP_USER: ""
+      SMTP_PASSWORD: ""
       SMTP_FROM: noreply@fluid-events.dev
+      SMTP_SECURE: "false"
+      # Aucun bac à sable local pour WhatsApp/SMS (contrairement à Mailpit pour
+      # l'email) — ces valeurs restent des placeholders, l'envoi réel échoue
+      # toujours (401) sans un vrai compte Meta/Twilio (voir ROADMAP.md Phase 5).
+      WHATSAPP_ACCESS_TOKEN: sandbox_placeholder_access_token
+      WHATSAPP_PHONE_NUMBER_ID: "000000000000000"
+      WHATSAPP_API_VERSION: v21.0
+      WHATSAPP_TICKET_READY_TEMPLATE_NAME: ticket_ready
+      WHATSAPP_TICKET_READY_TEMPLATE_LANG: fr
+      TWILIO_ACCOUNT_SID: ACsandboxplaceholder00000000000000
+      TWILIO_AUTH_TOKEN: sandbox_placeholder_auth_token
+      TWILIO_SMS_FROM: "+15005550006"
+      KKIAPAY_API_KEY: ""
+      KKIAPAY_WEBHOOK_SECRET: ""
+      CINETPAY_API_KEY: ""
+      CINETPAY_WEBHOOK_SECRET: ""
+      FEDAPAY_API_KEY: ""
+      FEDAPAY_WEBHOOK_SECRET: ""
       APP_URL: http://localhost:3000
       API_URL: http://localhost:4000
-      JWT_SECRET: dev-jwt-secret-change-in-prod
-      JWT_EXPIRATION: 86400
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
-      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      API_INTERNAL_URL: http://localhost:4000
+      FRONTEND_URL: http://localhost:3000
+      PDF_TIMEOUT: 30000
+      PDF_FORMAT: A4
+      PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: "false"
+      # Requis (throw au démarrage/à l'usage si absent) — TicketDesignService
+      # (QR_SECRET) et CryptoService (ENCRYPTION_KEY, secrets provider AES-256-GCM).
+      QR_SECRET: ${QR_SECRET:?QR_SECRET manquant — voir .env.example à la racine}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?ENCRYPTION_KEY manquant — voir .env.example à la racine}
+      RATE_LIMIT_WINDOW_MS: 900000
+      RATE_LIMIT_MAX_REQUESTS: 100
+      RATE_LIMIT_SCAN_WINDOW_MS: 60000
+      RATE_LIMIT_SCAN_MAX_REQUESTS: 30
       LOG_LEVEL: debug
+      LOG_FORMAT: json
+      CORS_ORIGIN: http://localhost:3000
+      ALLOW_ORIGINS: http://localhost:3000,http://localhost:3001
+      HSTS_MAX_AGE: 31536000
+      HSTS_PRELOAD: "false"
+      FEATURE_WHATSAPP_NOTIFICATIONS: "true"
+      FEATURE_WEBHOOK_RETRIES: "true"
+      FEATURE_ASYNC_PDF_GENERATION: "true"
+      BULLMQ_DEFAULT_ATTEMPTS: 3
+      BULLMQ_DEFAULT_BACKOFF_DELAY: 5000
     volumes:
       - ./apps/api:/app/apps/api
       - ./packages:/app/packages
       - ./package.json:/app/package.json
       - ./pnpm-lock.yaml:/app/pnpm-lock.yaml
+      # Volumes anonymes : préservent ce que l'image a construit (node_modules,
+      # dist/ compilé des packages partagés) plutôt que de le laisser masqué
+      # par le bind mount du code source ci-dessus — sinon apps/api/node_modules
+      # (symlinks pnpm per-package vers le store) et packages/*/dist (compilés
+      # au build, voir Dockerfile) redeviennent vides/absents au runtime (bug
+      # réel rencontré : `nest` introuvable malgré une image qui build
+      # correctement). PAS de volume anonyme sur apps/api/dist lui-même :
+      # `nest start --watch` essaie de le rmdir() à chaque redémarrage, ce
+      # qu'un point de montage volume ne permet pas (EBUSY) — dist/ n'a de
+      # toute façon pas besoin d'être protégé du bind mount en mode watch,
+      # Nest le régénère en continu.
       - /app/node_modules
-      - /app/apps/api/dist
+      - /app/apps/api/node_modules
+      - /app/packages/types/dist
+      - /app/packages/utils/dist
     ports:
       - "4000:4000"
       - "9229:9229"  # Debug port
@@ -129,15 +195,25 @@ services:
     container_name: fluid-events-web
     environment:
       NODE_ENV: development
+      # NEXT_PUBLIC_API_URL : utilisée par le navigateur (fetch client, redirections
+      # OAuth) — doit rester localhost:4000, seule adresse que l'hôte expose.
       NEXT_PUBLIC_API_URL: http://localhost:4000
       NEXT_PUBLIC_APP_URL: http://localhost:3000
+      # INTERNAL_API_URL : utilisée uniquement par le fetch SSR côté serveur
+      # (apps/web/app/(public)/e/[slug]/page.tsx) — DNS interne du réseau
+      # Docker, jamais exposée au bundle client (pas de préfixe NEXT_PUBLIC_).
+      INTERNAL_API_URL: http://api:4000
     volumes:
       - ./apps/web:/app/apps/web
       - ./packages:/app/packages
       - ./package.json:/app/package.json
       - ./pnpm-lock.yaml:/app/pnpm-lock.yaml
+      # Voir les volumes anonymes du service api ci-dessus pour le pourquoi.
       - /app/node_modules
+      - /app/apps/web/node_modules
       - /app/apps/web/.next
+      - /app/packages/types/dist
+      - /app/packages/utils/dist
     ports:
       - "3000:3000"
     depends_on:
