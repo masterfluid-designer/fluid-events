@@ -8,6 +8,8 @@ import { TicketDesignService } from '../ticket-design/ticket-design.service';
 import { StorageService } from '../storage/storage.service';
 import { AuditService } from '../common/audit.service';
 import { EmailService } from '../notifications/email.service';
+import { WhatsappService } from '../notifications/whatsapp.service';
+import { PhoneService } from '../notifications/phone.service';
 import { TICKET_PDF_QUEUE, GENERATE_PDF_JOB, GeneratePdfJobData } from './pdf-queue.service';
 
 /**
@@ -27,6 +29,8 @@ export class PdfProcessor {
     private readonly storageService: StorageService,
     private readonly audit: AuditService,
     private readonly emailService: EmailService,
+    private readonly whatsappService: WhatsappService,
+    private readonly phoneService: PhoneService,
   ) {}
 
   @Process(GENERATE_PDF_JOB)
@@ -83,23 +87,25 @@ export class PdfProcessor {
     await this.audit.log('ticket.pdf.generated', 'OrderItem', orderItem.id, { url });
     this.logger.log(`PDF généré pour OrderItem ${orderItem.id} → ${url}`);
 
-    await this.maybeSendTicketEmail(orderItem.order.id);
+    await this.maybeSendTicketNotifications(orderItem.order.id);
   }
 
   /**
-   * Envoie l'email "billets prêts" une fois que TOUS les OrderItem de la
-   * commande ont leur PDF généré (une commande peut contenir plusieurs
-   * billets, chacun généré par un job séparé) — jamais un email par billet,
-   * un seul email récapitulatif par commande. Best-effort : ne fait jamais
-   * échouer le job PDF (EmailService avale déjà ses propres erreurs).
+   * Envoie les notifications "billets prêts" (email + WhatsApp) une fois que
+   * TOUS les OrderItem de la commande ont leur PDF généré (une commande peut
+   * contenir plusieurs billets, chacun généré par un job séparé) — jamais une
+   * notification par billet, une seule par commande. Best-effort : ne fait
+   * jamais échouer le job PDF (EmailService/WhatsappService avalent déjà
+   * leurs propres erreurs). WhatsApp est ignoré si le client n'a pas de
+   * téléphone valide (email reste le canal garanti, `User.email` requis).
    */
-  private async maybeSendTicketEmail(orderId: string): Promise<void> {
+  private async maybeSendTicketNotifications(orderId: string): Promise<void> {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
       select: {
         orderNumber: true,
         event: { select: { title: true } },
-        client: { select: { name: true, email: true } },
+        client: { select: { name: true, email: true, phone: true } },
         items: { select: { qrCodeUrl: true, ticket: { select: { name: true } } } },
       },
     });
@@ -108,9 +114,11 @@ export class PdfProcessor {
     const allReady = order.items.every((item) => item.qrCodeUrl);
     if (!allReady) return;
 
+    const clientName = order.client.name ?? 'Client';
+
     await this.emailService.sendTicketReadyEmail({
       to: order.client.email,
-      clientName: order.client.name ?? 'Client',
+      clientName,
       eventTitle: order.event.title,
       orderNumber: order.orderNumber,
       items: order.items.map((item) => ({
@@ -118,6 +126,16 @@ export class PdfProcessor {
         qrCodeUrl: item.qrCodeUrl as string,
       })),
     });
+
+    const whatsappTo = this.phoneService.normalizeForWhatsapp(order.client.phone);
+    if (whatsappTo) {
+      await this.whatsappService.sendTicketReadyMessage({
+        to: whatsappTo,
+        clientName,
+        eventTitle: order.event.title,
+        orderNumber: order.orderNumber,
+      });
+    }
   }
 
   private async renderPdf(html: string): Promise<Buffer> {

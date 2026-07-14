@@ -1,9 +1,11 @@
 /**
  * Tests unitaires — PdfProcessor
  * Orchestration du rendu PDF (Puppeteer mocké) + upload S3 (CDC ADR §3) +
- * email "billets prêts" une fois tous les OrderItem de la commande générés.
+ * notifications "billets prêts" (email + WhatsApp) une fois tous les
+ * OrderItem de la commande générés.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { PdfProcessor } from './pdf.processor';
 
 const setContentMock = vi.fn().mockResolvedValue(undefined);
 const pdfMock = vi.fn().mockResolvedValue(Buffer.from('pdf-bytes'));
@@ -32,7 +34,7 @@ const ORDER_ITEM = {
 const ORDER_ALL_READY = {
   orderNumber: 'ORD-1',
   event: { title: 'Concert FESTA 2026' },
-  client: { name: 'Jean Dupont', email: 'jean@example.com' },
+  client: { name: 'Jean Dupont', email: 'jean@example.com', phone: '+22890000000' },
   items: [{ qrCodeUrl: 'http://storage/tickets/oi-1.pdf', ticket: { name: 'VIP Or' } }],
 };
 
@@ -52,7 +54,25 @@ function makeDeps(overrides: { orderItem?: any; order?: any } = {}) {
   const storageService = { uploadBuffer: vi.fn().mockResolvedValue('http://storage/tickets/oi-1.pdf') };
   const audit = { log: vi.fn().mockResolvedValue(undefined) };
   const emailService = { sendTicketReadyEmail: vi.fn().mockResolvedValue(undefined) };
-  return { prisma, ticketDesignService, storageService, audit, emailService };
+  const whatsappService = { sendTicketReadyMessage: vi.fn().mockResolvedValue(undefined) };
+  const phoneService = {
+    normalizeForWhatsapp: vi.fn((raw: string | null | undefined) =>
+      raw ? raw.replace('+', '') : null,
+    ),
+  };
+  return { prisma, ticketDesignService, storageService, audit, emailService, whatsappService, phoneService };
+}
+
+function makeProcessor(deps: ReturnType<typeof makeDeps>) {
+  return new PdfProcessor(
+    deps.prisma as any,
+    deps.ticketDesignService as any,
+    deps.storageService as any,
+    deps.audit as any,
+    deps.emailService as any,
+    deps.whatsappService as any,
+    deps.phoneService as any,
+  );
 }
 
 describe('PdfProcessor.handleGenerate()', () => {
@@ -68,15 +88,8 @@ describe('PdfProcessor.handleGenerate()', () => {
     // Timeout généreux : sous forte charge (nombreux fichiers de test en
     // parallèle), le scheduling async peut dépasser les 5000ms par défaut
     // même avec Puppeteer entièrement mocké.
-    const { PdfProcessor } = await import('./pdf.processor');
     const deps = makeDeps();
-    const processor = new PdfProcessor(
-      deps.prisma as any,
-      deps.ticketDesignService as any,
-      deps.storageService as any,
-      deps.audit as any,
-      deps.emailService as any,
-    );
+    const processor = makeProcessor(deps);
 
     await processor.handleGenerate({ data: { orderItemId: 'oi-1' } } as any);
 
@@ -111,16 +124,9 @@ describe('PdfProcessor.handleGenerate()', () => {
   }, 15000);
 
   it('ferme le navigateur même si le rendu échoue', async () => {
-    const { PdfProcessor } = await import('./pdf.processor');
     const deps = makeDeps();
     pdfMock.mockRejectedValueOnce(new Error('render failed'));
-    const processor = new PdfProcessor(
-      deps.prisma as any,
-      deps.ticketDesignService as any,
-      deps.storageService as any,
-      deps.audit as any,
-      deps.emailService as any,
-    );
+    const processor = makeProcessor(deps);
 
     await expect(processor.handleGenerate({ data: { orderItemId: 'oi-1' } } as any)).rejects.toThrow(
       'render failed',
@@ -128,37 +134,25 @@ describe('PdfProcessor.handleGenerate()', () => {
     expect(closeMock).toHaveBeenCalled();
     expect(deps.storageService.uploadBuffer).not.toHaveBeenCalled();
     expect(deps.emailService.sendTicketReadyEmail).not.toHaveBeenCalled();
+    expect(deps.whatsappService.sendTicketReadyMessage).not.toHaveBeenCalled();
   });
 
   it('abandonne proprement si l\'OrderItem ou le QR est manquant (pas de crash)', async () => {
-    const { PdfProcessor } = await import('./pdf.processor');
     const deps = makeDeps({ orderItem: null });
-    const processor = new PdfProcessor(
-      deps.prisma as any,
-      deps.ticketDesignService as any,
-      deps.storageService as any,
-      deps.audit as any,
-      deps.emailService as any,
-    );
+    const processor = makeProcessor(deps);
 
     await processor.handleGenerate({ data: { orderItemId: 'unknown' } } as any);
 
     expect(launchMock).not.toHaveBeenCalled();
     expect(deps.storageService.uploadBuffer).not.toHaveBeenCalled();
     expect(deps.emailService.sendTicketReadyEmail).not.toHaveBeenCalled();
+    expect(deps.whatsappService.sendTicketReadyMessage).not.toHaveBeenCalled();
   });
 
-  describe('email "billets prêts" (décision produit 2026-07-14)', () => {
-    it('envoie l\'email une fois que tous les OrderItem de la commande ont leur PDF (commande à 1 billet)', async () => {
-      const { PdfProcessor } = await import('./pdf.processor');
+  describe('notifications "billets prêts" (décision produit 2026-07-14)', () => {
+    it('envoie email + WhatsApp une fois que tous les OrderItem de la commande ont leur PDF (commande à 1 billet)', async () => {
       const deps = makeDeps();
-      const processor = new PdfProcessor(
-        deps.prisma as any,
-        deps.ticketDesignService as any,
-        deps.storageService as any,
-        deps.audit as any,
-        deps.emailService as any,
-      );
+      const processor = makeProcessor(deps);
 
       await processor.handleGenerate({ data: { orderItemId: 'oi-1' } } as any);
 
@@ -172,57 +166,53 @@ describe('PdfProcessor.handleGenerate()', () => {
         orderNumber: 'ORD-1',
         items: [{ ticketName: 'VIP Or', qrCodeUrl: 'http://storage/tickets/oi-1.pdf' }],
       });
+      expect(deps.phoneService.normalizeForWhatsapp).toHaveBeenCalledWith('+22890000000');
+      expect(deps.whatsappService.sendTicketReadyMessage).toHaveBeenCalledWith({
+        to: '22890000000',
+        clientName: 'Jean Dupont',
+        eventTitle: 'Concert FESTA 2026',
+        orderNumber: 'ORD-1',
+      });
     }, 15000);
 
-    it("n'envoie PAS l'email tant qu'un autre OrderItem de la même commande n'a pas encore son PDF", async () => {
-      const { PdfProcessor } = await import('./pdf.processor');
+    it("n'envoie AUCUNE notification tant qu'un autre OrderItem de la même commande n'a pas encore son PDF", async () => {
       const deps = makeDeps({
         order: {
           orderNumber: 'ORD-1',
           event: { title: 'Concert FESTA 2026' },
-          client: { name: 'Jean Dupont', email: 'jean@example.com' },
+          client: { name: 'Jean Dupont', email: 'jean@example.com', phone: '+22890000000' },
           items: [
             { qrCodeUrl: 'http://storage/tickets/oi-1.pdf', ticket: { name: 'VIP Or' } },
             { qrCodeUrl: null, ticket: { name: 'Standard' } },
           ],
         },
       });
-      const processor = new PdfProcessor(
-        deps.prisma as any,
-        deps.ticketDesignService as any,
-        deps.storageService as any,
-        deps.audit as any,
-        deps.emailService as any,
-      );
+      const processor = makeProcessor(deps);
 
       await processor.handleGenerate({ data: { orderItemId: 'oi-1' } } as any);
 
       expect(deps.emailService.sendTicketReadyEmail).not.toHaveBeenCalled();
+      expect(deps.whatsappService.sendTicketReadyMessage).not.toHaveBeenCalled();
     }, 15000);
 
-    it('envoie un seul email récapitulatif avec tous les billets quand ils sont tous prêts', async () => {
-      const { PdfProcessor } = await import('./pdf.processor');
+    it('envoie une seule notification récapitulative avec tous les billets quand ils sont tous prêts', async () => {
       const deps = makeDeps({
         order: {
           orderNumber: 'ORD-1',
           event: { title: 'Concert FESTA 2026' },
-          client: { name: 'Jean Dupont', email: 'jean@example.com' },
+          client: { name: 'Jean Dupont', email: 'jean@example.com', phone: '+22890000000' },
           items: [
             { qrCodeUrl: 'http://storage/tickets/oi-1.pdf', ticket: { name: 'VIP Or' } },
             { qrCodeUrl: 'http://storage/tickets/oi-2.pdf', ticket: { name: 'Standard' } },
           ],
         },
       });
-      const processor = new PdfProcessor(
-        deps.prisma as any,
-        deps.ticketDesignService as any,
-        deps.storageService as any,
-        deps.audit as any,
-        deps.emailService as any,
-      );
+      const processor = makeProcessor(deps);
 
       await processor.handleGenerate({ data: { orderItemId: 'oi-1' } } as any);
 
+      expect(deps.emailService.sendTicketReadyEmail).toHaveBeenCalledTimes(1);
+      expect(deps.whatsappService.sendTicketReadyMessage).toHaveBeenCalledTimes(1);
       expect(deps.emailService.sendTicketReadyEmail).toHaveBeenCalledWith(
         expect.objectContaining({
           items: [
@@ -234,20 +224,31 @@ describe('PdfProcessor.handleGenerate()', () => {
     }, 15000);
 
     it("n'envoie rien si la commande n'est plus trouvée (pas de crash)", async () => {
-      const { PdfProcessor } = await import('./pdf.processor');
       const deps = makeDeps({ order: null });
-      const processor = new PdfProcessor(
-        deps.prisma as any,
-        deps.ticketDesignService as any,
-        deps.storageService as any,
-        deps.audit as any,
-        deps.emailService as any,
-      );
+      const processor = makeProcessor(deps);
 
       await expect(
         processor.handleGenerate({ data: { orderItemId: 'oi-1' } } as any),
       ).resolves.toBeUndefined();
       expect(deps.emailService.sendTicketReadyEmail).not.toHaveBeenCalled();
+      expect(deps.whatsappService.sendTicketReadyMessage).not.toHaveBeenCalled();
+    }, 15000);
+
+    it("n'envoie pas de WhatsApp si le client n'a pas de téléphone valide (envoie quand même l'email)", async () => {
+      const deps = makeDeps({
+        order: {
+          orderNumber: 'ORD-1',
+          event: { title: 'Concert FESTA 2026' },
+          client: { name: 'Jean Dupont', email: 'jean@example.com', phone: null },
+          items: [{ qrCodeUrl: 'http://storage/tickets/oi-1.pdf', ticket: { name: 'VIP Or' } }],
+        },
+      });
+      const processor = makeProcessor(deps);
+
+      await processor.handleGenerate({ data: { orderItemId: 'oi-1' } } as any);
+
+      expect(deps.emailService.sendTicketReadyEmail).toHaveBeenCalledTimes(1);
+      expect(deps.whatsappService.sendTicketReadyMessage).not.toHaveBeenCalled();
     }, 15000);
   });
 });

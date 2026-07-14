@@ -286,12 +286,15 @@ montant retourné avec `order.totalAmount`, avant de marquer la commande payée.
   un job par `OrderItem`) — le rendu réel (Puppeteer → upload S3 → mise à jour
   `OrderItem.qrCodeUrl`) se fait de façon asynchrone dans `PdfProcessor`, hors
   du chemin critique du webhook. Une fois que **tous** les `OrderItem` d'une
-  commande ont leur `qrCodeUrl` (`PdfProcessor.maybeSendTicketEmail`, décision
-  produit 2026-07-14), un email "billets prêts" est envoyé au client
+  commande ont leur `qrCodeUrl` (`PdfProcessor.maybeSendTicketNotifications`,
+  décision produit 2026-07-14), un email "billets prêts" est envoyé au client
   (`EmailService`, `nodemailer`/SMTP — Mailpit en dev) avec un lien de
-  téléchargement par billet. Best-effort : un échec d'envoi email n'affecte
-  jamais le paiement ni la génération du billet (toujours accessible via
-  `GET /api/payments/orders`), il est seulement logué.
+  téléchargement par billet, et un message WhatsApp équivalent
+  (`WhatsappService`, Meta Cloud API — `POST /{phoneNumberId}/messages`,
+  template pré-approuvé requis côté Meta) si le client a un téléphone valide.
+  Best-effort pour les deux : un échec d'envoi n'affecte jamais le paiement ni
+  la génération du billet (toujours accessible via `GET /api/payments/orders`),
+  il est seulement logué.
 - Échec ou incohérence de vérification → `Order.status = FAILED`, stock
   relâché (`StockService.releaseStockAtomic`).
 - Toujours répond `200 OK` sauf signature invalide (`401`).
