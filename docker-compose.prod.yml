@@ -1,6 +1,4 @@
-version: '3.8'
-
-# Production override - à appliquer avec: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up
+# Production override - à appliquer avec: docker compose -f docker-compose.yml -f docker-compose.prod.yml up
 
 services:
   # ============ Nginx Reverse Proxy (Prod Only) ============
@@ -47,31 +45,48 @@ services:
     environment:
       NODE_ENV: production
       DATABASE_URL: ${DATABASE_URL}  # Supabase PostgreSQL
-      REDIS_URL: ${REDIS_URL}        # Redis managé
-      STORAGE_ENDPOINT: ${STORAGE_ENDPOINT}  # Supabase Storage
+      REDIS_URL: ${REDIS_URL}        # Upstash Redis (rediss://, TLS)
+      STORAGE_ENDPOINT: ${STORAGE_ENDPOINT}  # Supabase Storage (S3-compatible)
       STORAGE_ACCESS_KEY: ${STORAGE_ACCESS_KEY}
       STORAGE_SECRET_KEY: ${STORAGE_SECRET_KEY}
       STORAGE_BUCKET: ${STORAGE_BUCKET}
       STORAGE_REGION: ${STORAGE_REGION}
-      SMTP_HOST: ${SMTP_HOST}        # Resend SMTP
+      # Resend : RESEND_API_KEY prioritaire (API HTTP) si renseignée, sinon
+      # repli sur le relais SMTP Resend (voir EmailService, ROADMAP.md Phase 5).
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      SMTP_HOST: ${SMTP_HOST}
       SMTP_PORT: ${SMTP_PORT}
       SMTP_USER: ${SMTP_USER}
       SMTP_PASSWORD: ${SMTP_PASSWORD}
       SMTP_FROM: ${SMTP_FROM}
+      SMTP_SECURE: ${SMTP_SECURE:-true}
       APP_URL: ${APP_URL}
       API_URL: ${API_URL}
+      FRONTEND_URL: ${APP_URL}
       JWT_SECRET: ${JWT_SECRET}
-      JWT_EXPIRATION: ${JWT_EXPIRATION}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      QR_SECRET: ${QR_SECRET}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
-      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID}
-      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN}
+      # ⚠️ Le fichier de base (docker-compose.yml) fixe cette valeur sur
+      # localhost:4000 (dev) — DOIT être écrasée ici avec le vrai domaine, sinon
+      # le callback OAuth production redirige silencieusement vers localhost.
+      GOOGLE_CALLBACK_URL: ${API_URL}/api/auth/google/callback
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_SMS_FROM: ${TWILIO_SMS_FROM:-}
+      WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN:-}
+      WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
+      WHATSAPP_API_VERSION: ${WHATSAPP_API_VERSION:-v21.0}
+      WHATSAPP_TICKET_READY_TEMPLATE_NAME: ${WHATSAPP_TICKET_READY_TEMPLATE_NAME:-ticket_ready}
+      WHATSAPP_TICKET_READY_TEMPLATE_LANG: ${WHATSAPP_TICKET_READY_TEMPLATE_LANG:-fr}
+      CORS_ORIGIN: ${APP_URL}
       LOG_LEVEL: info
     # Pas de volumes en prod (image immutable)
     volumes: []
     ports: []
-    depends_on:
-      - nginx
     restart: always
 
   # ============ Frontend Production Override ============
@@ -84,10 +99,12 @@ services:
       NODE_ENV: production
       NEXT_PUBLIC_API_URL: ${API_URL}
       NEXT_PUBLIC_APP_URL: ${APP_URL}
+      # Composants serveur (SSR, ex. /e/[slug]) : appellent l'API via le réseau
+      # Docker interne, pas via API_URL (qui pointe vers le domaine public, un
+      # aller-retour inutile et potentiellement bloqué par Nginx/DNS interne).
+      INTERNAL_API_URL: http://api:4000
     volumes: []
     ports: []
-    depends_on:
-      - nginx
     restart: always
 
   # ============ Disable dev-only services ============
