@@ -8,7 +8,7 @@ import { bucketSalesByDay } from '../common/analytics.util';
 import { AuditService } from '../common/audit.service';
 import { EmailService } from '../notifications/email.service';
 import { AuthService } from '../auth/auth.service';
-import { ErrorCodes, PaymentProviderType, Role, TokenPair } from '@saas-events/types';
+import { ErrorCodes, EventStatus, PaymentProviderType, Role, TokenPair } from '@saas-events/types';
 import { FRONTEND_URL } from '../common/constants';
 import { UpsertPaymentConfigDto } from './dto/upsert-payment-config.dto';
 import { InviteManagerDto } from './dto/invite-manager.dto';
@@ -225,6 +225,26 @@ export class AdminService {
       revenue: statsByEvent.get(e.id)?.revenue ?? 0,
       ticketsSold: statsByEvent.get(e.id)?.ticketsSold ?? 0,
     }));
+  }
+
+  /**
+   * PATCH /api/admin/events/:eventId/status — annule/republie un événement
+   * depuis la vue plateforme (décision produit 2026-07-14, complète
+   * `listAllEvents`). Aucune state-machine imposée (BUSINESS.md §12, même
+   * choix que `EventsService.updateMyEvent`) : n'importe quelle valeur de
+   * l'enum est acceptée, pas de transition interdite côté serveur. L'Admin
+   * agit sur n'importe quel événement, sans vérification d'ownership
+   * (contrairement au Manager, dont l'action équivalente est bornée au sien).
+   */
+  async setEventStatus(eventId: string, status: EventStatus) {
+    await this.getOwnedEventOrThrow(eventId);
+    const updated = await this.prisma.event.update({
+      where: { id: eventId },
+      data: { status },
+      select: { id: true, status: true },
+    });
+    await this.audit.log('event.status.changed', 'Event', eventId, { status, changedByAdmin: true });
+    return updated;
   }
 
   /**

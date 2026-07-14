@@ -1,15 +1,22 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
-import { api } from '@/lib/api';
+import { api, apiPatch, ApiError } from '@/lib/api';
 
 /**
  * Page Admin — vue plateforme de tous les événements (décision produit
- * 2026-07-14). Lecture seule : la gestion d'un événement reste au Manager
- * propriétaire (1 Manager = 1 Event, V1).
+ * 2026-07-14). L'Admin peut annuler/republier n'importe quel événement
+ * (`PATCH /api/admin/events/:eventId/status`, sans vérification d'ownership,
+ * contrairement à l'action équivalente côté Manager qui reste bornée à son
+ * propre événement) — même sémantique "annulation douce" que côté Manager :
+ * les billets déjà vendus restent valides en base, aucun remboursement
+ * automatique (BUSINESS.md §12).
  */
 
 interface PlatformEvent {
@@ -41,9 +48,25 @@ const STATUS_VARIANTS: Record<string, 'success' | 'secondary' | 'destructive' | 
 };
 
 export default function AdminEventsPage() {
+  const queryClient = useQueryClient();
+  const [confirmingCancelId, setConfirmingCancelId] = useState<string | null>(null);
+
   const { data: events, isLoading, isError } = useQuery({
     queryKey: ['admin-events'],
     queryFn: () => api<PlatformEvent[]>('/api/admin/events'),
+  });
+
+  const setStatus = useMutation({
+    mutationFn: ({ eventId, status }: { eventId: string; status: 'PUBLISHED' | 'CANCELLED' }) =>
+      apiPatch(`/api/admin/events/${eventId}/status`, { status }),
+    onSuccess: (_data, variables) => {
+      toast.success(variables.status === 'CANCELLED' ? 'Événement annulé' : 'Événement republié');
+      setConfirmingCancelId(null);
+      queryClient.invalidateQueries({ queryKey: ['admin-events'] });
+    },
+    onError: (err) => {
+      toast.error(err instanceof ApiError ? err.message : "Impossible de changer le statut de l'événement");
+    },
   });
 
   const currencyFmt = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'XOF' });
@@ -94,6 +117,40 @@ export default function AdminEventsPage() {
                   </Badge>
                   <Badge variant="outline">{e.ticketsSold} billet{e.ticketsSold > 1 ? 's' : ''}</Badge>
                   <Badge variant="outline">{currencyFmt.format(e.revenue)}</Badge>
+
+                  {e.status === 'PUBLISHED' && confirmingCancelId !== e.id && (
+                    <Button variant="outline" size="sm" onClick={() => setConfirmingCancelId(e.id)}>
+                      Annuler
+                    </Button>
+                  )}
+                  {e.status === 'PUBLISHED' && confirmingCancelId === e.id && (
+                    <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+                      <span className="text-xs text-muted-foreground">
+                        Billets déjà vendus valides, sans remboursement auto. Confirmer ?
+                      </span>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        disabled={setStatus.isPending}
+                        onClick={() => setStatus.mutate({ eventId: e.id, status: 'CANCELLED' })}
+                      >
+                        {setStatus.isPending ? 'Annulation...' : 'Confirmer'}
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => setConfirmingCancelId(null)}>
+                        Retour
+                      </Button>
+                    </div>
+                  )}
+                  {e.status === 'CANCELLED' && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={setStatus.isPending}
+                      onClick={() => setStatus.mutate({ eventId: e.id, status: 'PUBLISHED' })}
+                    >
+                      Republier
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>

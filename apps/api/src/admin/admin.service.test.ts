@@ -20,6 +20,7 @@ function makePrisma() {
       count: vi.fn().mockResolvedValue(0),
       findUnique: vi.fn().mockResolvedValue(null),
       findMany: vi.fn().mockResolvedValue([]),
+      update: vi.fn().mockResolvedValue({ id: 'ev-1', status: 'CANCELLED' }),
     },
     user: {
       count: vi.fn().mockResolvedValue(0),
@@ -311,6 +312,50 @@ describe('AdminService.listAllEvents()', () => {
   it('retourne un tableau vide sur une plateforme sans événement', async () => {
     const result = await service.listAllEvents();
     expect(result).toEqual([]);
+  });
+});
+
+describe('AdminService.setEventStatus()', () => {
+  let prisma: ReturnType<typeof makePrisma>;
+  let audit: ReturnType<typeof makeAudit>;
+  let service: AdminService;
+
+  beforeEach(() => {
+    prisma = makePrisma();
+    audit = makeAudit();
+    service = new AdminService(prisma as any, makeCrypto() as any, makeEmail() as any, audit as any, makeAuthService() as any);
+  });
+
+  it("annule un événement (n'importe lequel, pas de vérification d'ownership) et journalise", async () => {
+    prisma.event.findUnique.mockResolvedValue({ id: 'ev-1', title: 'Concert FESTA' });
+    prisma.event.update.mockResolvedValue({ id: 'ev-1', status: 'CANCELLED' });
+
+    const result = await service.setEventStatus('ev-1', 'CANCELLED' as any);
+
+    expect(prisma.event.update).toHaveBeenCalledWith({
+      where: { id: 'ev-1' },
+      data: { status: 'CANCELLED' },
+      select: { id: true, status: true },
+    });
+    expect(audit.log).toHaveBeenCalledWith('event.status.changed', 'Event', 'ev-1', {
+      status: 'CANCELLED',
+      changedByAdmin: true,
+    });
+    expect(result).toEqual({ id: 'ev-1', status: 'CANCELLED' });
+  });
+
+  it('republie un événement annulé', async () => {
+    prisma.event.findUnique.mockResolvedValue({ id: 'ev-1', title: 'Concert FESTA' });
+    prisma.event.update.mockResolvedValue({ id: 'ev-1', status: 'PUBLISHED' });
+
+    const result = await service.setEventStatus('ev-1', 'PUBLISHED' as any);
+    expect(result).toEqual({ id: 'ev-1', status: 'PUBLISHED' });
+  });
+
+  it("404 si l'événement n'existe pas", async () => {
+    prisma.event.findUnique.mockResolvedValue(null);
+    await expect(service.setEventStatus('unknown', 'CANCELLED' as any)).rejects.toThrow(NotFoundException);
+    expect(prisma.event.update).not.toHaveBeenCalled();
   });
 });
 

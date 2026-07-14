@@ -10,6 +10,7 @@ import { SetPaymentConfigActiveDto } from './dto/set-payment-config-active.dto';
 import { InviteManagerDto } from './dto/invite-manager.dto';
 import { SetManagerActiveDto } from './dto/set-manager-active.dto';
 import { SetManagerSubscriptionDto } from './dto/set-manager-subscription.dto';
+import { SetEventStatusDto } from './dto/set-event-status.dto';
 
 @Controller('admin')
 export class AdminController {
@@ -27,6 +28,13 @@ export class AdminController {
   @Get('events')
   async listAllEvents() {
     return this.adminService.listAllEvents();
+  }
+
+  /** PATCH /api/admin/events/:eventId/status — annule/republie n'importe quel événement. */
+  @Roles(Role.SUPER_ADMIN)
+  @Patch('events/:eventId/status')
+  async setEventStatus(@Param('eventId') eventId: string, @Body() dto: SetEventStatusDto) {
+    return this.adminService.setEventStatus(eventId, dto.status);
   }
 
   /** GET /api/admin/logs?page=&pageSize=&action= — historique complet des logs d'audit. */
