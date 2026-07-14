@@ -93,8 +93,8 @@ export default function ManagerTicketsPage() {
   const totalSold = event.tickets.reduce((sum, t) => sum + t.stockSold, 0);
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6 p-4 sm:p-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Types de billets</h1>
           <p className="text-sm text-muted-foreground">
@@ -114,7 +114,7 @@ export default function ManagerTicketsPage() {
               e.preventDefault();
               createTicket.mutate();
             }}
-            className="grid gap-3 md:grid-cols-4"
+            className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4"
           >
             <input
               required
@@ -172,11 +172,10 @@ export default function ManagerTicketsPage() {
         </Card>
       ) : (
         <Card className="overflow-hidden py-0">
-          <div className="grid grid-cols-[1.6fr_0.9fr_1.3fr_0.8fr] gap-4 border-b border-border bg-secondary px-4.5 py-3 text-xs font-bold uppercase tracking-[0.05em] text-muted-foreground">
-            <span>Billet</span>
-            <span>Prix</span>
-            <span>Stock</span>
-            <span>Statut</span>
+          <div className="border-b border-border px-4.5 py-3">
+            <span className="text-xs font-bold uppercase tracking-[0.05em] text-muted-foreground">
+              {event.tickets.length} type{event.tickets.length > 1 ? 's' : ''} de billet
+            </span>
           </div>
           {event.tickets.map((t, i) => {
             const percent = t.stock > 0 ? Math.round((t.stockSold / t.stock) * 100) : 0;
@@ -184,7 +183,7 @@ export default function ManagerTicketsPage() {
             return (
               <div
                 key={t.id}
-                className={`grid grid-cols-[1.6fr_0.9fr_1.3fr_0.8fr] items-center gap-4 px-4.5 py-3.5 ${
+                className={`flex flex-wrap items-center justify-between gap-3 px-4.5 py-3.5 ${
                   i < event.tickets.length - 1 ? 'border-b border-border' : ''
                 }`}
               >
@@ -195,7 +194,7 @@ export default function ManagerTicketsPage() {
                 <div className="text-sm font-semibold">
                   {new Intl.NumberFormat('fr-FR', { style: 'currency', currency: t.currency }).format(Number(t.price))}
                 </div>
-                <div>
+                <div className="w-full sm:w-40">
                   <div className="mb-1 h-1.5 overflow-hidden rounded-full bg-muted">
                     <div
                       className={`h-full rounded-full ${soldOut ? 'bg-muted-foreground' : 'bg-primary'}`}

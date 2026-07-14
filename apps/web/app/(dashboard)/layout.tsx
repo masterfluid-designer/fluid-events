@@ -13,7 +13,7 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex min-h-svh bg-background">
+    <div className="flex min-h-svh flex-col bg-background md:flex-row">
       <DashboardSidebar />
       <div className="flex flex-1 flex-col overflow-hidden">
         <ImpersonationBanner />

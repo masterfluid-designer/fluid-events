@@ -94,7 +94,7 @@ export default function ParticipantsPage() {
   const scannedCount = participants.filter((p) => p.isScanned).length;
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6 p-4 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Participants</h1>
@@ -134,17 +134,15 @@ export default function ParticipantsPage() {
         </Card>
       ) : (
         <Card className="overflow-hidden py-0">
-          <div className="grid grid-cols-[1.6fr_1fr_1fr_1fr_0.8fr] gap-4 border-b border-border bg-secondary px-4.5 py-3 text-xs font-bold uppercase tracking-[0.05em] text-muted-foreground">
-            <span>Participant</span>
-            <span>Billet</span>
-            <span>Commande</span>
-            <span>Achat</span>
-            <span>Statut</span>
+          <div className="border-b border-border px-4.5 py-3">
+            <span className="text-xs font-bold uppercase tracking-[0.05em] text-muted-foreground">
+              {filtered.length} participant{filtered.length > 1 ? 's' : ''}
+            </span>
           </div>
           {filtered.map((p, i) => (
             <div
               key={`${p.orderNumber}-${i}`}
-              className={`grid grid-cols-[1.6fr_1fr_1fr_1fr_0.8fr] items-center gap-4 px-4.5 py-3.5 text-sm ${
+              className={`flex flex-wrap items-center justify-between gap-3 px-4.5 py-3.5 text-sm ${
                 i < filtered.length - 1 ? 'border-b border-border' : ''
               }`}
             >
@@ -152,14 +150,14 @@ export default function ParticipantsPage() {
                 <div className="font-semibold">{p.clientName}</div>
                 <div className="text-xs text-muted-foreground">{p.clientEmail}</div>
               </div>
-              <span>{p.ticketName}</span>
-              <span className="font-mono text-xs text-muted-foreground">{p.orderNumber}</span>
-              <span className="text-muted-foreground">
-                {p.purchasedAt ? new Date(p.purchasedAt).toLocaleDateString('fr-FR') : '—'}
-              </span>
-              <Badge variant={p.isScanned ? 'success' : 'secondary'} className="w-fit">
-                {p.isScanned ? 'Scanné' : 'En attente'}
-              </Badge>
+              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                <Badge variant="outline">{p.ticketName}</Badge>
+                <span className="font-mono">{p.orderNumber}</span>
+                <span>{p.purchasedAt ? new Date(p.purchasedAt).toLocaleDateString('fr-FR') : '—'}</span>
+                <Badge variant={p.isScanned ? 'success' : 'secondary'}>
+                  {p.isScanned ? 'Scanné' : 'En attente'}
+                </Badge>
+              </div>
             </div>
           ))}
         </Card>

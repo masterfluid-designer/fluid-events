@@ -11,6 +11,9 @@ import { api } from '@/lib/api';
  * événements confondus (décision produit 2026-07-14). Lecture seule : la
  * configuration des identifiants reste par événement, depuis le panneau
  * ouvert sur la Vue d'ensemble (`/admin` → `PaymentConfigPanel`).
+ *
+ * Rangées en flex-wrap (pas de grille à colonnes fixes) — évite le
+ * débordement horizontal constaté sur mobile (colonnes coupées à 375px).
  */
 
 type Provider = 'KKIAPAY' | 'CINETPAY' | 'FEDAPAY';
@@ -42,8 +45,10 @@ export default function AdminProvidersPage() {
     queryFn: () => api<PlatformConfig[]>('/api/admin/payment-configs'),
   });
 
+  const dateFmt = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
+
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6 p-4 sm:p-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Paiements</h1>
         <p className="text-sm text-muted-foreground">
@@ -52,12 +57,10 @@ export default function AdminProvidersPage() {
       </div>
 
       <Card className="overflow-hidden py-0">
-        <div className="grid grid-cols-[1.2fr_1.4fr_1.4fr_0.8fr_1fr] gap-4 border-b border-border bg-secondary px-4.5 py-3 text-xs font-bold uppercase tracking-[0.05em] text-muted-foreground">
-          <span>Provider</span>
-          <span>Événement</span>
-          <span>Manager</span>
-          <span>Statut</span>
-          <span>Dernière modif.</span>
+        <div className="border-b border-border px-4.5 py-3.5">
+          <span className="text-sm font-bold">
+            {configs ? `${configs.length} configuration${configs.length > 1 ? 's' : ''}` : 'Configurations'}
+          </span>
         </div>
 
         {isLoading ? (
@@ -77,31 +80,25 @@ export default function AdminProvidersPage() {
             <div
               key={c.id}
               className={
-                'grid grid-cols-[1.2fr_1.4fr_1.4fr_0.8fr_1fr] items-center gap-4 px-4.5 py-3 text-sm' +
+                'flex flex-wrap items-center justify-between gap-3 px-4.5 py-3 text-sm' +
                 (i < configs.length - 1 ? ' border-b border-border' : '')
               }
             >
               <div>
-                <div className="font-medium">{PROVIDER_LABELS[c.provider]}</div>
+                <div className="font-medium">
+                  {PROVIDER_LABELS[c.provider]} — {c.eventTitle}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {c.managerName} · {c.managerEmail}
+                </div>
                 {c.publicKey && (
                   <div className="text-xs text-muted-foreground">clé publique : {c.publicKey}</div>
                 )}
               </div>
-              <div>
-                <div className="font-medium">{c.eventTitle}</div>
-                <div className="text-xs text-muted-foreground">{c.eventStatus}</div>
-              </div>
-              <div>
-                <div className="font-medium">{c.managerName}</div>
-                <div className="text-xs text-muted-foreground">{c.managerEmail}</div>
-              </div>
-              <div>
+              <div className="flex flex-wrap items-center gap-2">
                 <Badge variant={c.isActive ? 'success' : 'outline'}>{c.isActive ? 'Actif' : 'Inactif'}</Badge>
-              </div>
-              <div className="text-xs text-muted-foreground">
-                {new Intl.DateTimeFormat('fr-FR', { dateStyle: 'short', timeStyle: 'short' }).format(
-                  new Date(c.updatedAt),
-                )}
+                <Badge variant="secondary">{c.eventStatus}</Badge>
+                <span className="text-xs text-muted-foreground">{dateFmt.format(new Date(c.updatedAt))}</span>
               </div>
             </div>
           ))

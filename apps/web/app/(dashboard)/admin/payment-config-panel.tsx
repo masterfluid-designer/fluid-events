@@ -160,7 +160,7 @@ export function PaymentConfigPanel({ eventId }: { eventId: string }) {
           e.preventDefault();
           save.mutate();
         }}
-        className="grid gap-2.5 md:grid-cols-2"
+        className="grid grid-cols-1 gap-2.5 md:grid-cols-2"
       >
         <select
           value={provider}

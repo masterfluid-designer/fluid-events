@@ -62,7 +62,7 @@ function ClientTicketsContent() {
   );
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6 p-4 sm:p-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Mes billets</h1>
         <p className="text-sm text-muted-foreground">
@@ -95,7 +95,7 @@ function ClientTicketsContent() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {tickets.map(({ order, item }) => (
             <TicketCard
               key={item.id}

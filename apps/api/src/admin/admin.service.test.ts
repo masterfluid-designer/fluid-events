@@ -16,7 +16,11 @@ function makePrisma() {
     },
   };
   return {
-    event: { count: vi.fn().mockResolvedValue(0), findUnique: vi.fn().mockResolvedValue(null) },
+    event: {
+      count: vi.fn().mockResolvedValue(0),
+      findUnique: vi.fn().mockResolvedValue(null),
+      findMany: vi.fn().mockResolvedValue([]),
+    },
     user: {
       count: vi.fn().mockResolvedValue(0),
       findMany: vi.fn().mockResolvedValue([]),
@@ -34,7 +38,7 @@ function makePrisma() {
       findUnique: vi.fn().mockResolvedValue(null),
       deleteMany: vi.fn().mockResolvedValue({ count: 1 }),
     },
-    auditLog: { findMany: vi.fn().mockResolvedValue([]) },
+    auditLog: { findMany: vi.fn().mockResolvedValue([]), count: vi.fn().mockResolvedValue(0) },
     $transaction: vi.fn().mockImplementation((fn: any) => fn(tx)),
     _tx: tx,
   };
@@ -239,6 +243,152 @@ describe('AdminService.listAllPaymentConfigs()', () => {
   it('retourne un tableau vide sur une plateforme sans configuration', async () => {
     const result = await service.listAllPaymentConfigs();
     expect(result).toEqual([]);
+  });
+});
+
+describe('AdminService.listAllEvents()', () => {
+  let prisma: ReturnType<typeof makePrisma>;
+  let service: AdminService;
+
+  beforeEach(() => {
+    prisma = makePrisma();
+    service = new AdminService(prisma as any, makeCrypto() as any, makeEmail() as any, makeAudit() as any, makeAuthService() as any);
+  });
+
+  it('liste les événements avec manager, revenu et billets vendus calculés depuis les commandes payées', async () => {
+    prisma.event.findMany.mockResolvedValue([
+      {
+        id: 'ev-1',
+        title: 'Concert FESTA',
+        slug: 'concert-festa',
+        status: 'PUBLISHED',
+        startDate: new Date('2026-12-31T20:00:00Z'),
+        endDate: new Date('2027-01-01T02:00:00Z'),
+        createdAt: new Date('2026-07-01T00:00:00Z'),
+        manager: { name: 'Kwame Asante', email: 'kwame@x.com' },
+      },
+      {
+        id: 'ev-2',
+        title: 'Gala',
+        slug: 'gala',
+        status: 'DRAFT',
+        startDate: new Date('2026-11-01T00:00:00Z'),
+        endDate: new Date('2026-11-01T23:00:00Z'),
+        createdAt: new Date('2026-07-02T00:00:00Z'),
+        manager: { name: null, email: 'nobody@x.com' },
+      },
+    ] as any);
+    prisma.order.findMany.mockResolvedValue([
+      { eventId: 'ev-1', totalAmount: 15000, items: [{ id: 'oi-1' }] },
+      { eventId: 'ev-1', totalAmount: 6000, items: [{ id: 'oi-2' }] },
+    ] as any);
+
+    const result = await service.listAllEvents();
+
+    expect(result).toEqual([
+      expect.objectContaining({
+        id: 'ev-1',
+        title: 'Concert FESTA',
+        managerName: 'Kwame Asante',
+        managerEmail: 'kwame@x.com',
+        revenue: 21000,
+        ticketsSold: 2,
+      }),
+      expect.objectContaining({
+        id: 'ev-2',
+        title: 'Gala',
+        managerName: 'Sans nom',
+        managerEmail: 'nobody@x.com',
+        revenue: 0,
+        ticketsSold: 0,
+      }),
+    ]);
+    expect(prisma.order.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { status: 'PAID' } }),
+    );
+  });
+
+  it('retourne un tableau vide sur une plateforme sans événement', async () => {
+    const result = await service.listAllEvents();
+    expect(result).toEqual([]);
+  });
+});
+
+describe('AdminService.listAuditLogs()', () => {
+  let prisma: ReturnType<typeof makePrisma>;
+  let service: AdminService;
+
+  beforeEach(() => {
+    prisma = makePrisma();
+    service = new AdminService(prisma as any, makeCrypto() as any, makeEmail() as any, makeAudit() as any, makeAuthService() as any);
+  });
+
+  it('pagine avec les valeurs par défaut (page=1, pageSize=50) et journalise le user', async () => {
+    prisma.auditLog.findMany.mockResolvedValue([
+      {
+        id: 'log-1',
+        action: 'auth.google.login',
+        entityType: 'User',
+        entityId: 'u-1',
+        metadata: { email: 'a@x.com' },
+        createdAt: new Date('2026-07-14T10:00:00Z'),
+        user: { name: 'Jean Dupont', email: 'jean@x.com' },
+      },
+    ] as any);
+    prisma.auditLog.count.mockResolvedValue(1);
+
+    const result = await service.listAuditLogs({});
+
+    expect(prisma.auditLog.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: {}, skip: 0, take: 50, orderBy: { createdAt: 'desc' } }),
+    );
+    expect(result).toEqual({
+      logs: [
+        expect.objectContaining({
+          id: 'log-1',
+          action: 'auth.google.login',
+          userName: 'Jean Dupont',
+          userEmail: 'jean@x.com',
+        }),
+      ],
+      total: 1,
+      page: 1,
+      pageSize: 50,
+    });
+  });
+
+  it('filtre par action quand fournie', async () => {
+    await service.listAuditLogs({ action: 'admin.impersonate.start' });
+    expect(prisma.auditLog.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { action: 'admin.impersonate.start' } }),
+    );
+    expect(prisma.auditLog.count).toHaveBeenCalledWith({ where: { action: 'admin.impersonate.start' } });
+  });
+
+  it('calcule le offset depuis page/pageSize et plafonne pageSize à 100', async () => {
+    await service.listAuditLogs({ page: 3, pageSize: 500 });
+    expect(prisma.auditLog.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ skip: 200, take: 100 }),
+    );
+  });
+
+  it("gère un log sans user associé (userName/userEmail null)", async () => {
+    prisma.auditLog.findMany.mockResolvedValue([
+      {
+        id: 'log-2',
+        action: 'payment.webhook.success',
+        entityType: null,
+        entityId: null,
+        metadata: null,
+        createdAt: new Date('2026-07-14T10:00:00Z'),
+        user: null,
+      },
+    ] as any);
+
+    const result = await service.listAuditLogs({});
+    expect(result.logs[0]).toEqual(
+      expect.objectContaining({ userName: null, userEmail: null }),
+    );
   });
 });
 

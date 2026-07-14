@@ -97,13 +97,13 @@ export default function ManagerDashboardPage() {
   ];
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex items-start justify-between">
+    <div className="space-y-6 p-4 sm:p-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{overview.event.title}</h1>
           <p className="text-sm text-muted-foreground">Tableau de bord de votre événement</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           <Badge
             variant={
               overview.event.status === 'PUBLISHED'
@@ -121,7 +121,7 @@ export default function ManagerDashboardPage() {
             </Button>
           )}
           {overview.event.status === 'PUBLISHED' && confirmingCancel && (
-            <div className="flex items-center gap-2">
+            <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
               <span className="text-xs text-muted-foreground">
                 Les billets déjà vendus restent valides en base, sans remboursement automatique. Confirmer ?
               </span>
@@ -166,7 +166,7 @@ export default function ManagerDashboardPage() {
         </div>
       )}
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((s) => (
           <Card key={s.label}>
             <CardContent className="p-5">
@@ -255,7 +255,7 @@ export default function ManagerDashboardPage() {
           </CardTitle>
           <CardDescription>Scans valides par point d&apos;accès</CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-3 md:grid-cols-3">
+        <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3">
           {overview.scansByScanner.length === 0 ? (
             <p className="text-sm text-muted-foreground">Aucun scanner configuré pour cet événement.</p>
           ) : (
@@ -359,7 +359,7 @@ function CreateFirstEventOnboarding() {
             e.preventDefault();
             create.mutate();
           }}
-          className="grid gap-3.5 sm:grid-cols-2"
+          className="grid grid-cols-1 gap-3.5 sm:grid-cols-2"
         >
           <div className="space-y-1.5 sm:col-span-2">
             <label className="text-xs font-medium text-muted-foreground">Titre de l&apos;événement</label>

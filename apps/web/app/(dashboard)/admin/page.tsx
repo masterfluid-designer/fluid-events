@@ -74,13 +74,13 @@ export default function AdminOverviewPage() {
   ];
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6 p-4 sm:p-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Vue d&apos;ensemble plateforme</h1>
         <p className="text-sm text-muted-foreground">Indicateurs clés de la plateforme</p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {kpis.map((kpi) => (
           <Card key={kpi.label}>
             <CardContent className="p-5">
@@ -103,12 +103,12 @@ export default function AdminOverviewPage() {
         ) : (
           overview.managers.map((m, i) => (
             <div key={m.email} className={i < overview.managers.length - 1 ? 'border-b border-border' : ''}>
-              <div className="flex items-center justify-between px-4.5 py-3 text-sm">
+              <div className="flex flex-wrap items-center justify-between gap-3 px-4.5 py-3 text-sm">
                 <div>
                   <div className="font-medium">{m.name}</div>
                   <div className="text-xs text-muted-foreground">{m.eventTitle ?? 'Aucun événement'}</div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <Badge variant={m.isActive ? 'success' : 'secondary'}>
                     {m.isActive ? 'Actif' : 'Suspendu'}
                   </Badge>

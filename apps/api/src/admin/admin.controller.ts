@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, ParseEnumPipe, Patch, Post, Put, Req, Res } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseEnumPipe, Patch, Post, Put, Query, Req, Res } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { PaymentProviderType, Role } from '@saas-events/types';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -20,6 +20,28 @@ export class AdminController {
   @Get('overview')
   async getOverview() {
     return this.adminService.getOverview();
+  }
+
+  /** GET /api/admin/events — vue plateforme de tous les événements. */
+  @Roles(Role.SUPER_ADMIN)
+  @Get('events')
+  async listAllEvents() {
+    return this.adminService.listAllEvents();
+  }
+
+  /** GET /api/admin/logs?page=&pageSize=&action= — historique complet des logs d'audit. */
+  @Roles(Role.SUPER_ADMIN)
+  @Get('logs')
+  async listAuditLogs(
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('action') action?: string,
+  ) {
+    return this.adminService.listAuditLogs({
+      page: page ? Number(page) : undefined,
+      pageSize: pageSize ? Number(pageSize) : undefined,
+      action: action || undefined,
+    });
   }
 
   /** GET /api/admin/payment-configs — vue plateforme, tous événements (jamais les secrets). */

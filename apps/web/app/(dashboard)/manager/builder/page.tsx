@@ -330,12 +330,12 @@ export default function EventBuilderPage() {
   }
 
   return (
-    <div className="flex h-svh flex-col">
+    <div className="flex min-h-svh flex-col md:h-svh">
       {/* Topbar */}
-      <div className="flex items-center justify-between border-b border-border bg-secondary px-5 py-3.5">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-secondary px-4 py-3 sm:px-5 sm:py-3.5">
         <div className="flex items-center gap-3">
           <span className="text-sm font-bold">Builder</span>
-          <span className="text-xs text-muted-foreground">
+          <span className="hidden text-xs text-muted-foreground sm:inline">
             {savedAt
               ? `Sauvegardé à ${savedAt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`
               : data.updatedAt
@@ -343,7 +343,7 @@ export default function EventBuilderPage() {
                 : 'Pas encore sauvegardé'}
           </span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <div className="flex overflow-hidden rounded-lg border border-border">
             <button
               type="button"
@@ -399,10 +399,10 @@ export default function EventBuilderPage() {
         </div>
       </div>
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 flex-col overflow-y-auto md:flex-row md:overflow-hidden">
         {/* Bibliothèque de blocs / Config */}
         {mode === 'edit' && (
-          <aside className="w-72 shrink-0 overflow-y-auto border-r border-border">
+          <aside className="max-h-80 w-full shrink-0 overflow-y-auto border-b border-border md:max-h-none md:w-72 md:border-b-0 md:border-r">
             <div className="flex border-b border-border">
               <button
                 type="button"
@@ -465,7 +465,7 @@ export default function EventBuilderPage() {
         )}
 
         {/* Canvas */}
-        <div className="flex flex-1 justify-center overflow-y-auto bg-background p-6">
+        <div className="flex flex-1 justify-center overflow-x-auto overflow-y-auto bg-background p-4 sm:p-6">
           {mode === 'preview' ? (
             <div
               className={`h-full overflow-hidden rounded-xl border border-border bg-card shadow-solid-2 ${
@@ -700,7 +700,7 @@ export default function EventBuilderPage() {
 
         {/* Properties panel — masqué en mode aperçu réel */}
         {mode === 'edit' && (
-        <aside className="w-65 shrink-0 overflow-y-auto border-l border-border p-4.5">
+        <aside className="w-full shrink-0 overflow-y-auto border-t border-border p-4.5 md:w-65 md:border-l md:border-t-0">
           {!selected ? (
             <div className="text-xs text-muted-foreground">
               Sélectionnez un bloc dans l&apos;aperçu, ou ajoutez-en un depuis la bibliothèque.

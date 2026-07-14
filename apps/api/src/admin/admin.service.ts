@@ -178,6 +178,102 @@ export class AdminService {
     }));
   }
 
+  /**
+   * GET /api/admin/events — vue plateforme de tous les événements (décision
+   * produit 2026-07-14). Revenu/billets vendus calculés en mémoire à partir
+   * des commandes payées (même approche que EventsService.getMyEventOverview
+   * — pas de table d'agrégats dédiée en V1, volumes encore faibles).
+   */
+  async listAllEvents() {
+    const events = await this.prisma.event.findMany({
+      select: {
+        id: true,
+        title: true,
+        slug: true,
+        status: true,
+        startDate: true,
+        endDate: true,
+        createdAt: true,
+        manager: { select: { name: true, email: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const paidOrders = await this.prisma.order.findMany({
+      where: { status: 'PAID' },
+      select: { eventId: true, totalAmount: true, items: { select: { id: true } } },
+    });
+
+    const statsByEvent = new Map<string, { revenue: number; ticketsSold: number }>();
+    for (const order of paidOrders) {
+      const stat = statsByEvent.get(order.eventId) ?? { revenue: 0, ticketsSold: 0 };
+      stat.revenue += Number(order.totalAmount);
+      stat.ticketsSold += order.items.length;
+      statsByEvent.set(order.eventId, stat);
+    }
+
+    return events.map((e) => ({
+      id: e.id,
+      title: e.title,
+      slug: e.slug,
+      status: e.status,
+      startDate: e.startDate,
+      endDate: e.endDate,
+      createdAt: e.createdAt,
+      managerName: e.manager.name ?? 'Sans nom',
+      managerEmail: e.manager.email,
+      revenue: statsByEvent.get(e.id)?.revenue ?? 0,
+      ticketsSold: statsByEvent.get(e.id)?.ticketsSold ?? 0,
+    }));
+  }
+
+  /**
+   * GET /api/admin/logs — historique complet des logs d'audit, paginé et
+   * filtrable par action (décision produit 2026-07-14). `getOverview()`
+   * n'expose que les 10 plus récents pour la vue d'ensemble — cette méthode
+   * est la vue dédiée, plus profonde.
+   */
+  async listAuditLogs(params: { page?: number; pageSize?: number; action?: string }) {
+    const page = Math.max(1, params.page ?? 1);
+    const pageSize = Math.min(100, Math.max(1, params.pageSize ?? 50));
+    const where = params.action ? { action: params.action } : {};
+
+    const [logs, total] = await Promise.all([
+      this.prisma.auditLog.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        select: {
+          id: true,
+          action: true,
+          entityType: true,
+          entityId: true,
+          metadata: true,
+          createdAt: true,
+          user: { select: { name: true, email: true } },
+        },
+      }),
+      this.prisma.auditLog.count({ where }),
+    ]);
+
+    return {
+      logs: logs.map((l) => ({
+        id: l.id,
+        action: l.action,
+        entityType: l.entityType,
+        entityId: l.entityId,
+        metadata: l.metadata,
+        createdAt: l.createdAt,
+        userName: l.user?.name ?? null,
+        userEmail: l.user?.email ?? null,
+      })),
+      total,
+      page,
+      pageSize,
+    };
+  }
+
   /** Refuse d'activer un provider dont l'exécution (init/webhook) n'est pas branchée. */
   private assertActivatable(provider: PaymentProviderType, isActive: boolean | undefined): void {
     if (isActive && !SUPPORTED_PAYMENT_PROVIDERS.includes(provider)) {
