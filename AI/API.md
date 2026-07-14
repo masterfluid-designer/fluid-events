@@ -287,14 +287,19 @@ montant retourné avec `order.totalAmount`, avant de marquer la commande payée.
   `OrderItem.qrCodeUrl`) se fait de façon asynchrone dans `PdfProcessor`, hors
   du chemin critique du webhook. Une fois que **tous** les `OrderItem` d'une
   commande ont leur `qrCodeUrl` (`PdfProcessor.maybeSendTicketNotifications`,
-  décision produit 2026-07-14), un email "billets prêts" est envoyé au client
-  (`EmailService`, `nodemailer`/SMTP — Mailpit en dev) avec un lien de
-  téléchargement par billet, et un message WhatsApp équivalent
-  (`WhatsappService`, Meta Cloud API — `POST /{phoneNumberId}/messages`,
-  template pré-approuvé requis côté Meta) si le client a un téléphone valide.
-  Best-effort pour les deux : un échec d'envoi n'affecte jamais le paiement ni
-  la génération du billet (toujours accessible via `GET /api/payments/orders`),
-  il est seulement logué.
+  décision produit 2026-07-14), trois notifications "billets prêts" partent
+  en parallèle (pas de repli conditionné, simplification V1) :
+  - Email (`EmailService`, Resend si `RESEND_API_KEY` configuré sinon
+    SMTP/Mailpit en dev) avec un lien de téléchargement par billet — toujours
+    envoyé, `User.email` est requis.
+  - WhatsApp (`WhatsappService`, Meta Cloud API — `POST /{phoneNumberId}/messages`,
+    template pré-approuvé requis côté Meta) si le client a un téléphone valide.
+  - SMS (`SmsService`, Twilio Messaging API, pas de template requis) si le
+    client a un téléphone valide.
+
+  Best-effort pour les trois : un échec d'envoi n'affecte jamais le paiement
+  ni la génération du billet (toujours accessible via
+  `GET /api/payments/orders`), il est seulement logué.
 - Échec ou incohérence de vérification → `Order.status = FAILED`, stock
   relâché (`StockService.releaseStockAtomic`).
 - Toujours répond `200 OK` sauf signature invalide (`401`).

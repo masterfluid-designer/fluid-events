@@ -9,6 +9,7 @@ import { StorageService } from '../storage/storage.service';
 import { AuditService } from '../common/audit.service';
 import { EmailService } from '../notifications/email.service';
 import { WhatsappService } from '../notifications/whatsapp.service';
+import { SmsService } from '../notifications/sms.service';
 import { PhoneService } from '../notifications/phone.service';
 import { TICKET_PDF_QUEUE, GENERATE_PDF_JOB, GeneratePdfJobData } from './pdf-queue.service';
 
@@ -30,6 +31,7 @@ export class PdfProcessor {
     private readonly audit: AuditService,
     private readonly emailService: EmailService,
     private readonly whatsappService: WhatsappService,
+    private readonly smsService: SmsService,
     private readonly phoneService: PhoneService,
   ) {}
 
@@ -91,13 +93,18 @@ export class PdfProcessor {
   }
 
   /**
-   * Envoie les notifications "billets prêts" (email + WhatsApp) une fois que
-   * TOUS les OrderItem de la commande ont leur PDF généré (une commande peut
-   * contenir plusieurs billets, chacun généré par un job séparé) — jamais une
-   * notification par billet, une seule par commande. Best-effort : ne fait
-   * jamais échouer le job PDF (EmailService/WhatsappService avalent déjà
-   * leurs propres erreurs). WhatsApp est ignoré si le client n'a pas de
+   * Envoie les notifications "billets prêts" (email + WhatsApp + SMS) une
+   * fois que TOUS les OrderItem de la commande ont leur PDF généré (une
+   * commande peut contenir plusieurs billets, chacun généré par un job
+   * séparé) — jamais une notification par billet, une seule par commande.
+   * Best-effort : ne fait jamais échouer le job PDF (chaque *Service avale
+   * déjà ses propres erreurs). WhatsApp/SMS ignorés si le client n'a pas de
    * téléphone valide (email reste le canal garanti, `User.email` requis).
+   *
+   * SMS envoyé en parallèle de WhatsApp, pas en repli conditionné à son
+   * échec (le Cloud API Meta ne renvoie le statut de livraison que de façon
+   * asynchrone via webhook, non implémenté) — simplification assumée pour
+   * la V1, voir ROADMAP.md.
    */
   private async maybeSendTicketNotifications(orderId: string): Promise<void> {
     const order = await this.prisma.order.findUnique({
@@ -132,6 +139,15 @@ export class PdfProcessor {
       await this.whatsappService.sendTicketReadyMessage({
         to: whatsappTo,
         clientName,
+        eventTitle: order.event.title,
+        orderNumber: order.orderNumber,
+      });
+    }
+
+    const smsTo = this.phoneService.normalizeToE164(order.client.phone);
+    if (smsTo) {
+      await this.smsService.sendTicketReadySms({
+        to: smsTo,
         eventTitle: order.event.title,
         orderNumber: order.orderNumber,
       });
