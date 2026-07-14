@@ -17,6 +17,10 @@ out/
 # Tests / coverage
 coverage/
 *.lcov
+apps/web/test-results/
+apps/web/playwright-report/
+apps/web/blob-report/
+apps/web/.last-run.json
 
 # Variables d'environnement (ne jamais committer les vraies valeurs)
 .env

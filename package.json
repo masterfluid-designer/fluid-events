@@ -17,6 +17,7 @@
     "db:seed": "pnpm --filter @saas-events/api db:seed",
     "test:unit": "pnpm --filter @saas-events/api test",
     "test:cov": "pnpm --filter @saas-events/api test:cov",
+    "test:e2e": "pnpm --filter @saas-events/web test:e2e",
     "docker:dev": "docker compose up --build",
     "docker:prod": "docker compose -f docker-compose.yml -f docker-compose.prod.yml up",
     "docker:down": "docker compose down",
