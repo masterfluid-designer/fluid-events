@@ -32,6 +32,14 @@ export const AUDIT_ACTIONS = {
   'whatsapp.failed': 'WhatsApp échoué',
   'admin.provider.updated': 'Provider paiement modifié',
   'admin.manager.status': 'Statut manager changé',
+  'admin.manager.invited': 'Manager invité par email',
+  'admin.manager.subscription': 'Abonnement manager modifié',
+  'admin.impersonate.start': 'Connexion en tant que manager (Admin)',
+  'admin.impersonate.end': "Fin de l'impersonation",
+  'auth.password.set': 'Mot de passe défini (invitation)',
+  'auth.manager.selfservice.signup': 'Inscription manager self-service (Google)',
+  'account.retention.manager.deleted': 'Compte manager supprimé (essai expiré)',
+  'account.retention.client.anonymized': 'Compte client anonymisé (rétention)',
 } as const;
 
 export type AuditAction = keyof typeof AUDIT_ACTIONS;

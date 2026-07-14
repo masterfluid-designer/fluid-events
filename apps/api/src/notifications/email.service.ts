@@ -81,17 +81,40 @@ export class EmailService {
     `;
 
     try {
-      if (this.resend) {
-        const { error } = await this.resend.emails.send({ from: this.from, to, subject, html });
-        if (error) throw new Error(error.message);
-      } else {
-        await this.transporter!.sendMail({ from: this.from, to, subject, html });
-      }
+      await this.send(to, subject, html);
       this.logger.log(`Email billets envoyé à ${to} (commande ${orderNumber})`);
     } catch (err) {
       this.logger.warn(
         `Échec envoi email billets (commande ${orderNumber}) : ${(err as Error).message}`,
       );
+    }
+  }
+
+  /**
+   * Email d'invitation Manager (Admin, décision produit 2026-07-14) —
+   * contrairement à `sendTicketReadyEmail`, l'échec est remonté à l'appelant
+   * (`AdminService.inviteManager`) plutôt qu'avalé : l'Admin doit savoir si
+   * l'invitation n'est pas partie, pour pouvoir partager le lien manuellement.
+   */
+  async sendManagerInviteEmail(params: { to: string; name: string; inviteUrl: string }): Promise<void> {
+    const { to, name, inviteUrl } = params;
+    const subject = 'Invitation à rejoindre Fluid Events';
+    const html = `
+      <p>Bonjour ${escapeHtml(name)},</p>
+      <p>Vous avez été invité·e à gérer un événement sur Fluid Events.</p>
+      <p><a href="${inviteUrl}">Définir mon mot de passe et accéder à mon dashboard</a></p>
+      <p>Ce lien expire dans 7 jours.</p>
+    `;
+    await this.send(to, subject, html);
+    this.logger.log(`Email d'invitation manager envoyé à ${to}`);
+  }
+
+  private async send(to: string, subject: string, html: string): Promise<void> {
+    if (this.resend) {
+      const { error } = await this.resend.emails.send({ from: this.from, to, subject, html });
+      if (error) throw new Error(error.message);
+    } else {
+      await this.transporter!.sendMail({ from: this.from, to, subject, html });
     }
   }
 }

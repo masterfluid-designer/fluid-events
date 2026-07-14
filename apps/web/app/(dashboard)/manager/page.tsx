@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { DollarSign, Ticket, ScanLine, Radio, Clock, AlertTriangle } from 'lucide-react';
+import { DollarSign, Ticket, ScanLine, Radio, Clock, AlertTriangle, Rocket } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -13,9 +13,10 @@ import {
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
 import { SalesTrendChart, type DailySalesPoint } from '@/components/ui/sales-trend-chart';
-import { api, apiPatch, ApiError } from '@/lib/api';
+import { api, apiPatch, apiPost, ApiError } from '@/lib/api';
 
 /**
  * Dashboard Manager (CDC §14.3 — KPIs événement géré).
@@ -45,9 +46,10 @@ const STATUS_LABELS: Record<string, string> = {
 export default function ManagerDashboardPage() {
   const queryClient = useQueryClient();
   const [confirmingCancel, setConfirmingCancel] = useState(false);
-  const { data: overview, isLoading, isError } = useQuery({
+  const { data: overview, isLoading, isError, error } = useQuery({
     queryKey: ['manager-overview'],
     queryFn: () => api<Overview>('/api/events/mine/overview'),
+    retry: false,
   });
 
   const setStatus = useMutation({
@@ -68,6 +70,10 @@ export default function ManagerDashboardPage() {
         <Spinner className="size-6" />
       </div>
     );
+  }
+
+  if (isError && error instanceof ApiError && error.code === 'EVENT_NOT_FOUND') {
+    return <CreateFirstEventOnboarding />;
   }
 
   if (isError || !overview) {
@@ -274,6 +280,150 @@ export default function ManagerDashboardPage() {
             ))
           )}
         </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function slugify(title: string): string {
+  return title
+    .normalize('NFD')
+    .split('')
+    .filter((ch) => {
+      const code = ch.charCodeAt(0);
+      // Strips Unicode combining diacritical marks (U+0300–U+036F) left over
+      // after NFD decomposition (e.g. "é" -> "e" + U+0301) — deliberately
+      // avoids a literal Unicode regex range here (encoding footgun).
+      return code < 0x0300 || code > 0x036f;
+    })
+    .join('')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+/**
+ * Onboarding affiché quand le Manager authentifié n'a pas encore
+ * d'événement (EVENT_NOT_FOUND sur /api/events/mine/overview) — notamment
+ * les comptes self-service Google fraîchement créés (CDC §14.3, décision
+ * produit 2026-07-14 : 1 Manager = 1 Event en V1, il faut donc pouvoir créer
+ * ce premier événement depuis le dashboard plutôt que rester bloqué).
+ */
+function CreateFirstEventOnboarding() {
+  const queryClient = useQueryClient();
+  const [title, setTitle] = useState('');
+  const [slug, setSlug] = useState('');
+  const [slugTouched, setSlugTouched] = useState(false);
+  const [location, setLocation] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [description, setDescription] = useState('');
+
+  const create = useMutation({
+    mutationFn: () =>
+      apiPost('/api/events', {
+        title,
+        slug,
+        location: location || undefined,
+        description: description || undefined,
+        startDate: new Date(startDate).toISOString(),
+        endDate: new Date(endDate).toISOString(),
+      }),
+    onSuccess: () => {
+      toast.success('Événement créé ! Configurez vos billets et votre page depuis ce dashboard.');
+      queryClient.invalidateQueries({ queryKey: ['manager-overview'] });
+    },
+    onError: (err) => {
+      toast.error(err instanceof ApiError ? err.message : "Impossible de créer l'événement");
+    },
+  });
+
+  return (
+    <div className="flex justify-center p-6">
+      <Card className="w-full max-w-2xl p-6">
+        <div className="mb-6 flex items-start gap-3">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-accent-terracotta/15 text-accent-terracotta dark:text-accent-terracotta-dark">
+            <Rocket className="size-5" />
+          </div>
+          <div>
+            <h1 className="text-lg font-bold">Créez votre premier événement</h1>
+            <p className="text-sm text-muted-foreground">
+              Votre compte n&apos;a encore aucun événement — renseignez les informations de base pour démarrer.
+              Vous pourrez ensuite configurer vos billets et personnaliser votre page.
+            </p>
+          </div>
+        </div>
+
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            create.mutate();
+          }}
+          className="grid gap-3.5 sm:grid-cols-2"
+        >
+          <div className="space-y-1.5 sm:col-span-2">
+            <label className="text-xs font-medium text-muted-foreground">Titre de l&apos;événement</label>
+            <Input
+              required
+              placeholder="Concert FESTA 2026"
+              value={title}
+              onChange={(e) => {
+                setTitle(e.target.value);
+                if (!slugTouched) setSlug(slugify(e.target.value));
+              }}
+            />
+          </div>
+          <div className="space-y-1.5 sm:col-span-2">
+            <label className="text-xs font-medium text-muted-foreground">
+              Slug (URL publique : /e/{slug || '...'})
+            </label>
+            <Input
+              required
+              placeholder="concert-festa-2026"
+              value={slug}
+              onChange={(e) => {
+                setSlug(slugify(e.target.value));
+                setSlugTouched(true);
+              }}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">Début</label>
+            <Input
+              required
+              type="datetime-local"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">Fin</label>
+            <Input
+              required
+              type="datetime-local"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5 sm:col-span-2">
+            <label className="text-xs font-medium text-muted-foreground">Lieu (optionnel)</label>
+            <Input placeholder="Abidjan, Côte d'Ivoire" value={location} onChange={(e) => setLocation(e.target.value)} />
+          </div>
+          <div className="space-y-1.5 sm:col-span-2">
+            <label className="text-xs font-medium text-muted-foreground">Description (optionnelle)</label>
+            <textarea
+              rows={3}
+              placeholder="Décrivez votre événement en quelques lignes..."
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            />
+          </div>
+
+          <Button type="submit" disabled={create.isPending} className="sm:col-span-2 w-fit">
+            {create.isPending ? 'Création...' : "Créer l'événement"}
+          </Button>
+        </form>
       </Card>
     </div>
   );

@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { BullModule } from '@nestjs/bull';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { PrismaModule } from './prisma/prisma.module';
@@ -14,6 +15,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { AdminModule } from './admin/admin.module';
 import { TicketDesignModule } from './ticket-design/ticket-design.module';
 import { StorageModule } from './storage/storage.module';
+import { RetentionModule } from './retention/retention.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { HttpExceptionFilter } from './common/filters/http-exception-filter';
@@ -38,6 +40,8 @@ import { ResponseInterceptor } from './common/interceptors/response.interceptor'
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    // Cron de rétention des comptes (décision produit 2026-07-14, RetentionModule).
+    ScheduleModule.forRoot(),
     // Connexion Redis partagée par toutes les queues BullMQ (CDC ADR §3 —
     // génération PDF asynchrone, hors chemin critique webhook).
     BullModule.forRoot(parseRedisUrl(process.env.REDIS_URL)),
@@ -53,6 +57,7 @@ import { ResponseInterceptor } from './common/interceptors/response.interceptor'
     AdminModule,
     TicketDesignModule,
     StorageModule,
+    RetentionModule,
   ],
   providers: [
     // Sécurité transverse globale

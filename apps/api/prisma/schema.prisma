@@ -34,9 +34,27 @@ model User {
   phone               String?
   country             String?
   profileCompletedAt  DateTime?
-  passwordHash        String? // Scanners uniquement (login email/password)
+  passwordHash        String? // Scanners uniquement, et Managers invités par email (login email/password)
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
+
+  // Invitation Manager par email (Admin) — décision produit 2026-07-14. Le
+  // compte existe avec passwordHash=null jusqu'à ce que le lien reçu par
+  // email soit utilisé pour définir un mot de passe (POST /api/auth/set-password).
+  inviteToken          String?   @unique
+  inviteTokenExpiresAt DateTime?
+
+  // Inscription self-service Manager via Google depuis la page d'accueil
+  // (décision produit 2026-07-14) — distinct d'un Manager créé par
+  // invitation Admin. Seuls ces comptes sont concernés par la suppression
+  // automatique après 3 jours sans abonnement (voir AccountRetentionService) ;
+  // jamais un compte créé par un Admin ou par le script de seed.
+  isSelfService      Boolean @default(false)
+  // Statut géré manuellement par l'Admin (pas de facturation récurrente réelle
+  // en V1, décision produit 2026-07-14) — un Manager invité par l'Admin démarre
+  // abonné (l'Admin l'a déjà vérifié) ; un Manager self-service démarre non
+  // abonné (fenêtre d'essai de 3 jours avant suppression automatique).
+  subscriptionActive Boolean @default(false)
 
   managedEvent   Event?   @relation("EventManager")
   scannerProfile Scanner?

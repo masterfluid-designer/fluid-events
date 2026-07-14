@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, Play, Sparkles } from "lucide-react";
+import { startGoogleManagerSignup } from "@/lib/auth";
 
 export default function Hero() {
   return (
@@ -38,13 +39,15 @@ export default function Hero() {
           </p>
 
           <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
-            <Link
-              href="/auth/login"
+            <button
+              type="button"
+              onClick={startGoogleManagerSignup}
+              aria-label="devenir organisateur"
               className="group inline-flex items-center gap-2.5 rounded-full bg-black px-8 py-3 text-white duration-300 ease-in-out hover:bg-blackho dark:bg-btndark dark:hover:bg-blackho"
             >
-              Commencer gratuitement
+              Devenir organisateur
               <ArrowRight className="size-4 transition group-hover:translate-x-0.5" />
-            </Link>
+            </button>
             <Link
               href="/scanner"
               className="inline-flex items-center gap-2.5 rounded-full border border-stroke bg-white px-8 py-3 text-black duration-300 ease-in-out hover:border-primary hover:text-primary dark:border-strokedark dark:bg-blacksection dark:text-white dark:hover:border-primary dark:hover:text-primary"

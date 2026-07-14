@@ -4,6 +4,7 @@ import {
   UnauthorizedException,
   ForbiddenException,
   NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
@@ -13,7 +14,7 @@ import { AuditService } from '../common/audit.service';
 import { GoogleProfile } from './strategies/google.strategy';
 import { LoginScannerDto } from './dto/login-scanner.dto';
 import { LoginDto } from './dto/login.dto';
-import { Role, TokenPair, ErrorCodes } from '@saas-events/types';
+import { Role, TokenPair, ErrorCodes, GoogleAuthIntent, JwtPayload } from '@saas-events/types';
 
 /**
  * AuthOrchestratorService — Orchestration des flux d'authentification complets.
@@ -41,13 +42,25 @@ export class AuthOrchestratorService {
    * Connexion Google OAuth.
    * @param profile Profil normalisé par GoogleStrategy
    * @param eventSlug Optionnel — slug de l'événement ciblé (session événementielle)
+   * @param intent Optionnel — `become_manager` déclenche l'inscription self-service
+   *   Manager (CDC §14.3, décision produit 2026-07-14) SI le compte n'existe pas
+   *   encore. Un compte déjà existant (même googleId) n'a JAMAIS son rôle modifié
+   *   par ce paramètre — évite toute escalade de privilège silencieuse.
    */
   async loginWithGoogle(
     profile: GoogleProfile,
     eventSlug?: string,
+    intent?: string,
   ): Promise<TokenPair> {
+    const existing = await this.prisma.user.findUnique({
+      where: { googleId: profile.googleId },
+      select: { id: true },
+    });
+    const isSelfServiceManagerSignup = !existing && intent === GoogleAuthIntent.BECOME_MANAGER;
+
     // Upsert : si l'utilisateur existe déjà (même googleId), on met à jour les infos
-    // Google sans écraser les champs enrichis post-paiement (phone, country, profileCompletedAt).
+    // Google sans écraser les champs enrichis post-paiement (phone, country, profileCompletedAt)
+    // ni le rôle (jamais touché dans `update`, quel que soit `intent`).
     const user = await this.prisma.user.upsert({
       where: { googleId: profile.googleId },
       create: {
@@ -55,7 +68,10 @@ export class AuthOrchestratorService {
         googleId: profile.googleId,
         name: profile.name ?? null,
         avatarUrl: profile.avatarUrl ?? null,
-        role: Role.CLIENT,
+        role: isSelfServiceManagerSignup ? Role.MANAGER : Role.CLIENT,
+        ...(isSelfServiceManagerSignup
+          ? { isSelfService: true, subscriptionActive: false }
+          : {}),
       },
       update: {
         name: profile.name ?? undefined,
@@ -71,6 +87,12 @@ export class AuthOrchestratorService {
       });
     }
 
+    if (isSelfServiceManagerSignup) {
+      await this.audit.log('auth.manager.selfservice.signup', 'User', user.id, {
+        email: user.email,
+      });
+    }
+
     await this.audit.log('auth.google.login', 'User', user.id, {
       email: user.email,
     });
@@ -79,6 +101,49 @@ export class AuthOrchestratorService {
       { id: user.id, email: user.email, role: user.role as Role },
       eventSlug,
     );
+  }
+
+  /**
+   * Consomme le token d'invitation envoyé par mail (invitation Manager, CDC §14.3)
+   * pour poser le mot de passe initial du compte. Le token est à usage unique :
+   * il est effacé après utilisation, quelle que soit la suite (login normal ensuite).
+   */
+  async setPassword(token: string, password: string): Promise<{ success: true }> {
+    const user = await this.prisma.user.findUnique({
+      where: { inviteToken: token },
+      select: { id: true, email: true, inviteTokenExpiresAt: true },
+    });
+
+    if (!user) {
+      throw new BadRequestException({
+        code: ErrorCodes.INVITE_TOKEN_INVALID,
+        message: "Lien d'invitation invalide.",
+      });
+    }
+
+    if (!user.inviteTokenExpiresAt || user.inviteTokenExpiresAt < new Date()) {
+      throw new BadRequestException({
+        code: ErrorCodes.INVITE_TOKEN_EXPIRED,
+        message: "Lien d'invitation expiré. Demandez une nouvelle invitation.",
+      });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordHash,
+        inviteToken: null,
+        inviteTokenExpiresAt: null,
+      },
+    });
+
+    await this.audit.log('auth.password.set', 'User', user.id, {
+      email: user.email,
+    });
+
+    return { success: true };
   }
 
   /**
@@ -243,5 +308,57 @@ export class AuthOrchestratorService {
     return this.authService.generateClientToken(
       { id: user.id, email: user.email, role: user.role as Role },
     );
+  }
+
+  /** GET /api/auth/me — identité courante (CDC §14.3, bannière impersonation frontend). */
+  async getCurrentUser(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, name: true, role: true, isActive: true },
+    });
+    if (!user) {
+      throw new NotFoundException({
+        code: ErrorCodes.USER_NOT_FOUND,
+        message: 'Utilisateur introuvable.',
+      });
+    }
+    return user;
+  }
+
+  /**
+   * Restaure la session Admin d'origine après une impersonation (CDC §14.3).
+   * Le cookie `impersonator_token` est un vrai JWT SUPER_ADMIN déjà signé
+   * (celui de l'Admin au moment du clic "Se connecter en tant que Manager") —
+   * on se contente de vérifier sa signature/expiration/rôle, jamais de le
+   * décoder sans vérification.
+   */
+  async stopImpersonation(impersonatorToken: string | undefined): Promise<{ accessToken: string }> {
+    if (!impersonatorToken) {
+      throw new BadRequestException({
+        code: ErrorCodes.NOT_IMPERSONATING,
+        message: "Aucune session d'impersonation en cours.",
+      });
+    }
+
+    let payload: JwtPayload;
+    try {
+      payload = this.jwtService.verify(impersonatorToken);
+    } catch {
+      throw new UnauthorizedException({
+        code: ErrorCodes.TOKEN_EXPIRED,
+        message: 'Session administrateur expirée — reconnectez-vous.',
+      });
+    }
+
+    if (payload.role !== Role.SUPER_ADMIN) {
+      throw new UnauthorizedException({
+        code: ErrorCodes.UNAUTHORIZED,
+        message: 'Token administrateur invalide.',
+      });
+    }
+
+    await this.audit.log('admin.impersonate.end', 'User', payload.sub, {});
+
+    return { accessToken: impersonatorToken };
   }
 }

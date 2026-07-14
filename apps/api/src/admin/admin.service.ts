@@ -1,11 +1,20 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { CryptoService } from '../common/crypto.service';
 import { SUPPORTED_PAYMENT_PROVIDERS } from '../common/supported-payment-providers';
 import { bucketSalesByDay } from '../common/analytics.util';
-import { ErrorCodes, PaymentProviderType } from '@saas-events/types';
+import { AuditService } from '../common/audit.service';
+import { EmailService } from '../notifications/email.service';
+import { AuthService } from '../auth/auth.service';
+import { ErrorCodes, PaymentProviderType, Role, TokenPair } from '@saas-events/types';
+import { FRONTEND_URL } from '../common/constants';
 import { UpsertPaymentConfigDto } from './dto/upsert-payment-config.dto';
+import { InviteManagerDto } from './dto/invite-manager.dto';
+
+/** Durée de validité du lien d'invitation Manager (décision produit 2026-07-14). */
+const INVITE_TOKEN_TTL_DAYS = 7;
 
 /** Fenêtre de la série temporelle "ventes dans le temps" (Analytics, 2026-07-14). */
 const SALES_TREND_DAYS = 30;
@@ -31,6 +40,9 @@ export class AdminService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly crypto: CryptoService,
+    private readonly email: EmailService,
+    private readonly audit: AuditService,
+    private readonly authService: AuthService,
   ) {}
 
   async getOverview() {
@@ -130,6 +142,42 @@ export class AdminService {
     return { event, configs };
   }
 
+  /**
+   * GET /api/admin/payment-configs — vue plateforme, tous événements confondus
+   * (décision produit 2026-07-14). Jamais les secrets (SAFE_CONFIG_SELECT).
+   */
+  async listAllPaymentConfigs() {
+    const configs = await this.prisma.paymentProviderConfig.findMany({
+      select: {
+        ...SAFE_CONFIG_SELECT,
+        event: {
+          select: {
+            id: true,
+            title: true,
+            status: true,
+            manager: { select: { id: true, name: true, email: true } },
+          },
+        },
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    return configs.map((c) => ({
+      id: c.id,
+      provider: c.provider,
+      isActive: c.isActive,
+      publicKey: c.publicKey,
+      config: c.config,
+      updatedAt: c.updatedAt,
+      eventId: c.event.id,
+      eventTitle: c.event.title,
+      eventStatus: c.event.status,
+      managerId: c.event.manager.id,
+      managerName: c.event.manager.name ?? 'Sans nom',
+      managerEmail: c.event.manager.email,
+    }));
+  }
+
   /** Refuse d'activer un provider dont l'exécution (init/webhook) n'est pas branchée. */
   private assertActivatable(provider: PaymentProviderType, isActive: boolean | undefined): void {
     if (isActive && !SUPPORTED_PAYMENT_PROVIDERS.includes(provider)) {
@@ -222,5 +270,145 @@ export class AdminService {
   async deleteEventPaymentConfig(eventId: string, provider: PaymentProviderType): Promise<void> {
     await this.getOwnedEventOrThrow(eventId);
     await this.prisma.paymentProviderConfig.deleteMany({ where: { eventId, provider } });
+  }
+
+  /**
+   * GET /api/admin/managers — liste dédiée (distincte de `getOverview`, qui
+   * embarque un sous-ensemble des mêmes champs pour la vue d'ensemble).
+   */
+  async listManagers() {
+    const managers = await this.prisma.user.findMany({
+      where: { role: Role.MANAGER },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        isActive: true,
+        isSelfService: true,
+        subscriptionActive: true,
+        createdAt: true,
+        managedEvent: { select: { id: true, title: true, status: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return managers.map((m) => ({
+      id: m.id,
+      name: m.name ?? 'Sans nom',
+      email: m.email,
+      isActive: m.isActive,
+      isSelfService: m.isSelfService,
+      subscriptionActive: m.subscriptionActive,
+      createdAt: m.createdAt,
+      eventId: m.managedEvent?.id ?? null,
+      eventTitle: m.managedEvent?.title ?? null,
+      eventStatus: m.managedEvent?.status ?? null,
+    }));
+  }
+
+  /**
+   * POST /api/admin/managers — invitation par email (décision produit
+   * 2026-07-14). Le compte est créé immédiatement (isActive/subscriptionActive
+   * = true — l'Admin a déjà vérifié ce manager, pas de fenêtre d'essai comme
+   * pour le self-service), `passwordHash` reste null jusqu'à ce que le lien
+   * reçu soit utilisé (`POST /api/auth/set-password`).
+   *
+   * Si l'email d'invitation échoue à partir, le compte reste créé (l'Admin
+   * peut relancer manuellement) — `emailSent: false` dans la réponse pour
+   * que le frontend puisse le signaler.
+   */
+  async inviteManager(dto: InviteManagerDto) {
+    const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    if (existing) {
+      throw new BadRequestException({
+        code: ErrorCodes.EMAIL_ALREADY_EXISTS,
+        message: 'Un compte existe déjà avec cet email.',
+      });
+    }
+
+    const inviteToken = randomBytes(32).toString('hex');
+    const inviteTokenExpiresAt = new Date(Date.now() + INVITE_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000);
+
+    const manager = await this.prisma.user.create({
+      data: {
+        name: dto.name,
+        email: dto.email,
+        role: Role.MANAGER,
+        isActive: true,
+        isSelfService: false,
+        subscriptionActive: true,
+        inviteToken,
+        inviteTokenExpiresAt,
+      },
+      select: { id: true, name: true, email: true },
+    });
+
+    let emailSent = true;
+    try {
+      await this.email.sendManagerInviteEmail({
+        to: manager.email,
+        name: manager.name ?? 'Manager',
+        inviteUrl: `${FRONTEND_URL}/auth/set-password?token=${inviteToken}`,
+      });
+    } catch {
+      emailSent = false;
+    }
+
+    await this.audit.log('admin.manager.invited', 'User', manager.id, { email: manager.email, emailSent });
+
+    return { id: manager.id, name: manager.name, email: manager.email, emailSent };
+  }
+
+  /** PATCH /api/admin/managers/:id { isActive } — suspend/réactive un compte. */
+  async setManagerActive(managerId: string, isActive: boolean) {
+    const manager = await this.getManagerOrThrow(managerId);
+    const updated = await this.prisma.user.update({
+      where: { id: manager.id },
+      data: { isActive },
+      select: { id: true, isActive: true },
+    });
+    await this.audit.log('admin.manager.status', 'User', manager.id, { isActive });
+    return updated;
+  }
+
+  /** PATCH /api/admin/managers/:id { subscriptionActive } — statut manuel (V1, pas de facturation réelle). */
+  async setManagerSubscription(managerId: string, subscriptionActive: boolean) {
+    const manager = await this.getManagerOrThrow(managerId);
+    const updated = await this.prisma.user.update({
+      where: { id: manager.id },
+      data: { subscriptionActive },
+      select: { id: true, subscriptionActive: true },
+    });
+    await this.audit.log('admin.manager.subscription', 'User', manager.id, { subscriptionActive });
+    return updated;
+  }
+
+  /**
+   * POST /api/admin/managers/:id/impersonate — connexion directe au dashboard
+   * Manager sans ses identifiants (CDC §14.3). Le contrôleur pose le token
+   * émis ici comme `access_token` ET conserve le token Admin d'origine dans
+   * un second cookie (`impersonator_token`) pour permettre le retour sans
+   * réauthentification (`POST /api/auth/stop-impersonation`).
+   */
+  async impersonateManager(adminId: string, managerId: string): Promise<TokenPair> {
+    const manager = await this.getManagerOrThrow(managerId);
+    const tokens = await this.authService.generateClientToken({
+      id: manager.id,
+      email: manager.email,
+      role: Role.MANAGER,
+    });
+    await this.audit.log('admin.impersonate.start', 'User', manager.id, { adminId });
+    return tokens;
+  }
+
+  private async getManagerOrThrow(managerId: string) {
+    const manager = await this.prisma.user.findUnique({ where: { id: managerId } });
+    if (!manager || manager.role !== Role.MANAGER) {
+      throw new NotFoundException({
+        code: ErrorCodes.MANAGER_NOT_FOUND,
+        message: 'Manager introuvable.',
+      });
+    }
+    return manager;
   }
 }

@@ -33,3 +33,19 @@ export function startGoogleAuth(eventSlug: string, ticketId: string): void {
   });
   window.location.href = `${apiBase}/api/auth/google?${params.toString()}`;
 }
+
+/**
+ * Déclenche le flux OAuth Google pour l'inscription self-service Manager
+ * (CDC §14.3, décision produit 2026-07-14 — CTA "Devenir organisateur" sur
+ * la page d'accueil). `intent=become_manager` n'a d'effet backend que si
+ * aucun compte n'existe encore pour ce googleId (voir AuthOrchestratorService
+ * .loginWithGoogle) — jamais d'escalade de privilège sur un compte existant.
+ */
+export function startGoogleManagerSignup(): void {
+  const apiBase = process.env.NEXT_PUBLIC_API_URL ?? '';
+  const params = new URLSearchParams({
+    redirect: `${window.location.origin}/manager`,
+    intent: 'become_manager',
+  });
+  window.location.href = `${apiBase}/api/auth/google?${params.toString()}`;
+}

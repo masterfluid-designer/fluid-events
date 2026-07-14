@@ -4,7 +4,7 @@
  * ÉVÉNEMENT (décision produit 2026-07-13, supersède BUSINESS.md §6).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { AdminService } from './admin.service';
 
 function makePrisma() {
@@ -17,7 +17,13 @@ function makePrisma() {
   };
   return {
     event: { count: vi.fn().mockResolvedValue(0), findUnique: vi.fn().mockResolvedValue(null) },
-    user: { count: vi.fn().mockResolvedValue(0), findMany: vi.fn().mockResolvedValue([]) },
+    user: {
+      count: vi.fn().mockResolvedValue(0),
+      findMany: vi.fn().mockResolvedValue([]),
+      findUnique: vi.fn().mockResolvedValue(null),
+      create: vi.fn().mockResolvedValue({ id: 'user-1', name: 'Jean', email: 'jean@example.com' }),
+      update: vi.fn().mockResolvedValue({ id: 'user-1', isActive: true }),
+    },
     order: {
       aggregate: vi.fn().mockResolvedValue({ _sum: { totalAmount: null } }),
       findMany: vi.fn().mockResolvedValue([]),
@@ -38,6 +44,18 @@ function makeCrypto() {
   return { encrypt: vi.fn((v: string) => `enc:${v}`), decrypt: vi.fn((v: string) => v.replace('enc:', '')) };
 }
 
+function makeEmail() {
+  return { sendManagerInviteEmail: vi.fn().mockResolvedValue(undefined) };
+}
+
+function makeAuthService() {
+  return { generateClientToken: vi.fn().mockResolvedValue({ accessToken: 'a', refreshToken: 'r' }) };
+}
+
+function makeAudit() {
+  return { log: vi.fn().mockResolvedValue(undefined) };
+}
+
 const OWNED_EVENT = { id: 'ev-1', title: 'Concert FESTA' };
 
 describe('AdminService.getOverview()', () => {
@@ -46,7 +64,7 @@ describe('AdminService.getOverview()', () => {
 
   beforeEach(() => {
     prisma = makePrisma();
-    service = new AdminService(prisma as any, makeCrypto() as any);
+    service = new AdminService(prisma as any, makeCrypto() as any, makeEmail() as any, makeAudit() as any, makeAuthService() as any);
   });
 
   it('agrège les métriques plateforme réelles, dont le statut paiement par manager', async () => {
@@ -140,13 +158,97 @@ describe('AdminService.getOverview()', () => {
   });
 });
 
+describe('AdminService.listAllPaymentConfigs()', () => {
+  let prisma: ReturnType<typeof makePrisma>;
+  let service: AdminService;
+
+  beforeEach(() => {
+    prisma = makePrisma();
+    service = new AdminService(prisma as any, makeCrypto() as any, makeEmail() as any, makeAudit() as any, makeAuthService() as any);
+  });
+
+  it('liste les configs tous événements confondus, avec contexte event/manager, sans jamais les secrets', async () => {
+    prisma.paymentProviderConfig.findMany.mockResolvedValue([
+      {
+        id: 'cfg-1',
+        provider: 'KKIAPAY',
+        isActive: true,
+        publicKey: 'pub',
+        config: null,
+        updatedAt: new Date('2026-07-01T00:00:00Z'),
+        event: {
+          id: 'ev-1',
+          title: 'Concert FESTA',
+          status: 'PUBLISHED',
+          manager: { id: 'mgr-1', name: 'Kwame Asante', email: 'kwame@x.com' },
+        },
+      },
+      {
+        id: 'cfg-2',
+        provider: 'CINETPAY',
+        isActive: false,
+        publicKey: null,
+        config: { siteId: 's-1' },
+        updatedAt: new Date('2026-07-02T00:00:00Z'),
+        event: {
+          id: 'ev-2',
+          title: 'Gala',
+          status: 'DRAFT',
+          manager: { id: 'mgr-2', name: null, email: 'nobody@x.com' },
+        },
+      },
+    ] as any);
+
+    const result = await service.listAllPaymentConfigs();
+
+    expect(result).toEqual([
+      {
+        id: 'cfg-1',
+        provider: 'KKIAPAY',
+        isActive: true,
+        publicKey: 'pub',
+        config: null,
+        updatedAt: new Date('2026-07-01T00:00:00Z'),
+        eventId: 'ev-1',
+        eventTitle: 'Concert FESTA',
+        eventStatus: 'PUBLISHED',
+        managerId: 'mgr-1',
+        managerName: 'Kwame Asante',
+        managerEmail: 'kwame@x.com',
+      },
+      {
+        id: 'cfg-2',
+        provider: 'CINETPAY',
+        isActive: false,
+        publicKey: null,
+        config: { siteId: 's-1' },
+        updatedAt: new Date('2026-07-02T00:00:00Z'),
+        eventId: 'ev-2',
+        eventTitle: 'Gala',
+        eventStatus: 'DRAFT',
+        managerId: 'mgr-2',
+        managerName: 'Sans nom',
+        managerEmail: 'nobody@x.com',
+      },
+    ]);
+    const selectArg = prisma.paymentProviderConfig.findMany.mock.calls[0][0].select;
+    expect(selectArg).not.toHaveProperty('privateKey');
+    expect(selectArg).not.toHaveProperty('webhookSecret');
+  });
+
+  it('retourne un tableau vide sur une plateforme sans configuration', async () => {
+    const result = await service.listAllPaymentConfigs();
+    expect(result).toEqual([]);
+  });
+});
+
 describe('AdminService.getEventPaymentConfigs()', () => {
   let prisma: ReturnType<typeof makePrisma>;
   let service: AdminService;
 
   beforeEach(() => {
     prisma = makePrisma();
-    service = new AdminService(prisma as any, makeCrypto() as any);
+    service = new AdminService(prisma as any, makeCrypto() as any, makeEmail() as any, makeAudit() as any, makeAuthService() as any);
   });
 
   it('liste les configs sans jamais renvoyer les secrets', async () => {
@@ -182,7 +284,7 @@ describe('AdminService.upsertEventPaymentConfig()', () => {
     prisma = makePrisma();
     crypto = makeCrypto();
     prisma.event.findUnique.mockResolvedValue(OWNED_EVENT);
-    service = new AdminService(prisma as any, crypto as any);
+    service = new AdminService(prisma as any, crypto as any, makeEmail() as any, makeAudit() as any, makeAuthService() as any);
   });
 
   it('chiffre privateKey/webhookSecret avant stockage (KKIAPAY)', async () => {
@@ -278,7 +380,7 @@ describe('AdminService.setEventPaymentConfigActive()', () => {
   beforeEach(() => {
     prisma = makePrisma();
     prisma.event.findUnique.mockResolvedValue(OWNED_EVENT);
-    service = new AdminService(prisma as any, makeCrypto() as any);
+    service = new AdminService(prisma as any, makeCrypto() as any, makeEmail() as any, makeAudit() as any, makeAuthService() as any);
   });
 
   it('active un provider déjà configuré et désactive les autres', async () => {
@@ -320,7 +422,7 @@ describe('AdminService.deleteEventPaymentConfig()', () => {
   beforeEach(() => {
     prisma = makePrisma();
     prisma.event.findUnique.mockResolvedValue(OWNED_EVENT);
-    service = new AdminService(prisma as any, makeCrypto() as any);
+    service = new AdminService(prisma as any, makeCrypto() as any, makeEmail() as any, makeAudit() as any, makeAuthService() as any);
   });
 
   it('supprime la config du provider pour cet événement', async () => {
@@ -333,5 +435,244 @@ describe('AdminService.deleteEventPaymentConfig()', () => {
   it("404 si l'événement n'existe pas", async () => {
     prisma.event.findUnique.mockResolvedValue(null);
     await expect(service.deleteEventPaymentConfig('unknown', 'KKIAPAY' as any)).rejects.toThrow(NotFoundException);
+  });
+});
+
+describe('AdminService.listManagers()', () => {
+  let prisma: ReturnType<typeof makePrisma>;
+  let service: AdminService;
+
+  beforeEach(() => {
+    prisma = makePrisma();
+    service = new AdminService(prisma as any, makeCrypto() as any, makeEmail() as any, makeAudit() as any, makeAuthService() as any);
+  });
+
+  it('liste les managers avec statut self-service/abonnement et événement lié', async () => {
+    prisma.user.findMany.mockResolvedValue([
+      {
+        id: 'mgr-1',
+        name: 'Kwame Asante',
+        email: 'kwame@x.com',
+        isActive: true,
+        isSelfService: false,
+        subscriptionActive: true,
+        createdAt: new Date('2026-07-01T00:00:00Z'),
+        managedEvent: { id: 'ev-1', title: 'Concert FESTA', status: 'PUBLISHED' },
+      },
+      {
+        id: 'mgr-2',
+        name: null,
+        email: 'nobody@x.com',
+        isActive: false,
+        isSelfService: true,
+        subscriptionActive: false,
+        createdAt: new Date('2026-07-02T00:00:00Z'),
+        managedEvent: null,
+      },
+    ] as any);
+
+    const result = await service.listManagers();
+
+    expect(result).toEqual([
+      {
+        id: 'mgr-1',
+        name: 'Kwame Asante',
+        email: 'kwame@x.com',
+        isActive: true,
+        isSelfService: false,
+        subscriptionActive: true,
+        createdAt: new Date('2026-07-01T00:00:00Z'),
+        eventId: 'ev-1',
+        eventTitle: 'Concert FESTA',
+        eventStatus: 'PUBLISHED',
+      },
+      {
+        id: 'mgr-2',
+        name: 'Sans nom',
+        email: 'nobody@x.com',
+        isActive: false,
+        isSelfService: true,
+        subscriptionActive: false,
+        createdAt: new Date('2026-07-02T00:00:00Z'),
+        eventId: null,
+        eventTitle: null,
+        eventStatus: null,
+      },
+    ]);
+    expect(prisma.user.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { role: 'MANAGER' } }),
+    );
+  });
+});
+
+describe('AdminService.inviteManager()', () => {
+  let prisma: ReturnType<typeof makePrisma>;
+  let email: ReturnType<typeof makeEmail>;
+  let audit: ReturnType<typeof makeAudit>;
+  let service: AdminService;
+
+  beforeEach(() => {
+    prisma = makePrisma();
+    email = makeEmail();
+    audit = makeAudit();
+    service = new AdminService(prisma as any, makeCrypto() as any, email as any, audit as any, makeAuthService() as any);
+  });
+
+  it("crée le compte Manager (isActive/subscriptionActive=true, isSelfService=false) et envoie l'invitation", async () => {
+    prisma.user.create.mockResolvedValue({ id: 'mgr-1', name: 'Jean Dupont', email: 'jean@x.com' });
+
+    const result = await service.inviteManager({ name: 'Jean Dupont', email: 'jean@x.com' } as any);
+
+    expect(prisma.user.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          name: 'Jean Dupont',
+          email: 'jean@x.com',
+          role: 'MANAGER',
+          isActive: true,
+          isSelfService: false,
+          subscriptionActive: true,
+          inviteToken: expect.any(String),
+          inviteTokenExpiresAt: expect.any(Date),
+        }),
+      }),
+    );
+    expect(email.sendManagerInviteEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'jean@x.com',
+        name: 'Jean Dupont',
+        inviteUrl: expect.stringContaining('/auth/set-password?token='),
+      }),
+    );
+    expect(audit.log).toHaveBeenCalledWith(
+      'admin.manager.invited',
+      'User',
+      'mgr-1',
+      expect.objectContaining({ email: 'jean@x.com', emailSent: true }),
+    );
+    expect(result).toEqual({ id: 'mgr-1', name: 'Jean Dupont', email: 'jean@x.com', emailSent: true });
+  });
+
+  it('rejette si un compte existe déjà avec cet email (EMAIL_ALREADY_EXISTS)', async () => {
+    prisma.user.findUnique.mockResolvedValue({ id: 'existing' });
+
+    await expect(
+      service.inviteManager({ name: 'Jean', email: 'jean@x.com' } as any),
+    ).rejects.toThrow(BadRequestException);
+    expect(prisma.user.create).not.toHaveBeenCalled();
+  });
+
+  it("garde le compte créé et renvoie emailSent=false si l'envoi de l'email échoue", async () => {
+    prisma.user.create.mockResolvedValue({ id: 'mgr-1', name: 'Jean', email: 'jean@x.com' });
+    email.sendManagerInviteEmail.mockRejectedValueOnce(new Error('SMTP down'));
+
+    const result = await service.inviteManager({ name: 'Jean', email: 'jean@x.com' } as any);
+
+    expect(result.emailSent).toBe(false);
+    expect(audit.log).toHaveBeenCalledWith(
+      'admin.manager.invited',
+      'User',
+      'mgr-1',
+      expect.objectContaining({ emailSent: false }),
+    );
+  });
+});
+
+describe('AdminService.setManagerActive()', () => {
+  let prisma: ReturnType<typeof makePrisma>;
+  let audit: ReturnType<typeof makeAudit>;
+  let service: AdminService;
+
+  beforeEach(() => {
+    prisma = makePrisma();
+    audit = makeAudit();
+    service = new AdminService(prisma as any, makeCrypto() as any, makeEmail() as any, audit as any, makeAuthService() as any);
+  });
+
+  it('suspend/réactive un manager et journalise', async () => {
+    prisma.user.findUnique.mockResolvedValue({ id: 'mgr-1', role: 'MANAGER' });
+    prisma.user.update.mockResolvedValue({ id: 'mgr-1', isActive: false });
+
+    const result = await service.setManagerActive('mgr-1', false);
+
+    expect(prisma.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'mgr-1' }, data: { isActive: false } }),
+    );
+    expect(audit.log).toHaveBeenCalledWith('admin.manager.status', 'User', 'mgr-1', { isActive: false });
+    expect(result).toEqual({ id: 'mgr-1', isActive: false });
+  });
+
+  it("404 si l'utilisateur n'existe pas ou n'est pas MANAGER (MANAGER_NOT_FOUND)", async () => {
+    prisma.user.findUnique.mockResolvedValue({ id: 'client-1', role: 'CLIENT' });
+
+    await expect(service.setManagerActive('client-1', false)).rejects.toThrow(NotFoundException);
+    expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+});
+
+describe('AdminService.setManagerSubscription()', () => {
+  let prisma: ReturnType<typeof makePrisma>;
+  let audit: ReturnType<typeof makeAudit>;
+  let service: AdminService;
+
+  beforeEach(() => {
+    prisma = makePrisma();
+    audit = makeAudit();
+    service = new AdminService(prisma as any, makeCrypto() as any, makeEmail() as any, audit as any, makeAuthService() as any);
+  });
+
+  it('active/désactive manuellement l’abonnement et journalise (statut manuel V1)', async () => {
+    prisma.user.findUnique.mockResolvedValue({ id: 'mgr-1', role: 'MANAGER' });
+    prisma.user.update.mockResolvedValue({ id: 'mgr-1', subscriptionActive: true });
+
+    const result = await service.setManagerSubscription('mgr-1', true);
+
+    expect(prisma.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'mgr-1' }, data: { subscriptionActive: true } }),
+    );
+    expect(audit.log).toHaveBeenCalledWith('admin.manager.subscription', 'User', 'mgr-1', {
+      subscriptionActive: true,
+    });
+    expect(result).toEqual({ id: 'mgr-1', subscriptionActive: true });
+  });
+
+  it('404 si le manager est introuvable', async () => {
+    prisma.user.findUnique.mockResolvedValue(null);
+    await expect(service.setManagerSubscription('unknown', true)).rejects.toThrow(NotFoundException);
+  });
+});
+
+describe('AdminService.impersonateManager()', () => {
+  let prisma: ReturnType<typeof makePrisma>;
+  let audit: ReturnType<typeof makeAudit>;
+  let authService: ReturnType<typeof makeAuthService>;
+  let service: AdminService;
+
+  beforeEach(() => {
+    prisma = makePrisma();
+    audit = makeAudit();
+    authService = makeAuthService();
+    service = new AdminService(prisma as any, makeCrypto() as any, makeEmail() as any, audit as any, authService as any);
+  });
+
+  it('émet un token MANAGER pour le compte ciblé et journalise avec l’id Admin', async () => {
+    prisma.user.findUnique.mockResolvedValue({ id: 'mgr-1', email: 'mgr1@x.com', role: 'MANAGER' });
+
+    const result = await service.impersonateManager('admin-1', 'mgr-1');
+
+    expect(authService.generateClientToken).toHaveBeenCalledWith({
+      id: 'mgr-1',
+      email: 'mgr1@x.com',
+      role: 'MANAGER',
+    });
+    expect(audit.log).toHaveBeenCalledWith('admin.impersonate.start', 'User', 'mgr-1', { adminId: 'admin-1' });
+    expect(result).toEqual({ accessToken: 'a', refreshToken: 'r' });
+  });
+
+  it("404 si la cible n'existe pas ou n'est pas MANAGER (MANAGER_NOT_FOUND)", async () => {
+    prisma.user.findUnique.mockResolvedValue({ id: 'client-1', role: 'CLIENT' });
+
+    await expect(service.impersonateManager('admin-1', 'client-1')).rejects.toThrow(NotFoundException);
+    expect(authService.generateClientToken).not.toHaveBeenCalled();
   });
 });

@@ -197,3 +197,48 @@ describe('EmailService.sendTicketReadyEmail() — transport Resend (prod, RESEND
     ).resolves.toBeUndefined();
   });
 });
+
+describe('EmailService.sendManagerInviteEmail()', () => {
+  beforeEach(() => {
+    sendMailMock.mockClear();
+    createTransportMock.mockClear();
+    resendSendMock.mockClear();
+    delete process.env.RESEND_API_KEY;
+    process.env.SMTP_HOST = 'localhost';
+    process.env.SMTP_PORT = '1025';
+    process.env.SMTP_FROM = 'noreply@fluid-events.dev';
+  });
+
+  it("envoie un email avec le lien d'invitation", async () => {
+    const { EmailService } = await import('./email.service');
+    const service = new EmailService();
+
+    await service.sendManagerInviteEmail({
+      to: 'manager@example.com',
+      name: 'Jean Dupont',
+      inviteUrl: 'http://localhost:3000/auth/set-password?token=abc123',
+    });
+
+    expect(sendMailMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'manager@example.com',
+        subject: 'Invitation à rejoindre Fluid Events',
+        html: expect.stringContaining('http://localhost:3000/auth/set-password?token=abc123'),
+      }),
+    );
+  });
+
+  it("propage l'erreur à l'appelant si l'envoi échoue (contrairement à sendTicketReadyEmail)", async () => {
+    sendMailMock.mockRejectedValueOnce(new Error('SMTP down'));
+    const { EmailService } = await import('./email.service');
+    const service = new EmailService();
+
+    await expect(
+      service.sendManagerInviteEmail({
+        to: 'manager@example.com',
+        name: 'Jean',
+        inviteUrl: 'http://localhost:3000/auth/set-password?token=abc123',
+      }),
+    ).rejects.toThrow('SMTP down');
+  });
+});

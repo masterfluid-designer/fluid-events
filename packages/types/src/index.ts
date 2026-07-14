@@ -19,6 +19,20 @@ export const Role = {
 
 export type Role = (typeof Role)[keyof typeof Role];
 
+/**
+ * Intent propagé via le `state` OAuth Google (CDC §7.4, décision produit
+ * 2026-07-14) : `buy` = tunnel d'achat client existant, `become_manager` =
+ * inscription self-service Manager depuis la page d'accueil du SaaS.
+ * N'a d'effet que sur la CRÉATION d'un compte — jamais sur un compte existant
+ * (pas d'escalade de privilège silencieuse via ce paramètre).
+ */
+export const GoogleAuthIntent = {
+  BUY: 'buy',
+  BECOME_MANAGER: 'become_manager',
+} as const;
+
+export type GoogleAuthIntent = (typeof GoogleAuthIntent)[keyof typeof GoogleAuthIntent];
+
 export const EventStatus = {
   DRAFT: 'DRAFT',
   PUBLISHED: 'PUBLISHED',
@@ -338,6 +352,13 @@ export const ErrorCodes = {
   WHATSAPP_NO_PHONE: 'WHATSAPP_NO_PHONE',
   WHATSAPP_PHONE_INVALID: 'WHATSAPP_PHONE_INVALID',
   WHATSAPP_SEND_FAILED: 'WHATSAPP_SEND_FAILED',
+  // Comptes (invitation Manager, impersonation — décision produit 2026-07-14)
+  EMAIL_ALREADY_EXISTS: 'EMAIL_ALREADY_EXISTS',
+  INVITE_TOKEN_INVALID: 'INVITE_TOKEN_INVALID',
+  INVITE_TOKEN_EXPIRED: 'INVITE_TOKEN_EXPIRED',
+  MANAGER_NOT_FOUND: 'MANAGER_NOT_FOUND',
+  NOT_IMPERSONATING: 'NOT_IMPERSONATING',
+  USER_NOT_FOUND: 'USER_NOT_FOUND',
 } as const;
 
 export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes];

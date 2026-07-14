@@ -1,4 +1,5 @@
 import { DashboardSidebar } from '@/components/dashboard/sidebar';
+import { ImpersonationBanner } from '@/components/dashboard/impersonation-banner';
 
 /**
  * Layout partagé des dashboards (CDC §14.1 — routes protégées).
@@ -15,6 +16,7 @@ export default function DashboardLayout({
     <div className="flex min-h-svh bg-background">
       <DashboardSidebar />
       <div className="flex flex-1 flex-col overflow-hidden">
+        <ImpersonationBanner />
         <main className="flex-1 overflow-y-auto">{children}</main>
       </div>
     </div>
