@@ -13,6 +13,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
+import { SalesTrendChart, type DailySalesPoint } from '@/components/ui/sales-trend-chart';
 import { api } from '@/lib/api';
 import { PaymentConfigPanel } from './payment-config-panel';
 
@@ -27,6 +28,7 @@ interface Overview {
   revenue30d: number;
   currency: string;
   ticketsSold: number;
+  salesOverTime: DailySalesPoint[];
   managers: Array<{
     name: string;
     email: string;
@@ -128,6 +130,16 @@ export default function AdminOverviewPage() {
             </div>
           ))
         )}
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Ventes dans le temps</CardTitle>
+          <CardDescription>Revenus confirmés par jour, toute la plateforme, 30 derniers jours</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <SalesTrendChart data={overview.salesOverTime} currency={overview.currency} />
+        </CardContent>
       </Card>
 
       <Card>

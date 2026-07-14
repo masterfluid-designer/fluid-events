@@ -18,7 +18,10 @@ function makePrisma() {
   return {
     event: { count: vi.fn().mockResolvedValue(0), findUnique: vi.fn().mockResolvedValue(null) },
     user: { count: vi.fn().mockResolvedValue(0), findMany: vi.fn().mockResolvedValue([]) },
-    order: { aggregate: vi.fn().mockResolvedValue({ _sum: { totalAmount: null } }) },
+    order: {
+      aggregate: vi.fn().mockResolvedValue({ _sum: { totalAmount: null } }),
+      findMany: vi.fn().mockResolvedValue([]),
+    },
     orderItem: { count: vi.fn().mockResolvedValue(0) },
     paymentProviderConfig: {
       findMany: vi.fn().mockResolvedValue([]),
@@ -111,6 +114,29 @@ describe('AdminService.getOverview()', () => {
     const args = prisma.order.aggregate.mock.calls[0][0];
     expect(args.where.status).toBe('PAID');
     expect(args.where.paidAt.gte).toBeInstanceOf(Date);
+  });
+
+  it('agrège la tendance des ventes plateforme sur 30 jours, tous événements confondus', async () => {
+    const today = new Date();
+    prisma.order.findMany.mockResolvedValue([
+      { paidAt: today, totalAmount: 15000, items: [{ id: 'oi-1' }] },
+      { paidAt: today, totalAmount: 6000, items: [{ id: 'oi-2' }] },
+    ]);
+
+    const result = await service.getOverview();
+
+    expect(result.salesOverTime).toHaveLength(30);
+    expect(result.salesOverTime[29]).toEqual({
+      date: today.toISOString().slice(0, 10),
+      revenue: 21000,
+      ticketsSold: 2,
+    });
+  });
+
+  it('salesOverTime est zero-fillé (jamais de trou) sur une plateforme sans vente récente', async () => {
+    const result = await service.getOverview();
+    expect(result.salesOverTime).toHaveLength(30);
+    expect(result.salesOverTime.every((b) => b.revenue === 0 && b.ticketsSold === 0)).toBe(true);
   });
 });
 

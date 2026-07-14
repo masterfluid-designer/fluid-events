@@ -198,6 +198,7 @@ describe('EventsService.getMyEventOverview()', () => {
   });
 
   it('agrège revenus, ventes et scans depuis les vraies commandes payées', async () => {
+    const today = new Date();
     prisma.event.findUnique.mockResolvedValue({
       id: 'ev-1',
       title: 'Concert',
@@ -214,15 +215,21 @@ describe('EventsService.getMyEventOverview()', () => {
         },
       ],
       paymentProviderConfigs: [{ provider: 'KKIAPAY' }],
+      tickets: [
+        { name: 'VIP Or', stock: 10, stockSold: 5 },
+        { name: 'Standard', stock: 100, stockSold: 20 },
+      ],
     });
     prisma.order.findMany.mockResolvedValue([
       {
+        paidAt: today,
         items: [
           { unitPrice: 15000, ticketId: 'tk-vip', ticket: { name: 'VIP Or' } },
           { unitPrice: 6000, ticketId: 'tk-std', ticket: { name: 'Standard' } },
         ],
       },
       {
+        paidAt: today,
         items: [{ unitPrice: 15000, ticketId: 'tk-vip', ticket: { name: 'VIP Or' } }],
       },
     ]);
@@ -241,6 +248,17 @@ describe('EventsService.getMyEventOverview()', () => {
       { name: 'Entrée Nord', scans: 2, lastScanAt: new Date('2026-07-01T11:00:00Z') },
     ]);
     expect(result.paymentStatus).toEqual({ configured: true, provider: 'KKIAPAY' });
+    expect(result.fillRateByTicketType).toEqual([
+      { name: 'VIP Or', stock: 10, stockSold: 5, fillRate: 50 },
+      { name: 'Standard', stock: 100, stockSold: 20, fillRate: 20 },
+    ]);
+    // Les deux commandes payées aujourd'hui sont regroupées dans le dernier bucket.
+    expect(result.salesOverTime).toHaveLength(30);
+    expect(result.salesOverTime[29]).toEqual({
+      date: today.toISOString().slice(0, 10),
+      revenue: 36000,
+      ticketsSold: 3,
+    });
   });
 
   it("404 si le manager n'a pas d'événement", async () => {
@@ -256,12 +274,32 @@ describe('EventsService.getMyEventOverview()', () => {
       status: 'PUBLISHED',
       scanners: [],
       paymentProviderConfigs: [],
+      tickets: [],
     });
     prisma.order.findMany.mockResolvedValue([]);
 
     const result = await service.getMyEventOverview('mgr-1');
 
     expect(result.paymentStatus).toEqual({ configured: false, provider: null });
+  });
+
+  it('fillRate=0 pour un billet à stock 0 (évite une division par zéro)', async () => {
+    prisma.event.findUnique.mockResolvedValue({
+      id: 'ev-1',
+      title: 'Concert',
+      slug: 'concert',
+      status: 'PUBLISHED',
+      scanners: [],
+      paymentProviderConfigs: [],
+      tickets: [{ name: 'Épuisé au setup', stock: 0, stockSold: 0 }],
+    });
+    prisma.order.findMany.mockResolvedValue([]);
+
+    const result = await service.getMyEventOverview('mgr-1');
+
+    expect(result.fillRateByTicketType).toEqual([
+      { name: 'Épuisé au setup', stock: 0, stockSold: 0, fillRate: 0 },
+    ]);
   });
 });
 

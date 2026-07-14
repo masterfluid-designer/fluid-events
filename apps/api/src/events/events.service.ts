@@ -6,6 +6,10 @@ import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { ErrorCodes } from '@saas-events/types';
 import { isAllowedImageUrl } from '../storage/image-whitelist.util';
+import { bucketSalesByDay } from '../common/analytics.util';
+
+/** Fenêtre de la série temporelle "ventes dans le temps" (Analytics, 2026-07-14). */
+const SALES_TREND_DAYS = 30;
 
 /** Code d'erreur Prisma — violation de contrainte d'unicité. */
 const UNIQUE_VIOLATION = 'P2002';
@@ -144,8 +148,10 @@ export class EventsService {
 
   /**
    * Statistiques réelles de l'événement du manager : revenus, billets vendus,
-   * répartition par type de billet, activité par scanner. Calculées à la
-   * volée (V1 — pas de table d'agrégats dédiée, `EventAnalytics` non branchée).
+   * répartition par type de billet, activité par scanner, tendance des
+   * ventes sur 30 jours et taux de remplissage par type de billet (Analytics,
+   * décision produit 2026-07-14). Calculées à la volée (V1 — pas de table
+   * d'agrégats dédiée, `EventAnalytics` non branchée).
    */
   async getMyEventOverview(managerId: string) {
     const event = await this.prisma.event.findUnique({
@@ -156,6 +162,7 @@ export class EventsService {
         // supersède BUSINESS.md §6) — le manager ne voit qu'un statut actif/
         // inactif, jamais les identifiants (RULES.md §9).
         paymentProviderConfigs: { where: { isActive: true }, select: { provider: true } },
+        tickets: { select: { name: true, stock: true, stockSold: true }, orderBy: { createdAt: 'asc' } },
       },
     });
     if (!event) {
@@ -168,6 +175,7 @@ export class EventsService {
     const paidOrders = await this.prisma.order.findMany({
       where: { eventId: event.id, status: 'PAID' },
       select: {
+        paidAt: true,
         items: { select: { unitPrice: true, ticketId: true, ticket: { select: { name: true } } } },
       },
     });
@@ -192,6 +200,22 @@ export class EventsService {
       }
     }
 
+    const salesOverTime = bucketSalesByDay(
+      paidOrders.map((order) => ({
+        paidAt: order.paidAt,
+        amount: order.items.reduce((sum, item) => sum + Number(item.unitPrice), 0),
+        itemCount: order.items.length,
+      })),
+      SALES_TREND_DAYS,
+    );
+
+    const fillRateByTicketType = event.tickets.map((t) => ({
+      name: t.name,
+      stock: t.stock,
+      stockSold: t.stockSold,
+      fillRate: t.stock > 0 ? Math.round((t.stockSold / t.stock) * 100) : 0,
+    }));
+
     const scansByScanner = event.scanners.map((scanner) => {
       const validLogs = scanner.logs.filter((log) => log.result === 'VALID');
       const lastScanAt = validLogs.reduce<Date | null>(
@@ -207,6 +231,8 @@ export class EventsService {
       currency: 'XOF',
       ticketsSold,
       revenueByTicketType: Array.from(revenueByTicket.values()),
+      salesOverTime,
+      fillRateByTicketType,
       scansByScanner,
       paymentStatus: {
         configured: event.paymentProviderConfigs.length > 0,

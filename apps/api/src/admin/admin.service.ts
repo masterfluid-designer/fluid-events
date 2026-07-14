@@ -3,8 +3,12 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CryptoService } from '../common/crypto.service';
 import { SUPPORTED_PAYMENT_PROVIDERS } from '../common/supported-payment-providers';
+import { bucketSalesByDay } from '../common/analytics.util';
 import { ErrorCodes, PaymentProviderType } from '@saas-events/types';
 import { UpsertPaymentConfigDto } from './dto/upsert-payment-config.dto';
+
+/** Fenêtre de la série temporelle "ventes dans le temps" (Analytics, 2026-07-14). */
+const SALES_TREND_DAYS = 30;
 
 /** Champs jamais renvoyés au client — secrets chiffrés (RULES.md §9). */
 const SAFE_CONFIG_SELECT = {
@@ -32,7 +36,8 @@ export class AdminService {
   async getOverview() {
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
-    const [activeEvents, managersCount, revenueAgg, ticketsSold, managers, recentLogs] = await Promise.all([
+    const [activeEvents, managersCount, revenueAgg, ticketsSold, recentPaidOrders, managers, recentLogs] =
+      await Promise.all([
       this.prisma.event.count({ where: { status: 'PUBLISHED' } }),
       this.prisma.user.count({ where: { role: 'MANAGER' } }),
       this.prisma.order.aggregate({
@@ -40,6 +45,13 @@ export class AdminService {
         _sum: { totalAmount: true },
       }),
       this.prisma.orderItem.count({ where: { order: { status: 'PAID' } } }),
+      // Tendance plateforme (Analytics, décision produit 2026-07-14) — tous
+      // événements confondus, contrairement à EventsService.getMyEventOverview
+      // qui filtre sur un seul événement (1 Manager = 1 Event en V1).
+      this.prisma.order.findMany({
+        where: { status: 'PAID', paidAt: { gte: thirtyDaysAgo } },
+        select: { paidAt: true, totalAmount: true, items: { select: { id: true } } },
+      }),
       this.prisma.user.findMany({
         where: { role: 'MANAGER' },
         select: {
@@ -67,12 +79,22 @@ export class AdminService {
       }),
     ]);
 
+    const salesOverTime = bucketSalesByDay(
+      recentPaidOrders.map((order) => ({
+        paidAt: order.paidAt,
+        amount: Number(order.totalAmount),
+        itemCount: order.items.length,
+      })),
+      SALES_TREND_DAYS,
+    );
+
     return {
       activeEvents,
       managersCount,
       revenue30d: Number(revenueAgg._sum.totalAmount ?? 0),
       currency: 'XOF',
       ticketsSold,
+      salesOverTime,
       managers: managers.map((m) => ({
         name: m.name ?? 'Sans nom',
         email: m.email,

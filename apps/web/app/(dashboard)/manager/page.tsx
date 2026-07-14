@@ -14,6 +14,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
+import { SalesTrendChart, type DailySalesPoint } from '@/components/ui/sales-trend-chart';
 import { api, apiPatch, ApiError } from '@/lib/api';
 
 /**
@@ -28,6 +29,8 @@ interface Overview {
   currency: string;
   ticketsSold: number;
   revenueByTicketType: Array<{ name: string; revenue: number; count: number }>;
+  salesOverTime: DailySalesPoint[];
+  fillRateByTicketType: Array<{ name: string; stock: number; stockSold: number; fillRate: number }>;
   scansByScanner: Array<{ name: string; scans: number; lastScanAt: string | null }>;
   paymentStatus: { configured: boolean; provider: string | null };
 }
@@ -192,6 +195,45 @@ export default function ManagerDashboardPage() {
                   <div
                     className="h-full rounded-full bg-primary"
                     style={{ width: `${Math.round((row.revenue / maxTicketRevenue) * 100)}%` }}
+                  />
+                </div>
+              </div>
+            ))
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Ventes dans le temps</CardTitle>
+          <CardDescription>Revenus confirmés par jour, 30 derniers jours</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <SalesTrendChart data={overview.salesOverTime} currency={overview.currency} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Taux de remplissage</CardTitle>
+          <CardDescription>Billets vendus par rapport au stock configuré</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {overview.fillRateByTicketType.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Aucun type de billet configuré.</p>
+          ) : (
+            overview.fillRateByTicketType.map((row) => (
+              <div key={row.name}>
+                <div className="mb-1 flex items-center justify-between text-sm">
+                  <span className="font-medium">{row.name}</span>
+                  <span className="text-muted-foreground">
+                    {row.stockSold} / {row.stock} • {row.fillRate}%
+                  </span>
+                </div>
+                <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                  <div
+                    className={`h-full rounded-full ${row.fillRate >= 90 ? 'bg-destructive' : 'bg-accent-terracotta dark:bg-accent-terracotta-dark'}`}
+                    style={{ width: `${Math.min(row.fillRate, 100)}%` }}
                   />
                 </div>
               </div>
