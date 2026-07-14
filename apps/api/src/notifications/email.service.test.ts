@@ -1,22 +1,29 @@
 /**
  * Tests unitaires — EmailService
- * nodemailer mocké : vérifie le contenu envoyé et la résilience (jamais de
- * throw même si le transport échoue — RULES.md, ne doit jamais bloquer la
- * génération du billet).
+ * Deux transports mockés (nodemailer et Resend) : vérifie le choix du
+ * transport selon RESEND_API_KEY, le contenu envoyé, et la résilience
+ * (jamais de throw même si l'envoi échoue — RULES.md, ne doit jamais
+ * bloquer la génération du billet).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const sendMailMock = vi.fn().mockResolvedValue({ messageId: 'fake-id' });
 const createTransportMock = vi.fn().mockReturnValue({ sendMail: sendMailMock });
+const resendSendMock = vi.fn().mockResolvedValue({ data: { id: 'resend-id' }, error: null });
 
 vi.mock('nodemailer', () => ({
   default: { createTransport: (...args: unknown[]) => createTransportMock(...args) },
 }));
+vi.mock('resend', () => ({
+  Resend: vi.fn().mockImplementation(() => ({ emails: { send: (...args: unknown[]) => resendSendMock(...args) } })),
+}));
 
-describe('EmailService.sendTicketReadyEmail()', () => {
+describe('EmailService.sendTicketReadyEmail() — transport SMTP (dev, sans RESEND_API_KEY)', () => {
   beforeEach(() => {
     sendMailMock.mockClear();
     createTransportMock.mockClear();
+    resendSendMock.mockClear();
+    delete process.env.RESEND_API_KEY;
     process.env.SMTP_HOST = 'localhost';
     process.env.SMTP_PORT = '1025';
     process.env.SMTP_FROM = 'noreply@fluid-events.dev';
@@ -44,6 +51,7 @@ describe('EmailService.sendTicketReadyEmail()', () => {
     );
     expect(sendMailMock.mock.calls[0][0].html).toContain('VIP Or');
     expect(sendMailMock.mock.calls[0][0].html).toContain('ORD-1');
+    expect(resendSendMock).not.toHaveBeenCalled();
   });
 
   it('inclut un lien par billet quand la commande contient plusieurs OrderItem', async () => {
@@ -117,5 +125,75 @@ describe('EmailService.sendTicketReadyEmail()', () => {
         auth: { user: 'user', pass: 'pass' },
       }),
     );
+  });
+});
+
+describe('EmailService.sendTicketReadyEmail() — transport Resend (prod, RESEND_API_KEY présent)', () => {
+  beforeEach(() => {
+    sendMailMock.mockClear();
+    createTransportMock.mockClear();
+    resendSendMock.mockClear();
+    resendSendMock.mockResolvedValue({ data: { id: 'resend-id' }, error: null });
+    process.env.RESEND_API_KEY = 're_test_123';
+    process.env.SMTP_FROM = 'noreply@fluid-events.dev';
+  });
+
+  it('utilise Resend plutôt que nodemailer quand RESEND_API_KEY est configuré', async () => {
+    const { EmailService } = await import('./email.service');
+    const service = new EmailService();
+
+    await service.sendTicketReadyEmail({
+      to: 'client@example.com',
+      clientName: 'Jean Dupont',
+      eventTitle: 'Concert FESTA 2026',
+      orderNumber: 'ORD-1',
+      items: [{ ticketName: 'VIP Or', qrCodeUrl: 'http://storage/tickets/oi-1.pdf' }],
+    });
+
+    expect(resendSendMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        from: 'noreply@fluid-events.dev',
+        to: 'client@example.com',
+        subject: 'Vos billets pour Concert FESTA 2026',
+        html: expect.stringContaining('http://storage/tickets/oi-1.pdf'),
+      }),
+    );
+    expect(createTransportMock).not.toHaveBeenCalled();
+    expect(sendMailMock).not.toHaveBeenCalled();
+  });
+
+  it("ne relance jamais d'exception si Resend renvoie { error } (best-effort)", async () => {
+    resendSendMock.mockResolvedValueOnce({
+      data: null,
+      error: { message: 'Domain not verified', name: 'validation_error' },
+    });
+    const { EmailService } = await import('./email.service');
+    const service = new EmailService();
+
+    await expect(
+      service.sendTicketReadyEmail({
+        to: 'client@example.com',
+        clientName: 'Jean',
+        eventTitle: 'Concert',
+        orderNumber: 'ORD-1',
+        items: [{ ticketName: 'VIP', qrCodeUrl: 'http://storage/x.pdf' }],
+      }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("ne relance jamais d'exception si l'appel Resend rejette (best-effort)", async () => {
+    resendSendMock.mockRejectedValueOnce(new Error('network down'));
+    const { EmailService } = await import('./email.service');
+    const service = new EmailService();
+
+    await expect(
+      service.sendTicketReadyEmail({
+        to: 'client@example.com',
+        clientName: 'Jean',
+        eventTitle: 'Concert',
+        orderNumber: 'ORD-1',
+        items: [{ ticketName: 'VIP', qrCodeUrl: 'http://storage/x.pdf' }],
+      }),
+    ).resolves.toBeUndefined();
   });
 });
