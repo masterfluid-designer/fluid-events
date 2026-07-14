@@ -23,7 +23,7 @@
 | Event Builder | ✅ `GET /api/builder/mine` + `PUT /api/builder/:eventId/blocks` branchés bout-en-bout (ownership + validation Zod + concurrence optimiste + ajout/édition/réordonnancement/suppression de blocs + color picker HEX + upload d'image whitelisté) ; page publique `/e/[slug]` rend réellement les blocs sauvegardés (`BlockRenderer`, fallback sur l'ancien template statique si aucun bloc). Testé en conditions réelles de bout en bout (backend + navigateur réel) ; reste à faire : preview iframe dans le Builder, drag & drop |
 | Auth | ✅ Google OAuth + Scanner login + login email/password générique + JWT événementiel + RBAC + auth par cookie httpOnly, testé en conditions réelles (voir RULES.md §13-14) |
 | Dashboard | ✅ Client (Mes billets), Manager (overview/billets/participants/builder) et Admin (vue plateforme) branchés sur données réelles ; page "commandes" client encore mockée |
-| Notifications | ✅ `PhoneService` (validation E.164) ; Email/WhatsApp à coder |
+| Notifications | ✅ `PhoneService` (validation E.164) + `EmailService` (nodemailer/SMTP, email "billets prêts" après génération PDF, 2026-07-14) ; WhatsApp à coder |
 | Design billet | ✅ QR generation + validation + `buildHtml` sanitisé |
 | Analytics | ❌ Pas commencé |
 | Storage S3 | ✅ `StorageService` S3-compatible (RustFS/MinIO dev, Supabase Storage prod), bucket public-read auto-provisionné |
@@ -114,10 +114,12 @@
 
 ### Phase 5 — Polish & Prod 🔵
 
+- [x] **Notifications Email** (2026-07-14) — `EmailService` (`apps/api/src/notifications/email.service.ts`, `nodemailer`, déjà une dépendance non utilisée jusqu'ici) envoie un email "billets prêts" (lien de téléchargement PDF par billet) une fois que **tous** les `OrderItem` d'une commande ont leur PDF généré — un seul email récapitulatif par commande, jamais un par billet (`PdfProcessor.maybeSendTicketEmail`, re-vérifie les billets frères via une requête Prisma dédiée à chaque job terminé). Best-effort volontaire : `EmailService` avale ses propres erreurs (log seulement) — un échec d'envoi ne doit jamais faire échouer la génération du billet, toujours téléchargeable depuis le dashboard client indépendamment de l'email. SMTP configuré via les variables d'env déjà présentes (`SMTP_HOST/PORT/USER/PASSWORD/FROM/SECURE`, Mailpit en dev — `docker-compose.yml`, interface web http://localhost:8025).
+  - Testé en conditions réelles : `nodemailer` connecté au vrai conteneur Mailpit (`localhost:1025`), email reçu et vérifié dans l'interface Mailpit (sujet, destinataire, liens de téléchargement, "HTML Check" 100%). La chaîne complète paiement→PDF→email n'a **pas** pu être testée de bout en bout dans cet environnement : Puppeteer/Chromium échoue au lancement en dev natif Windows (`TimeoutError: Timed out ... waiting for the WS endpoint URL`, confirmé via un job BullMQ réel poussé dans Redis) — limitation d'environnement préexistante (Chromium fonctionne probablement dans le conteneur Docker `api` du `docker-compose.yml`, pas sur l'hôte Windows natif utilisé pour le dev au quotidien), pas une régression introduite ici. La logique de déclenchement (email envoyé seulement quand tous les billets d'une commande sont prêts, jamais avant, un seul email récapitulatif) est vérifiée par 5 tests dédiés dans `pdf.processor.test.ts` (mocks Prisma/Puppeteer).
 - [ ] Docker compose dev complet
 - [ ] Analytics
 - [ ] WhatsApp (Meta Cloud API)
-- [ ] Worker PDF Puppeteer
+- [ ] Worker PDF Puppeteer — **fonctionne en conditions réelles à une date antérieure** (voir Phase 2 : "PDF de 56 Ko généré, uploadé et téléchargeable publiquement") mais échoue désormais au lancement Chromium sur cet environnement de dev natif Windows (voir ci-dessus) — à investiguer (probablement un problème d'environnement local, pas de régression du code applicatif).
 - [ ] Tests E2E
 - [ ] Déploiement production
 

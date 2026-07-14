@@ -4,6 +4,7 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { TicketDesignModule } from '../ticket-design/ticket-design.module';
 import { StorageModule } from '../storage/storage.module';
 import { AuthModule } from '../auth/auth.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { PdfQueueService, TICKET_PDF_QUEUE } from './pdf-queue.service';
 import { PdfProcessor } from './pdf.processor';
 
@@ -14,6 +15,7 @@ import { PdfProcessor } from './pdf.processor';
     TicketDesignModule,
     StorageModule,
     AuthModule, // exporte AuditService, réutilisé par PdfProcessor
+    NotificationsModule, // exporte EmailService — email "billets prêts"
   ],
   providers: [PdfQueueService, PdfProcessor],
   exports: [PdfQueueService],

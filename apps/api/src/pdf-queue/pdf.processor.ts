@@ -7,6 +7,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { TicketDesignService } from '../ticket-design/ticket-design.service';
 import { StorageService } from '../storage/storage.service';
 import { AuditService } from '../common/audit.service';
+import { EmailService } from '../notifications/email.service';
 import { TICKET_PDF_QUEUE, GENERATE_PDF_JOB, GeneratePdfJobData } from './pdf-queue.service';
 
 /**
@@ -25,6 +26,7 @@ export class PdfProcessor {
     private readonly ticketDesignService: TicketDesignService,
     private readonly storageService: StorageService,
     private readonly audit: AuditService,
+    private readonly emailService: EmailService,
   ) {}
 
   @Process(GENERATE_PDF_JOB)
@@ -39,6 +41,7 @@ export class PdfProcessor {
         ticket: { select: { name: true, designImageUrl: true, designBgColor: true } },
         order: {
           select: {
+            id: true,
             orderNumber: true,
             event: { select: { title: true } },
             client: { select: { name: true, phone: true } },
@@ -79,6 +82,42 @@ export class PdfProcessor {
 
     await this.audit.log('ticket.pdf.generated', 'OrderItem', orderItem.id, { url });
     this.logger.log(`PDF généré pour OrderItem ${orderItem.id} → ${url}`);
+
+    await this.maybeSendTicketEmail(orderItem.order.id);
+  }
+
+  /**
+   * Envoie l'email "billets prêts" une fois que TOUS les OrderItem de la
+   * commande ont leur PDF généré (une commande peut contenir plusieurs
+   * billets, chacun généré par un job séparé) — jamais un email par billet,
+   * un seul email récapitulatif par commande. Best-effort : ne fait jamais
+   * échouer le job PDF (EmailService avale déjà ses propres erreurs).
+   */
+  private async maybeSendTicketEmail(orderId: string): Promise<void> {
+    const order = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      select: {
+        orderNumber: true,
+        event: { select: { title: true } },
+        client: { select: { name: true, email: true } },
+        items: { select: { qrCodeUrl: true, ticket: { select: { name: true } } } },
+      },
+    });
+    if (!order) return;
+
+    const allReady = order.items.every((item) => item.qrCodeUrl);
+    if (!allReady) return;
+
+    await this.emailService.sendTicketReadyEmail({
+      to: order.client.email,
+      clientName: order.client.name ?? 'Client',
+      eventTitle: order.event.title,
+      orderNumber: order.orderNumber,
+      items: order.items.map((item) => ({
+        ticketName: item.ticket.name,
+        qrCodeUrl: item.qrCodeUrl as string,
+      })),
+    });
   }
 
   private async renderPdf(html: string): Promise<Buffer> {
