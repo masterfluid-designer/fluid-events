@@ -21,7 +21,11 @@
 
   /* Fluid Events palette — chaud, noir & blanc, accent terracotta unique */
   --color-stroke: #e7e4de;
-  --color-strokedark: #2e2c29;
+  /* Bordures/traits (Card, headers, sidebar...) trop marqués en mode sombre
+     (retour utilisateur 2026-07-17, sur les 6 thèmes) — alpha 20% plutôt
+     qu'une couleur pleine, pour que le trait se fonde dans le fond au lieu
+     de trancher dessus. Jamais en clair (--color-stroke reste plein). */
+  --color-strokedark: #2e2c2933;
   --color-hoverdark: #24221f;
   --color-titlebg: #f3e6d8;
   --color-titlebg2: #ffeac2;
@@ -229,15 +233,6 @@
   select {
     @apply cursor-pointer transition-colors hover:border-accent-terracotta dark:hover:border-accent-terracotta-dark;
   }
-
-  /* Opacité des traits d'icônes (retour utilisateur 2026-07-17, après deux
-     essais jugés trop subtils : 1.5/0.88 puis 1.25/0.72) — 20% sur toute
-     l'app, clair et sombre, pas seulement en sombre. `stroke-opacity` plutôt
-     que `opacity` : les icônes lucide-react sont fill="none" (que du trait),
-     mais reste la propriété correcte si un icône a un jour un fill. */
-  svg.lucide {
-    stroke-opacity: 0.2;
-  }
 }
 
 /* ── Utilities ── */
@@ -374,7 +369,7 @@
   --color-socialicon: oklch(88% 0.012 228);
 }
 [data-color-theme="ocean"].dark {
-  --color-strokedark: oklch(29% 0.02 232);
+  --color-strokedark: oklch(29% 0.02 232 / 0.2);
   --color-hoverdark: oklch(24% 0.018 233);
   --color-titlebgdark: oklch(27% 0.02 228);
   --color-btndark: oklch(19% 0.016 235);
@@ -410,7 +405,7 @@
   --color-socialicon: oklch(88% 0.02 148);
 }
 [data-color-theme="emeraude"].dark {
-  --color-strokedark: oklch(29% 0.02 152);
+  --color-strokedark: oklch(29% 0.02 152 / 0.2);
   --color-hoverdark: oklch(24% 0.018 153);
   --color-titlebgdark: oklch(27% 0.02 150);
   --color-btndark: oklch(19% 0.016 155);
@@ -446,7 +441,7 @@
   --color-socialicon: oklch(88% 0.018 306);
 }
 [data-color-theme="aubergine"].dark {
-  --color-strokedark: oklch(28% 0.024 306);
+  --color-strokedark: oklch(28% 0.024 306 / 0.2);
   --color-hoverdark: oklch(23% 0.02 305);
   --color-titlebgdark: oklch(26% 0.024 304);
   --color-btndark: oklch(18% 0.018 302);
@@ -482,7 +477,7 @@
   --color-socialicon: oklch(88% 0.024 84);
 }
 [data-color-theme="ambre"].dark {
-  --color-strokedark: oklch(29% 0.022 80);
+  --color-strokedark: oklch(29% 0.022 80 / 0.2);
   --color-hoverdark: oklch(24% 0.02 78);
   --color-titlebgdark: oklch(27% 0.022 76);
   --color-btndark: oklch(19% 0.018 65);
@@ -518,7 +513,7 @@
   --color-socialicon: oklch(88% 0.008 260);
 }
 [data-color-theme="ardoise"].dark {
-  --color-strokedark: oklch(28% 0.012 258);
+  --color-strokedark: oklch(28% 0.012 258 / 0.2);
   --color-hoverdark: oklch(23% 0.01 258);
   --color-titlebgdark: oklch(26% 0.012 256);
   --color-btndark: oklch(18% 0.008 255);
