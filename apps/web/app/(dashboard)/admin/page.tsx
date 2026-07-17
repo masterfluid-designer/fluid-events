@@ -118,7 +118,9 @@ export default function AdminOverviewPage() {
                   {m.eventId && (
                     <Button
                       variant="outline"
-                      size="sm"
+                      size="icon"
+                      title="Configurer le paiement"
+                      aria-label="Configurer le paiement"
                       onClick={() => setExpandedEventId(expandedEventId === m.eventId ? null : m.eventId)}
                     >
                       <Settings2 className="size-3.5" />

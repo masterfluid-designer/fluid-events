@@ -202,6 +202,44 @@
   ::selection {
     background: oklch(58% 0.15 45 / 0.25);
   }
+
+  /* Filet de sécurité clavier/accessibilité (2026-07-17) — l'app mélange le
+     composant Button (déjà doté d'un focus-visible cohérent) avec des
+     <button>/<a>/<select> bruts un peu partout (panneaux de config, pickers,
+     Builder...) qui n'avaient parfois AUCUN retour visuel au clavier. Une
+     seule règle ici couvre tout le monde plutôt que de corriger fichier par
+     fichier — la couleur de l'anneau suit --color-ring, donc le thème de
+     couleur actif (page Apparence) et le mode sombre. `:focus-visible`
+     seulement (pas `:focus`) pour ne jamais afficher l'anneau sur un simple
+     clic souris, uniquement à la navigation clavier.  */
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible,
+  [role='button']:focus-visible,
+  [tabindex]:focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+  }
+
+  /* Les <select> bruts (panneaux de config paiement/Builder) n'avaient pas
+     d'état hover — cohérent avec le composant Input (déjà doté d'un hover
+     implicite via le shadow/border). */
+  select {
+    @apply cursor-pointer transition-colors hover:border-accent-terracotta dark:hover:border-accent-terracotta-dark;
+  }
+
+  /* Traits d'icônes trop marqués en mode sombre, quel que soit le thème de
+     couleur (retour utilisateur 2026-07-17) — lucide-react rend un
+     stroke-width="2" fixe pensé pour un fond clair ; sur les fonds
+     quasi-noirs des thèmes ici, ce même trait lit plus lourd/contrasté à
+     l'œil. Allégé uniquement en sombre (jamais en clair, où l'épaisseur
+     d'origine reste correcte) — trait plus fin + légère baisse d'opacité. */
+  .dark svg.lucide {
+    stroke-width: 1.5;
+    opacity: 0.88;
+  }
 }
 
 /* ── Utilities ── */
