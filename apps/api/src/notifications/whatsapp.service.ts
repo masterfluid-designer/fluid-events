@@ -94,4 +94,73 @@ export class WhatsappService {
       );
     }
   }
+
+  /**
+   * Envoie le code de vérification téléphone (décision produit 2026-07-15).
+   * Nécessite un template Meta pré-approuvé (catégorie AUTHENTICATION —
+   * recommandée par Meta pour les codes OTP, avec bouton "Copier le code"
+   * intégré), même contrainte que `sendTicketReadyMessage` mais un template
+   * distinct (`WHATSAPP_VERIFICATION_TEMPLATE_NAME`).
+   *
+   * Contrairement à `sendTicketReadyMessage` (best-effort, ne bloque jamais
+   * la génération du billet), CETTE méthode PROPAGE l'erreur à l'appelant :
+   * c'est le livrable même de la requête — l'utilisateur attend activement
+   * ce code, un échec silencieux le laisserait bloqué sans recours.
+   */
+  async sendVerificationCode(params: { to: string; code: string }): Promise<void> {
+    const { to, code } = params;
+
+    const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
+    const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+    const apiVersion = process.env.WHATSAPP_API_VERSION ?? 'v21.0';
+    const templateName = process.env.WHATSAPP_VERIFICATION_TEMPLATE_NAME ?? 'phone_verification';
+    const templateLang = process.env.WHATSAPP_VERIFICATION_TEMPLATE_LANG ?? 'fr';
+
+    if (!accessToken || !phoneNumberId) {
+      throw new Error(
+        'WhatsApp non configuré (WHATSAPP_ACCESS_TOKEN/WHATSAPP_PHONE_NUMBER_ID manquants).',
+      );
+    }
+
+    const url = `https://graph.facebook.com/${apiVersion}/${phoneNumberId}/messages`;
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        to,
+        type: 'template',
+        template: {
+          name: templateName,
+          language: { code: templateLang },
+          components: [
+            { type: 'body', parameters: [{ type: 'text', text: code }] },
+            {
+              type: 'button',
+              sub_type: 'url',
+              index: '0',
+              parameters: [{ type: 'text', text: code }],
+            },
+          ],
+        },
+      }),
+    });
+
+    const body = (await response.json().catch(() => ({}))) as {
+      messages?: Array<{ id: string }>;
+      error?: { message?: string; type?: string; code?: number };
+    };
+
+    if (!response.ok) {
+      throw new Error(body.error?.message ?? `WhatsApp API a répondu ${response.status}`);
+    }
+
+    this.logger.log(
+      `Code de vérification WhatsApp envoyé à ${to} — id ${body.messages?.[0]?.id ?? '?'}`,
+    );
+  }
 }

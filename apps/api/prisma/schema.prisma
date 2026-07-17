@@ -34,6 +34,15 @@ model User {
   phone               String?
   country             String?
   profileCompletedAt  DateTime?
+
+  // Vérification obligatoire du téléphone par code WhatsApp (décision produit
+  // 2026-07-15) — Manager et Client uniquement, bloque le workflow tant que
+  // non vérifié (PhoneVerificationGate côté frontend). `phone` peut donc être
+  // renseigné (en attente de vérification) sans que `phoneVerifiedAt` soit posé —
+  // soumettre un nouveau numéro invalide toujours la vérification précédente.
+  phoneVerifiedAt                DateTime?
+  phoneVerificationCode          String?
+  phoneVerificationCodeExpiresAt DateTime?
   passwordHash        String? // Scanners uniquement, et Managers invités par email (login email/password)
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt

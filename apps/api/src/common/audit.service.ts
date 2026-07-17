@@ -40,6 +40,8 @@ export const AUDIT_ACTIONS = {
   'auth.manager.selfservice.signup': 'Inscription manager self-service (Google)',
   'account.retention.manager.deleted': 'Compte manager supprimé (essai expiré)',
   'account.retention.client.anonymized': 'Compte client anonymisé (rétention)',
+  'auth.phone.verification_requested': 'Code de vérification téléphone demandé',
+  'auth.phone.verified': 'Téléphone vérifié',
 } as const;
 
 export type AuditAction = keyof typeof AUDIT_ACTIONS;

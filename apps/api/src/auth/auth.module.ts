@@ -6,6 +6,8 @@ import { AuthService } from './auth.service';
 import { AuthOrchestratorService } from './auth-orchestrator.service';
 import { AuthController } from './auth.controller';
 import { AuditService } from '../common/audit.service';
+import { PhoneService } from '../notifications/phone.service';
+import { WhatsappService } from '../notifications/whatsapp.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { GoogleStrategy } from './strategies/google.strategy';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -34,6 +36,8 @@ import { PrismaModule } from '../prisma/prisma.module';
     AuthService,
     AuthOrchestratorService,
     AuditService,
+    PhoneService,
+    WhatsappService,
     JwtStrategy,
     GoogleStrategy,
     JwtAuthGuard,

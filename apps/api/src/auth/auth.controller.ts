@@ -15,6 +15,8 @@ import { LoginScannerDto } from './dto/login-scanner.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { SetPasswordDto } from './dto/set-password.dto';
+import { RequestPhoneVerificationDto } from './dto/request-phone-verification.dto';
+import { ConfirmPhoneVerificationDto } from './dto/confirm-phone-verification.dto';
 import { GoogleProfile } from './strategies/google.strategy';
 import { RequestUser } from './strategies/jwt.strategy';
 import { GoogleAuthGuard } from './guards/google-auth.guard';
@@ -36,6 +38,8 @@ const authLogger = new Logger('AuthController');
  *  POST /api/auth/refresh          → rafraîchit la paire de tokens
  *  GET  /api/auth/me               → identité courante + statut impersonation
  *  POST /api/auth/stop-impersonation → retour à la session Admin d'origine
+ *  POST /api/auth/phone/request-verification → envoie un code WhatsApp
+ *  POST /api/auth/phone/confirm-verification → confirme le code reçu
  *  POST /api/auth/logout           → efface les cookies
  */
 @Controller('auth')
@@ -148,6 +152,29 @@ export class AuthController {
     setImpersonatedAccessCookie(res, result.accessToken);
     clearImpersonatorCookie(res);
     return { accessToken: result.accessToken };
+  }
+
+  /**
+   * Envoie un code de vérification WhatsApp pour le numéro soumis (CDC —
+   * décision produit 2026-07-15). Le pays est déduit de l'indicatif, jamais
+   * demandé séparément. Non @Public() : le user courant (req.user.id) est la
+   * cible de la vérification, jamais un id passé dans le body.
+   */
+  @Post('phone/request-verification')
+  async requestPhoneVerification(
+    @Req() req: Request & { user?: RequestUser },
+    @Body() dto: RequestPhoneVerificationDto,
+  ) {
+    return this.orchestrator.requestPhoneVerification(req.user!.id, dto.phone);
+  }
+
+  /** Confirme le code de vérification WhatsApp reçu. */
+  @Post('phone/confirm-verification')
+  async confirmPhoneVerification(
+    @Req() req: Request & { user?: RequestUser },
+    @Body() dto: ConfirmPhoneVerificationDto,
+  ) {
+    return this.orchestrator.confirmPhoneVerification(req.user!.id, dto.code);
   }
 
   /** Déconnexion — efface les cookies d'authentification. */

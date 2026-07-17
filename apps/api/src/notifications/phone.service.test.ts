@@ -92,3 +92,31 @@ describe('PhoneService — extractAndValidatePhone()', () => {
     expect(service.extractAndValidatePhone(undefined)).toBeNull();
   });
 });
+
+describe('PhoneService — deriveCountry()', () => {
+  let service: PhoneService;
+  beforeEach(() => {
+    service = new PhoneService();
+  });
+
+  it("déduit le Togo (TG) depuis l'indicatif +228", () => {
+    expect(service.deriveCountry('+22890123456')).toBe('TG');
+  });
+
+  it("déduit la Côte d'Ivoire (CI) depuis l'indicatif +225", () => {
+    expect(service.deriveCountry('+2250700000000')).toBe('CI');
+  });
+
+  it("déduit la France (FR) depuis l'indicatif +33", () => {
+    expect(service.deriveCountry('+33612345678')).toBe('FR');
+  });
+
+  it('retourne null pour un numéro invalide', () => {
+    expect(service.deriveCountry('+228123')).toBeNull();
+  });
+
+  it('retourne null pour une entrée vide/nulle', () => {
+    expect(service.deriveCountry('')).toBeNull();
+    expect(service.deriveCountry(null)).toBeNull();
+  });
+});

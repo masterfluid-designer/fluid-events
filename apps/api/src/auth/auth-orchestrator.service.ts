@@ -11,10 +11,15 @@ import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuthService } from './auth.service';
 import { AuditService } from '../common/audit.service';
+import { PhoneService } from '../notifications/phone.service';
+import { WhatsappService } from '../notifications/whatsapp.service';
 import { GoogleProfile } from './strategies/google.strategy';
 import { LoginScannerDto } from './dto/login-scanner.dto';
 import { LoginDto } from './dto/login.dto';
 import { Role, TokenPair, ErrorCodes, GoogleAuthIntent, JwtPayload } from '@saas-events/types';
+
+/** Durée de validité du code de vérification téléphone (décision produit 2026-07-15). */
+const PHONE_VERIFICATION_CODE_TTL_MINUTES = 10;
 
 /**
  * AuthOrchestratorService — Orchestration des flux d'authentification complets.
@@ -36,6 +41,8 @@ export class AuthOrchestratorService {
     private readonly authService: AuthService,
     private readonly jwtService: JwtService,
     private readonly audit: AuditService,
+    private readonly phoneService: PhoneService,
+    private readonly whatsapp: WhatsappService,
   ) {}
 
   /**
@@ -310,11 +317,26 @@ export class AuthOrchestratorService {
     );
   }
 
-  /** GET /api/auth/me — identité courante (CDC §14.3, bannière impersonation frontend). */
+  /**
+   * GET /api/auth/me — identité courante (CDC §14.3, bannière impersonation
+   * frontend ; réutilisé par la page Client "Mon profil"). `phone`/`country`
+   * sont enrichis post-paiement via webhook provider (jamais éditables
+   * manuellement — aucun endpoint de mise à jour n'existe côté client).
+   */
   async getCurrentUser(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, email: true, name: true, role: true, isActive: true },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        isActive: true,
+        phone: true,
+        country: true,
+        avatarUrl: true,
+        phoneVerifiedAt: true,
+      },
     });
     if (!user) {
       throw new NotFoundException({
@@ -323,6 +345,103 @@ export class AuthOrchestratorService {
       });
     }
     return user;
+  }
+
+  /**
+   * Demande un code de vérification WhatsApp pour le téléphone soumis
+   * (décision produit 2026-07-15, Manager/Client obligatoire avant de
+   * continuer le workflow — PhoneVerificationGate côté frontend). Le pays
+   * est déduit directement de l'indicatif du numéro, jamais demandé
+   * séparément. Soumettre un nouveau numéro invalide toujours une éventuelle
+   * vérification précédente (`phoneVerifiedAt` remis à null).
+   *
+   * `WhatsappService.sendVerificationCode` PROPAGE ses erreurs (contrairement
+   * à l'envoi best-effort des billets) : l'utilisateur attend activement ce
+   * code, un échec doit lui être remonté immédiatement.
+   */
+  async requestPhoneVerification(
+    userId: string,
+    rawPhone: string,
+  ): Promise<{ phone: string; country: string | null }> {
+    const phone = this.phoneService.normalizeToE164(rawPhone);
+    if (!phone) {
+      throw new BadRequestException({
+        code: ErrorCodes.PHONE_INVALID,
+        message: 'Numéro de téléphone invalide.',
+      });
+    }
+    const country = this.phoneService.deriveCountry(phone);
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    const expiresAt = new Date(Date.now() + PHONE_VERIFICATION_CODE_TTL_MINUTES * 60 * 1000);
+
+    await this.whatsapp.sendVerificationCode({
+      to: phone.replace('+', ''),
+      code,
+    });
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        phone,
+        country,
+        phoneVerificationCode: code,
+        phoneVerificationCodeExpiresAt: expiresAt,
+        phoneVerifiedAt: null,
+      },
+    });
+
+    await this.audit.log('auth.phone.verification_requested', 'User', userId, { phone });
+
+    return { phone, country };
+  }
+
+  /**
+   * Confirme le code de vérification WhatsApp reçu (décision produit
+   * 2026-07-15). À usage unique : le code est effacé après confirmation,
+   * qu'elle réussisse ou échoue par expiration (jamais réutilisable).
+   */
+  async confirmPhoneVerification(
+    userId: string,
+    code: string,
+  ): Promise<{ phone: string | null; country: string | null }> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { phone: true, country: true, phoneVerificationCode: true, phoneVerificationCodeExpiresAt: true },
+    });
+
+    if (!user?.phoneVerificationCode || !user.phoneVerificationCodeExpiresAt) {
+      throw new BadRequestException({
+        code: ErrorCodes.PHONE_VERIFICATION_CODE_INVALID,
+        message: 'Aucun code de vérification en attente — redemandez-en un.',
+      });
+    }
+
+    if (user.phoneVerificationCodeExpiresAt < new Date()) {
+      throw new BadRequestException({
+        code: ErrorCodes.PHONE_VERIFICATION_CODE_EXPIRED,
+        message: 'Code expiré — redemandez-en un nouveau.',
+      });
+    }
+
+    if (user.phoneVerificationCode !== code) {
+      throw new BadRequestException({
+        code: ErrorCodes.PHONE_VERIFICATION_CODE_INVALID,
+        message: 'Code incorrect.',
+      });
+    }
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        phoneVerifiedAt: new Date(),
+        phoneVerificationCode: null,
+        phoneVerificationCodeExpiresAt: null,
+      },
+    });
+
+    await this.audit.log('auth.phone.verified', 'User', userId, { phone: user.phone });
+
+    return { phone: user.phone, country: user.country };
   }
 
   /**

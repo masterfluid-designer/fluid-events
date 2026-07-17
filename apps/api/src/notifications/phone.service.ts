@@ -59,4 +59,21 @@ export class PhoneService {
       null;
     return this.normalizeToE164(raw);
   }
+
+  /**
+   * Déduit le pays (code ISO 3166-1 alpha-2, ex: "CI", "FR") directement de
+   * l'indicatif du numéro — jamais demandé séparément à l'utilisateur
+   * (décision produit 2026-07-15, vérification téléphone obligatoire).
+   * @returns le code pays, ou null si le numéro est invalide.
+   */
+  deriveCountry(raw: string | null | undefined): string | null {
+    if (!raw) return null;
+    try {
+      const parsed = parsePhoneNumber(String(raw));
+      if (!parsed?.isValid()) return null;
+      return parsed.country ?? null;
+    } catch {
+      return null;
+    }
+  }
 }

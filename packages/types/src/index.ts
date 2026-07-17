@@ -359,6 +359,10 @@ export const ErrorCodes = {
   MANAGER_NOT_FOUND: 'MANAGER_NOT_FOUND',
   NOT_IMPERSONATING: 'NOT_IMPERSONATING',
   USER_NOT_FOUND: 'USER_NOT_FOUND',
+  // Vérification téléphone par code WhatsApp (décision produit 2026-07-15)
+  PHONE_INVALID: 'PHONE_INVALID',
+  PHONE_VERIFICATION_CODE_INVALID: 'PHONE_VERIFICATION_CODE_INVALID',
+  PHONE_VERIFICATION_CODE_EXPIRED: 'PHONE_VERIFICATION_CODE_EXPIRED',
 } as const;
 
 export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes];

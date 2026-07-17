@@ -28,6 +28,7 @@ const navByRole: Record<Role, NavItem[]> = {
     { href: '/manager/tickets', label: 'Billets', icon: <Ticket className="size-4" /> },
     { href: '/manager/participants', label: 'Participants', icon: <Users className="size-4" /> },
     { href: '/manager/analytics', label: 'Statistiques', icon: <BarChart3 className="size-4" /> },
+    { href: '/manager/profile', label: 'Profil', icon: <Users className="size-4" /> },
   ],
   [Role.SCANNER]: [
     { href: '/scanner/scan', label: 'Scanner', icon: <Ticket className="size-4" /> },
