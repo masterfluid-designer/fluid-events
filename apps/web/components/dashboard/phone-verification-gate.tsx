@@ -1,12 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
+import { AsYouType, type CountryCode } from 'libphonenumber-js';
 import { MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { CountryPicker } from '@/components/ui/country-picker';
 import { api, apiPost, ApiError } from '@/lib/api';
+import { COUNTRIES } from '@/lib/countries';
 
 /**
  * PhoneVerificationGate — bloque tout le dashboard (Manager/Client
@@ -40,13 +43,27 @@ export function PhoneVerificationGate({ children }: { children: React.ReactNode 
   });
 
   const [step, setStep] = useState<'phone' | 'code'>('phone');
-  const [phone, setPhone] = useState('');
+  const [countryIso2, setCountryIso2] = useState(COUNTRIES[0].iso2);
+  const [nationalDigits, setNationalDigits] = useState('');
   const [code, setCode] = useState('');
   const [sentTo, setSentTo] = useState<string | null>(null);
 
+  const selectedCountry = COUNTRIES.find((c) => c.iso2 === countryIso2) ?? COUNTRIES[0];
+  const fullPhone = `+${selectedCountry.dialCode}${nationalDigits}`;
+
+  // Formatage spécifique à chaque pays (ex : 2-2-2-2-2 en France, 3-3-4 aux
+  // USA) via libphonenumber-js — un simple espacement par groupes de 2 ne
+  // convenait qu'à une partie des pays (Afrique de l'Ouest francophone).
+  const formattedNational = useMemo(() => {
+    const formatter = new AsYouType(countryIso2 as CountryCode);
+    return formatter.input(nationalDigits);
+  }, [nationalDigits, countryIso2]);
+
   const requestVerification = useMutation({
     mutationFn: () =>
-      apiPost<{ phone: string; country: string | null }>('/api/auth/phone/request-verification', { phone }),
+      apiPost<{ phone: string; country: string | null }>('/api/auth/phone/request-verification', {
+        phone: fullPhone,
+      }),
     onSuccess: (data) => {
       setSentTo(data.phone);
       setCode('');
@@ -99,13 +116,17 @@ export function PhoneVerificationGate({ children }: { children: React.ReactNode 
             <p className="text-sm text-muted-foreground">
               Requis pour continuer — un code de vérification vous sera envoyé par WhatsApp.
             </p>
-            <Input
-              required
-              type="tel"
-              placeholder="+228 90 00 00 00"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-            />
+            <div className="flex gap-2">
+              <CountryPicker value={countryIso2} onChange={setCountryIso2} />
+              <Input
+                required
+                type="tel"
+                placeholder="90 00 00 00"
+                value={formattedNational}
+                onChange={(e) => setNationalDigits(e.target.value.replace(/\D/g, ''))}
+                className="flex-1"
+              />
+            </div>
             <Button type="submit" className="w-full" disabled={requestVerification.isPending}>
               {requestVerification.isPending ? 'Envoi...' : 'Recevoir le code'}
             </Button>
