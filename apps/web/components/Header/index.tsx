@@ -6,6 +6,7 @@ import { Ticket } from "lucide-react";
 
 import ThemeToggler from "./ThemeToggler";
 import menuData from "./menuData";
+import { BrandLogo, BrandIcon } from "@/components/brand/brand-logo";
 
 const Header = () => {
   const [navigationOpen, setNavigationOpen] = useState(false);
@@ -38,10 +39,8 @@ const Header = () => {
       <div className="relative mx-auto max-w-c-1390 items-center justify-between px-4 md:px-8 xl:flex 2xl:px-0">
         <div className="flex w-full items-center justify-between xl:w-1/4">
           <Link href="/" className="flex items-center gap-2">
-            <Ticket className="h-7 w-7 text-primary" />
-            <span className="text-itemtitle2 font-medium text-black dark:text-white">
-              Fluid Events
-            </span>
+            <BrandIcon className="h-7 w-7" fallback={<Ticket className="h-7 w-7 text-primary" />} />
+            <BrandLogo className="h-7 text-itemtitle2 font-medium text-black dark:text-white" />
           </Link>
 
           {/* <!-- Hamburger Toggle BTN --> */}

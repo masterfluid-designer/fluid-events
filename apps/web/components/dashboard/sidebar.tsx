@@ -15,10 +15,12 @@ import {
   Palette,
   PanelLeftClose,
   PanelLeftOpen,
+  ImageIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
+import { BrandLogo, BrandIcon } from '@/components/brand/brand-logo';
 import { Role } from '@saas-events/types';
 
 interface NavItem {
@@ -34,6 +36,7 @@ const navByRole: Record<Role, NavItem[]> = {
     { href: '/admin/managers', label: 'Managers', icon: <Users className="size-4" /> },
     { href: '/admin/logs', label: 'Logs', icon: <BarChart3 className="size-4" /> },
     { href: '/admin/providers', label: 'Paiements', icon: <Settings className="size-4" /> },
+    { href: '/admin/branding', label: 'Branding', icon: <ImageIcon className="size-4" /> },
     { href: '/admin/appearance', label: 'Apparence', icon: <Palette className="size-4" /> },
   ],
   [Role.MANAGER]: [
@@ -137,7 +140,7 @@ export function DashboardSidebar() {
     <>
       <div className="flex h-14 items-center justify-between border-b bg-background px-4 md:hidden">
         <Link href="/" className="flex items-center gap-2 font-bold">
-          <span className="text-primary">Fluid Events</span>
+          <BrandLogo className="h-6 text-primary" />
         </Link>
         <div className="flex items-center gap-1">
           <ThemeToggle />
@@ -152,7 +155,7 @@ export function DashboardSidebar() {
           <div className="absolute inset-0 bg-black/50" onClick={() => setMobileOpen(false)} aria-hidden="true" />
           <aside className="absolute inset-y-0 left-0 flex w-64 flex-col bg-background shadow-xl">
             <div className="flex h-14 items-center justify-between border-b px-4">
-              <span className="font-bold text-primary">Fluid Events</span>
+              <BrandLogo className="h-6 text-primary" />
               <Button variant="ghost" size="icon" aria-label="Fermer le menu" onClick={() => setMobileOpen(false)}>
                 <X className="size-5" />
               </Button>
@@ -181,14 +184,17 @@ export function DashboardSidebar() {
             <Link
               href="/"
               title="Fluid Events"
-              className="flex size-8 items-center justify-center rounded-lg bg-primary font-serif text-sm font-bold text-primary-foreground"
+              className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground"
             >
-              F
+              <BrandIcon
+                className="size-5"
+                fallback={<span className="font-serif text-sm font-bold">F</span>}
+              />
             </Link>
           ) : (
             <>
               <Link href="/" className="flex items-center gap-2 font-bold">
-                <span className="text-primary">Fluid Events</span>
+                <BrandLogo className="h-6 text-primary" />
               </Link>
               <ThemeToggle />
             </>

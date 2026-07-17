@@ -213,9 +213,12 @@
   scrollbar-width: none;
 }
 
+/* Logo/icône de marque (page Branding Admin, 2026-07-17) — force un rendu
+   blanc en mode sombre quelle que soit la couleur d'origine du SVG uploadé
+   (brightness(0) écrase toute teinte vers le noir, invert(1) le bascule
+   ensuite en blanc pur) ; jamais utilisé en mode clair. */
 @utility img-white {
-  filter: invert(0%) sepia(96%) saturate(15%) hue-rotate(249deg)
-    brightness(100%) contrast(105%);
+  filter: brightness(0) invert(1);
 }
 
 /* ── Animate-on-scroll helper ── */

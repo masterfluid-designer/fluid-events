@@ -42,6 +42,7 @@ export const AUDIT_ACTIONS = {
   'account.retention.client.anonymized': 'Compte client anonymisé (rétention)',
   'auth.phone.verification_requested': 'Code de vérification téléphone demandé',
   'auth.phone.verified': 'Téléphone vérifié',
+  'admin.platform_settings.updated': 'Logo/icône de la plateforme modifié',
 } as const;
 
 export type AuditAction = keyof typeof AUDIT_ACTIONS;

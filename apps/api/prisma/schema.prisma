@@ -365,3 +365,22 @@ model AuditLog {
   @@index([entityType, entityId])
   @@map("audit_logs")
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BRANDING PLATEFORME
+// ─────────────────────────────────────────────────────────────────────────────
+
+// PlatformSettings — Ligne singleton (id fixe "singleton") pour la marque de
+// la plateforme : logo SVG complet et icône SVG (favicon/repli compact),
+// configurables par le Super Admin (page /admin/branding, 2026-07-17).
+// Contenu déjà assaini (sanitize-html) à l'écriture — jamais de SVG brut
+// non filtré en base (même principe que la whitelist d'URL d'image,
+// RULES.md §6 : la BDD ne doit jamais contenir que du contenu déjà sûr).
+model PlatformSettings {
+  id        String   @id @default("singleton")
+  logoSvg   String?  @db.Text
+  iconSvg   String?  @db.Text
+  updatedAt DateTime @updatedAt
+
+  @@map("platform_settings")
+}

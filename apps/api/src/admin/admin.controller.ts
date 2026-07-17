@@ -11,10 +11,15 @@ import { InviteManagerDto } from './dto/invite-manager.dto';
 import { SetManagerActiveDto } from './dto/set-manager-active.dto';
 import { SetManagerSubscriptionDto } from './dto/set-manager-subscription.dto';
 import { SetEventStatusDto } from './dto/set-event-status.dto';
+import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
+import { UpdatePlatformSettingsDto } from '../platform-settings/dto/update-platform-settings.dto';
 
 @Controller('admin')
 export class AdminController {
-  constructor(private readonly adminService: AdminService) {}
+  constructor(
+    private readonly adminService: AdminService,
+    private readonly platformSettingsService: PlatformSettingsService,
+  ) {}
 
   /** GET /api/admin/overview — CDC §14.2, réservé SUPER_ADMIN. */
   @Roles(Role.SUPER_ADMIN)
@@ -93,6 +98,17 @@ export class AdminController {
   ) {
     await this.adminService.deleteEventPaymentConfig(eventId, provider);
     return { deleted: true };
+  }
+
+  /**
+   * PUT /api/admin/platform-settings — logo/icône SVG de la plateforme
+   * (page Branding, 2026-07-17). Lecture publique sous /api/platform-settings
+   * (PlatformSettingsController), écriture réservée ici (convention admin).
+   */
+  @Roles(Role.SUPER_ADMIN)
+  @Put('platform-settings')
+  async updatePlatformSettings(@Body() dto: UpdatePlatformSettingsDto) {
+    return this.platformSettingsService.updateSettings(dto);
   }
 
   /** GET /api/admin/managers — liste des managers (décision produit 2026-07-14). */

@@ -7,6 +7,7 @@ import Link from "next/link";
 import { Mail, ShieldAlert, Ticket, ArrowRight } from "lucide-react";
 import Header from "@/components/Header";
 import Lines from "@/components/Lines";
+import { BrandIcon } from "@/components/brand/brand-logo";
 
 function LoginForm() {
   const searchParams = useSearchParams();
@@ -99,7 +100,10 @@ function LoginForm() {
             >
               <div className="mb-8 text-center">
                 <div className="mx-auto mb-5 flex size-13 items-center justify-center rounded-full bg-alabaster dark:bg-blackho">
-                  <Ticket className="size-6 text-black dark:text-white" />
+                  <BrandIcon
+                    className="size-6"
+                    fallback={<Ticket className="size-6 text-black dark:text-white" />}
+                  />
                 </div>
                 <h1 className="mb-2 text-2xl font-bold text-black dark:text-white">
                   {scannerMode ? "Connexion scanner" : "Connexion à Fluid Events"}

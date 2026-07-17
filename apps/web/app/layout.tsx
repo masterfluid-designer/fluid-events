@@ -21,6 +21,10 @@ export const metadata: Metadata = {
   title: "Fluid Events — SaaS Événementiel & Billetterie",
   description:
     "Créez, vendez et contrôlez l'accès à vos événements. Paiement Mobile Money, billetterie QR, scanner PWA.",
+  // Icône dynamique (page Branding Admin, 2026-07-17) — coexiste avec le
+  // favicon.ico statique, servi en repli par les navigateurs qui ne
+  // supportent pas les favicons SVG.
+  icons: { icon: { url: "/brand/icon", type: "image/svg+xml" } },
 };
 
 export default function RootLayout({
