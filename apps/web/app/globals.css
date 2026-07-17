@@ -230,15 +230,13 @@
     @apply cursor-pointer transition-colors hover:border-accent-terracotta dark:hover:border-accent-terracotta-dark;
   }
 
-  /* Traits d'icônes trop marqués en mode sombre, quel que soit le thème de
-     couleur (retour utilisateur 2026-07-17) — lucide-react rend un
-     stroke-width="2" fixe pensé pour un fond clair ; sur les fonds
-     quasi-noirs des thèmes ici, ce même trait lit plus lourd/contrasté à
-     l'œil. Allégé uniquement en sombre (jamais en clair, où l'épaisseur
-     d'origine reste correcte) — trait plus fin + légère baisse d'opacité. */
-  .dark svg.lucide {
-    stroke-width: 1.5;
-    opacity: 0.88;
+  /* Opacité des traits d'icônes (retour utilisateur 2026-07-17, après deux
+     essais jugés trop subtils : 1.5/0.88 puis 1.25/0.72) — 20% sur toute
+     l'app, clair et sombre, pas seulement en sombre. `stroke-opacity` plutôt
+     que `opacity` : les icônes lucide-react sont fill="none" (que du trait),
+     mais reste la propriété correcte si un icône a un jour un fill. */
+  svg.lucide {
+    stroke-opacity: 0.2;
   }
 }
 
