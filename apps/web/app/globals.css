@@ -191,12 +191,21 @@
 
 /* ── Base layer ── */
 @layer base {
+  /* Reset Tailwind par défaut : tout `border`/`border-t`/`border-b`/... SANS
+     couleur explicite tombait sur --color-gray-200 (gris Tailwind générique,
+     jamais défini dans ce thème, ni thème ni mode sombre) au lieu de
+     --color-border — c'est ce qui rendait certains séparateurs (pied de
+     sidebar, etc.) toujours pleins/trop visibles en sombre malgré l'alpha
+     20% posé sur --color-strokedark : ces éléments ne consommaient jamais
+     cette variable. Recâblé sur --color-border pour que TOUT trait de
+     bordure, avec ou sans utilitaire de couleur explicite, suive le thème
+     actif et le mode clair/sombre. */
   *,
   ::after,
   ::before,
   ::backdrop,
   ::file-selector-button {
-    border-color: var(--color-gray-200, currentcolor);
+    border-color: var(--color-border, currentcolor);
   }
 
   body {
