@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { LayoutDashboard, Ticket, Users, Settings, BarChart3, LogOut, Menu, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { Role } from '@saas-events/types';
 
 interface NavItem {
@@ -102,9 +103,12 @@ export function DashboardSidebar() {
         <Link href="/" className="flex items-center gap-2 font-bold">
           <span className="text-primary">Fluid Events</span>
         </Link>
-        <Button variant="ghost" size="icon" aria-label="Ouvrir le menu" onClick={() => setMobileOpen(true)}>
-          <Menu className="size-5" />
-        </Button>
+        <div className="flex items-center gap-1">
+          <ThemeToggle />
+          <Button variant="ghost" size="icon" aria-label="Ouvrir le menu" onClick={() => setMobileOpen(true)}>
+            <Menu className="size-5" />
+          </Button>
+        </div>
       </div>
 
       {mobileOpen && (
@@ -130,10 +134,11 @@ export function DashboardSidebar() {
       )}
 
       <aside className="hidden w-60 shrink-0 border-r bg-muted/30 md:flex md:flex-col">
-        <div className="flex h-16 items-center gap-2 border-b px-6">
+        <div className="flex h-16 items-center justify-between gap-2 border-b px-6">
           <Link href="/" className="flex items-center gap-2 font-bold">
             <span className="text-primary">Fluid Events</span>
           </Link>
+          <ThemeToggle />
         </div>
         <NavLinks items={items} pathname={pathname} />
         <div className="border-t p-3">

@@ -5,6 +5,7 @@ import type { Metadata } from 'next';
 import type { Block, FaqEntry, MediaEntry, ScheduleEntry, SpeakerEntry } from '@saas-events/types';
 import { ResumeCheckout } from './resume-checkout';
 import { BlockRenderer } from './block-renderer';
+import { ThemeToggle } from '@/components/ui/theme-toggle';
 
 /**
  * Page événement publique (SSR) — CDC §6.2 route GET /api/events/public/:slug.
@@ -106,12 +107,15 @@ export default async function EventPage({
           ) : null}
           <span className="font-serif text-base font-semibold md:text-lg">{event.title}</span>
         </div>
-        <a
-          href={`/client?event=${encodeURIComponent(slug)}`}
-          className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:bg-primaryho"
-        >
-          <Ticket className="size-3.5" /> Mon ticket
-        </a>
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <a
+            href={`/client?event=${encodeURIComponent(slug)}`}
+            className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:bg-primaryho"
+          >
+            <Ticket className="size-3.5" /> Mon ticket
+          </a>
+        </div>
       </header>
 
       <div className="mx-auto max-w-190 px-4 py-8 md:px-8">
