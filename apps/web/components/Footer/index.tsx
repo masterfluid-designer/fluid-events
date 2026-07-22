@@ -394,6 +394,20 @@ const Footer = () => {
           </div>
           {/* <!-- Footer Bottom --> */}
         </div>
+
+        {/* <!-- Watermark --> */}
+        {/* Hors du conteneur max-w-c-1390 volontairement : doit occuper
+            toute la largeur réelle de l'écran sur desktop, pas seulement la
+            colonne de contenu (sinon le texte à 14vw dépasse une colonne
+            plus étroite que le viewport et se fait couper par l'overflow). */}
+        <div aria-hidden="true" className="overflow-hidden">
+          <p
+            className="font-space-grotesk select-none whitespace-nowrap text-center font-bold leading-none tracking-tight text-black/5 dark:text-white/5"
+            style={{ fontSize: "14vw" }}
+          >
+            Fluid Events
+          </p>
+        </div>
       </footer>
     </>
   );

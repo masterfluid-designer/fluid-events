@@ -14,6 +14,8 @@
   --font-mono: var(--font-mono), ui-monospace, monospace;
   --font-serif: var(--font-serif), ui-serif, serif;
   --font-inter: var(--font-sans), ui-sans-serif, sans-serif;
+  /* Réservée à la page concept /concept/antigravity, pas le sans-serif par défaut du site. */
+  --font-space-grotesk: var(--font-space-grotesk), ui-sans-serif, sans-serif;
 
   /* ── Colors ── */
   --color-current: currentColor;
@@ -125,9 +127,14 @@
   --shadow-solid-13: 0px 2px 19px rgba(0, 0, 0, 0.05);
 
   /* ── Animations ── */
-  --animate-line1: line 3s linear infinite;
-  --animate-line2: line 6s linear infinite;
-  --animate-line3: line 9s linear infinite;
+  /* line-x/line-y : fond animé de la landing (Lines.tsx) — durée/délai réels
+     fixés par ligne via style inline (grille organique), ces deux tokens ne
+     servent qu'à forcer Tailwind à émettre les @keyframes ci-dessous dans le
+     CSS généré (sinon non référencées par une classe utilitaire → purgées). */
+  --animate-line-x: line-x 1s linear infinite;
+  --animate-line-y: line-y 1s linear infinite;
+  --animate-blink: blink 1s step-end infinite;
+  --animate-radar-ping: radar-ping 4s cubic-bezier(0.2, 0.6, 0.4, 1) infinite;
   --animate-fade-in: fadeIn 0.6s ease-out forwards;
   --animate-slide-up: slideUp 0.6s ease-out forwards;
   --animate-accordion-down: accordion-down 0.2s ease-out;
@@ -136,13 +143,39 @@
      défilement infini pur CSS, pas de librairie JS. */
   --animate-marquee: marquee 30s linear infinite;
 
-  @keyframes line {
-    0%,
-    100% {
+  @keyframes line-y {
+    from {
       transform: translateY(-100%);
     }
-    100% {
+    to {
       transform: translateY(100vh);
+    }
+  }
+  @keyframes line-x {
+    from {
+      transform: translateX(-100%);
+    }
+    to {
+      transform: translateX(100vw);
+    }
+  }
+  @keyframes radar-ping {
+    0% {
+      transform: scale(1);
+      opacity: 0.55;
+    }
+    100% {
+      transform: scale(4.2);
+      opacity: 0;
+    }
+  }
+  @keyframes blink {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0;
     }
   }
   @keyframes fadeIn {

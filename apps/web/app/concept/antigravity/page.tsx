@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import Lines from "@/components/Lines";
@@ -13,7 +14,12 @@ import PaymentsShowcase from "@/components/concept-antigravity/PaymentsShowcase"
 import BlogCarousel from "@/components/concept-antigravity/BlogCarousel";
 import DarkCta from "@/components/concept-antigravity/DarkCta";
 
-export default function LandingPage() {
+export const metadata: Metadata = {
+  title: "Concept — Motion design (interne)",
+  robots: { index: false, follow: false },
+};
+
+export default function ConceptAntigravityPage() {
   return (
     <>
       <Header />

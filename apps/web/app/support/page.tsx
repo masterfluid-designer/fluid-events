@@ -14,7 +14,7 @@ export default function SupportPage() {
   return (
     <>
       <Header />
-      <main className="relative overflow-hidden bg-alabaster pb-10 pt-28 dark:bg-black">
+      <main className="relative overflow-hidden pb-10 pt-28">
         <Lines />
         <Contact
           eyebrow="SUPPORT"

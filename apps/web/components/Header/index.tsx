@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Ticket } from "lucide-react";
 
 import ThemeToggler from "./ThemeToggler";
@@ -11,28 +11,35 @@ import { BrandLogo, BrandIcon } from "@/components/brand/brand-logo";
 const Header = () => {
   const [navigationOpen, setNavigationOpen] = useState(false);
   const [stickyMenu, setStickyMenu] = useState(false);
+  const [hidden, setHidden] = useState(false);
+  const lastScrollY = useRef(0);
 
   const pathUrl = usePathname();
 
-  // Sticky menu
-  const handleStickyMenu = () => {
-    if (window.scrollY >= 80) {
-      setStickyMenu(true);
-    } else {
-      setStickyMenu(false);
-    }
-  };
-
+  // Sticky menu + auto-hide : disparaît en scrollant vers le bas, ne
+  // réapparaît qu'en scrollant vers le haut (jamais tout seul).
   useEffect(() => {
-    window.addEventListener("scroll", handleStickyMenu);
-    return () => window.removeEventListener("scroll", handleStickyMenu);
-  });
+    function handleScroll() {
+      const currentY = window.scrollY;
+      setStickyMenu(currentY >= 80);
+      if (currentY > lastScrollY.current && currentY > 120) {
+        setHidden(true);
+      } else if (currentY < lastScrollY.current) {
+        setHidden(false);
+      }
+      lastScrollY.current = currentY;
+    }
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   return (
     <header
-      className={`fixed left-0 top-0 z-99999 w-full py-7 ${
+      className={`fixed left-0 top-0 z-99999 w-full py-7 transition-all duration-300 ease-in-out ${
+        hidden && !navigationOpen ? "-translate-y-full" : "translate-y-0"
+      } ${
         stickyMenu
-          ? "bg-white py-4! shadow-sm transition duration-100 dark:bg-black"
+          ? "bg-white py-4! shadow-sm dark:bg-black"
           : ""
       }`}
     >

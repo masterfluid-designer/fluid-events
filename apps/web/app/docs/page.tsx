@@ -33,7 +33,7 @@ export default function DocsPage() {
   return (
     <>
       <Header />
-      <main className="relative overflow-hidden bg-alabaster dark:bg-black">
+      <main className="relative overflow-hidden">
         <Lines />
         <section className="pb-16 pt-32 md:pb-20 md:pt-40 lg:pb-24">
           <div className="mx-auto max-w-c-1390 px-4 md:px-8 2xl:px-0">

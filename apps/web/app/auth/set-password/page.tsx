@@ -64,7 +64,7 @@ function SetPasswordForm() {
   return (
     <>
       <Header />
-      <main className="relative overflow-hidden bg-alabaster dark:bg-blackho">
+      <main className="relative overflow-hidden">
         <Lines />
         <section className="pb-12.5 pt-32.5 lg:pb-25 lg:pt-45 xl:pb-30 xl:pt-50">
           <div className="relative z-1 mx-auto max-w-125 px-4">

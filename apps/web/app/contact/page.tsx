@@ -14,7 +14,7 @@ export default function ContactPage() {
   return (
     <>
       <Header />
-      <main className="relative overflow-hidden bg-alabaster pb-10 pt-28 dark:bg-black">
+      <main className="relative overflow-hidden">
         <Lines />
         <Contact />
       </main>

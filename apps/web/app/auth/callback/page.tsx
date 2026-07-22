@@ -19,7 +19,7 @@ export default function AuthCallbackPage() {
   }, [router]);
 
   return (
-    <main className="flex min-h-svh flex-col items-center justify-center gap-4 bg-alabaster dark:bg-blackho">
+    <main className="flex min-h-svh flex-col items-center justify-center gap-4">
       <Spinner className="size-8" />
       <p className="text-sm text-manatee dark:text-waterloo">Connexion réussie, redirection...</p>
     </main>
