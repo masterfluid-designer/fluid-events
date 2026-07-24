@@ -1,43 +1,12 @@
 "use client";
 
-import { PartyPopper, ScanLine, Ticket } from "lucide-react";
 import HorizontalScrollCards, {
   type HorizontalCardItem,
 } from "@/components/motion/HorizontalScrollCards";
 import Typewriter from "@/components/motion/Typewriter";
+import { rolesContent } from "@/lib/content/landing/roles";
 
-const ROLES = [
-  {
-    id: "organisateur",
-    icon: PartyPopper,
-    title: "Organisateur",
-    description:
-      "Créez votre événement, composez votre page en no-code et encaissez en Mobile Money dès la première vente.",
-    gradient: "from-primary/30 to-transparent",
-  },
-  {
-    id: "scanner",
-    icon: ScanLine,
-    title: "Agent scanner",
-    description:
-      "Validez les entrées avec n'importe quel téléphone. Fonctionne hors ligne, aucune formation nécessaire.",
-    gradient: "from-emerald-500/30 to-transparent",
-  },
-  {
-    id: "client",
-    icon: Ticket,
-    title: "Client",
-    description:
-      "Achetez en Mobile Money, recevez votre billet QR instantanément par email ou WhatsApp.",
-    gradient: "from-sky-500/30 to-transparent",
-  },
-] satisfies Array<{
-  id: string;
-  icon: typeof PartyPopper;
-  title: string;
-  description: string;
-  gradient: string;
-}>;
+const ROLES = rolesContent.roles;
 
 export default function RolesCarousel() {
   const items: HorizontalCardItem[] = ROLES.map((role) => {
@@ -77,10 +46,10 @@ export default function RolesCarousel() {
       header={
         <div className="w-full text-left">
           <span className="text-accent-terracotta dark:text-accent-terracotta-dark text-sectiontitle font-bold uppercase tracking-[0.06em]">
-            Pensé pour chaque rôle
+            {rolesContent.eyebrow}
           </span>
           <h2 className="font-space-grotesk mt-3 max-w-xl text-3xl font-medium text-black md:text-5xl dark:text-white">
-            <Typewriter once segments={[{ text: "Une expérience pensée pour chacun" }]} />
+            <Typewriter once segments={[{ text: rolesContent.title }]} />
           </h2>
         </div>
       }

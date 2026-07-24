@@ -69,7 +69,7 @@ describe('AdminService.getOverview()', () => {
 
   beforeEach(() => {
     prisma = makePrisma();
-    service = new AdminService(prisma as any, makeCrypto() as any, makeEmail() as any, makeAudit() as any, makeAuthService() as any);
+    service = new AdminService(prisma as any, makeCrypto() as any, makeEmail() as any, makeAudit() as any, makeAuthService() as any, {} as any);
   });
 
   it('agrège les métriques plateforme réelles, dont le statut paiement par manager', async () => {
@@ -169,7 +169,7 @@ describe('AdminService.listAllPaymentConfigs()', () => {
 
   beforeEach(() => {
     prisma = makePrisma();
-    service = new AdminService(prisma as any, makeCrypto() as any, makeEmail() as any, makeAudit() as any, makeAuthService() as any);
+    service = new AdminService(prisma as any, makeCrypto() as any, makeEmail() as any, makeAudit() as any, makeAuthService() as any, {} as any);
   });
 
   it('liste les configs tous événements confondus, avec contexte event/manager, sans jamais les secrets', async () => {
@@ -253,7 +253,7 @@ describe('AdminService.listAllEvents()', () => {
 
   beforeEach(() => {
     prisma = makePrisma();
-    service = new AdminService(prisma as any, makeCrypto() as any, makeEmail() as any, makeAudit() as any, makeAuthService() as any);
+    service = new AdminService(prisma as any, makeCrypto() as any, makeEmail() as any, makeAudit() as any, makeAuthService() as any, {} as any);
   });
 
   it('liste les événements avec manager, revenu et billets vendus calculés depuis les commandes payées', async () => {
@@ -323,7 +323,7 @@ describe('AdminService.setEventStatus()', () => {
   beforeEach(() => {
     prisma = makePrisma();
     audit = makeAudit();
-    service = new AdminService(prisma as any, makeCrypto() as any, makeEmail() as any, audit as any, makeAuthService() as any);
+    service = new AdminService(prisma as any, makeCrypto() as any, makeEmail() as any, audit as any, makeAuthService() as any, {} as any);
   });
 
   it("annule un événement (n'importe lequel, pas de vérification d'ownership) et journalise", async () => {
@@ -365,7 +365,7 @@ describe('AdminService.listAuditLogs()', () => {
 
   beforeEach(() => {
     prisma = makePrisma();
-    service = new AdminService(prisma as any, makeCrypto() as any, makeEmail() as any, makeAudit() as any, makeAuthService() as any);
+    service = new AdminService(prisma as any, makeCrypto() as any, makeEmail() as any, makeAudit() as any, makeAuthService() as any, {} as any);
   });
 
   it('pagine avec les valeurs par défaut (page=1, pageSize=50) et journalise le user', async () => {
@@ -443,7 +443,7 @@ describe('AdminService.getEventPaymentConfigs()', () => {
 
   beforeEach(() => {
     prisma = makePrisma();
-    service = new AdminService(prisma as any, makeCrypto() as any, makeEmail() as any, makeAudit() as any, makeAuthService() as any);
+    service = new AdminService(prisma as any, makeCrypto() as any, makeEmail() as any, makeAudit() as any, makeAuthService() as any, {} as any);
   });
 
   it('liste les configs sans jamais renvoyer les secrets', async () => {
@@ -479,7 +479,7 @@ describe('AdminService.upsertEventPaymentConfig()', () => {
     prisma = makePrisma();
     crypto = makeCrypto();
     prisma.event.findUnique.mockResolvedValue(OWNED_EVENT);
-    service = new AdminService(prisma as any, crypto as any, makeEmail() as any, makeAudit() as any, makeAuthService() as any);
+    service = new AdminService(prisma as any, crypto as any, makeEmail() as any, makeAudit() as any, makeAuthService() as any, {} as any);
   });
 
   it('chiffre privateKey/webhookSecret avant stockage (KKIAPAY)', async () => {
@@ -575,7 +575,7 @@ describe('AdminService.setEventPaymentConfigActive()', () => {
   beforeEach(() => {
     prisma = makePrisma();
     prisma.event.findUnique.mockResolvedValue(OWNED_EVENT);
-    service = new AdminService(prisma as any, makeCrypto() as any, makeEmail() as any, makeAudit() as any, makeAuthService() as any);
+    service = new AdminService(prisma as any, makeCrypto() as any, makeEmail() as any, makeAudit() as any, makeAuthService() as any, {} as any);
   });
 
   it('active un provider déjà configuré et désactive les autres', async () => {
@@ -617,7 +617,7 @@ describe('AdminService.deleteEventPaymentConfig()', () => {
   beforeEach(() => {
     prisma = makePrisma();
     prisma.event.findUnique.mockResolvedValue(OWNED_EVENT);
-    service = new AdminService(prisma as any, makeCrypto() as any, makeEmail() as any, makeAudit() as any, makeAuthService() as any);
+    service = new AdminService(prisma as any, makeCrypto() as any, makeEmail() as any, makeAudit() as any, makeAuthService() as any, {} as any);
   });
 
   it('supprime la config du provider pour cet événement', async () => {
@@ -639,7 +639,7 @@ describe('AdminService.listManagers()', () => {
 
   beforeEach(() => {
     prisma = makePrisma();
-    service = new AdminService(prisma as any, makeCrypto() as any, makeEmail() as any, makeAudit() as any, makeAuthService() as any);
+    service = new AdminService(prisma as any, makeCrypto() as any, makeEmail() as any, makeAudit() as any, makeAuthService() as any, {} as any);
   });
 
   it('liste les managers avec statut self-service/abonnement et événement lié', async () => {
@@ -710,7 +710,7 @@ describe('AdminService.inviteManager()', () => {
     prisma = makePrisma();
     email = makeEmail();
     audit = makeAudit();
-    service = new AdminService(prisma as any, makeCrypto() as any, email as any, audit as any, makeAuthService() as any);
+    service = new AdminService(prisma as any, makeCrypto() as any, email as any, audit as any, makeAuthService() as any, {} as any);
   });
 
   it("crée le compte Manager (isActive/subscriptionActive=true, isSelfService=false) et envoie l'invitation", async () => {
@@ -781,7 +781,7 @@ describe('AdminService.setManagerActive()', () => {
   beforeEach(() => {
     prisma = makePrisma();
     audit = makeAudit();
-    service = new AdminService(prisma as any, makeCrypto() as any, makeEmail() as any, audit as any, makeAuthService() as any);
+    service = new AdminService(prisma as any, makeCrypto() as any, makeEmail() as any, audit as any, makeAuthService() as any, {} as any);
   });
 
   it('suspend/réactive un manager et journalise', async () => {
@@ -813,7 +813,7 @@ describe('AdminService.setManagerSubscription()', () => {
   beforeEach(() => {
     prisma = makePrisma();
     audit = makeAudit();
-    service = new AdminService(prisma as any, makeCrypto() as any, makeEmail() as any, audit as any, makeAuthService() as any);
+    service = new AdminService(prisma as any, makeCrypto() as any, makeEmail() as any, audit as any, makeAuthService() as any, {} as any);
   });
 
   it('active/désactive manuellement l’abonnement et journalise (statut manuel V1)', async () => {
@@ -847,7 +847,7 @@ describe('AdminService.impersonateManager()', () => {
     prisma = makePrisma();
     audit = makeAudit();
     authService = makeAuthService();
-    service = new AdminService(prisma as any, makeCrypto() as any, makeEmail() as any, audit as any, authService as any);
+    service = new AdminService(prisma as any, makeCrypto() as any, makeEmail() as any, audit as any, authService as any, {} as any);
   });
 
   it('émet un token MANAGER pour le compte ciblé et journalise avec l’id Admin', async () => {

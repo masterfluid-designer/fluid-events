@@ -42,6 +42,20 @@ export class AdminController {
     return this.adminService.setEventStatus(eventId, dto.status);
   }
 
+  /** GET /api/admin/trusted-logo-candidates — événements avec logo, pour la page "Confiance". */
+  @Roles(Role.SUPER_ADMIN)
+  @Get('trusted-logo-candidates')
+  async listTrustedLogoCandidates() {
+    return this.adminService.listTrustedLogoCandidates();
+  }
+
+  /** POST /api/admin/trusted-logo-candidates/:eventId — copie le logo de cet événement dans trusted-logos/. */
+  @Roles(Role.SUPER_ADMIN)
+  @Post('trusted-logo-candidates/:eventId')
+  async addEventLogoToTrusted(@Param('eventId') eventId: string) {
+    return this.adminService.addEventLogoToTrusted(eventId);
+  }
+
   /** GET /api/admin/logs?page=&pageSize=&action= — historique complet des logs d'audit. */
   @Roles(Role.SUPER_ADMIN)
   @Get('logs')

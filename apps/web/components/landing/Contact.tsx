@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import Image from "next/image";
+import { contactFormContent, contactPageContent } from "@/lib/content/contact";
 
 type ContactProps = {
   eyebrow?: string;
@@ -10,9 +11,9 @@ type ContactProps = {
 };
 
 export default function Contact({
-  eyebrow = "CONTACT",
-  title = "Parlez-nous de votre prochain événement",
-  description = "Concert, conférence, festival ou soirée privée : dites-nous ce que vous préparez, nous vous aidons à choisir le bon parcours de billetterie.",
+  eyebrow = contactPageContent.eyebrow,
+  title = contactPageContent.title,
+  description = contactPageContent.description,
 }: ContactProps) {
   return (
     <section id="contact" className="px-4 py-20 md:px-8 lg:py-25 2xl:px-0">
@@ -56,19 +57,19 @@ export default function Contact({
             className="animate_top w-full rounded-lg bg-white p-7.5 shadow-solid-8 dark:border dark:border-strokedark dark:bg-black md:w-3/5 lg:w-3/4 xl:p-15"
           >
             <h2 className="mb-15 text-3xl font-semibold text-black dark:text-white xl:text-sectiontitle2">
-              Envoyer un message
+              {contactFormContent.formHeading}
             </h2>
 
             <form>
               <div className="mb-7.5 flex flex-col gap-7.5 lg:flex-row lg:justify-between lg:gap-14">
                 <input
                   type="text"
-                  placeholder="Nom complet"
+                  placeholder={contactFormContent.placeholders.name}
                   className="w-full border-b border-stroke bg-transparent pb-3.5 focus:border-waterloo focus:placeholder:text-black focus-visible:outline-hidden dark:border-strokedark dark:focus:border-manatee dark:focus:placeholder:text-white lg:w-1/2"
                 />
                 <input
                   type="email"
-                  placeholder="Adresse email"
+                  placeholder={contactFormContent.placeholders.email}
                   className="w-full border-b border-stroke bg-transparent pb-3.5 focus:border-waterloo focus:placeholder:text-black focus-visible:outline-hidden dark:border-strokedark dark:focus:border-manatee dark:focus:placeholder:text-white lg:w-1/2"
                 />
               </div>
@@ -76,19 +77,19 @@ export default function Contact({
               <div className="mb-12.5 flex flex-col gap-7.5 lg:flex-row lg:justify-between lg:gap-14">
                 <input
                   type="text"
-                  placeholder="Sujet"
+                  placeholder={contactFormContent.placeholders.subject}
                   className="w-full border-b border-stroke bg-transparent pb-3.5 focus:border-waterloo focus:placeholder:text-black focus-visible:outline-hidden dark:border-strokedark dark:focus:border-manatee dark:focus:placeholder:text-white lg:w-1/2"
                 />
                 <input
                   type="text"
-                  placeholder="Téléphone"
+                  placeholder={contactFormContent.placeholders.phone}
                   className="w-full border-b border-stroke bg-transparent pb-3.5 focus:border-waterloo focus:placeholder:text-black focus-visible:outline-hidden dark:border-strokedark dark:focus:border-manatee dark:focus:placeholder:text-white lg:w-1/2"
                 />
               </div>
 
               <div className="mb-11.5 flex">
                 <textarea
-                  placeholder="Message"
+                  placeholder={contactFormContent.placeholders.message}
                   rows={4}
                   className="w-full border-b border-stroke bg-transparent focus:border-waterloo focus:placeholder:text-black focus-visible:outline-hidden dark:border-strokedark dark:focus:border-manatee dark:focus:placeholder:text-white"
                 />
@@ -96,15 +97,14 @@ export default function Contact({
 
               <div className="flex flex-wrap gap-4 xl:justify-between">
                 <p className="max-w-[425px] text-metatitle text-waterloo dark:text-manatee">
-                  En envoyant ce message, vous acceptez d'être recontacté au
-                  sujet de Fluid Events.
+                  {contactFormContent.consentText}
                 </p>
                 <button
                   type="button"
                   aria-label="send message"
                   className="inline-flex items-center gap-2.5 rounded-full bg-black px-6 py-3 font-medium text-white duration-300 ease-in-out hover:bg-blackho dark:bg-btndark"
                 >
-                  Envoyer
+                  {contactFormContent.submitLabel}
                   <svg className="fill-white" width="14" height="14" viewBox="0 0 14 14">
                     <path d="M10.4767 6.16664L6.00668 1.69664L7.18501 0.518311L13.6667 6.99998L7.18501 13.4816L6.00668 12.3033L10.4767 7.83331H0.333344V6.16664H10.4767Z" />
                   </svg>
@@ -125,28 +125,28 @@ export default function Contact({
             className="animate_top w-full md:w-2/5 md:p-7.5 lg:w-[26%] xl:pt-15"
           >
             <h2 className="mb-12.5 text-3xl font-semibold text-black dark:text-white xl:text-sectiontitle2">
-              Nous trouver
+              {contactFormContent.sidebarHeading}
             </h2>
 
             <div className="mb-7">
               <h3 className="mb-4 text-metatitle3 font-medium text-black dark:text-white">
-                Localisation
+                {contactFormContent.location.label}
               </h3>
-              <p>Abidjan, Côte d'Ivoire</p>
+              <p>{contactFormContent.location.value}</p>
             </div>
             <div className="mb-7">
               <h3 className="mb-4 text-metatitle3 font-medium text-black dark:text-white">
-                Email
+                {contactFormContent.email.label}
               </h3>
               <p>
-                <a href="mailto:hello@fluidevents.africa">hello@fluidevents.africa</a>
+                <a href={`mailto:${contactFormContent.email.value}`}>{contactFormContent.email.value}</a>
               </p>
             </div>
             <div>
               <h4 className="mb-4 text-metatitle3 font-medium text-black dark:text-white">
-                Besoin rapide ?
+                {contactFormContent.quickNeed.heading}
               </h4>
-              <p>Support organisateur, onboarding paiement et accompagnement scanner.</p>
+              <p>{contactFormContent.quickNeed.text}</p>
             </div>
           </motion.div>
         </div>

@@ -13,8 +13,12 @@ export function isAllowedImageUrl(url: string): boolean {
   if (process.env.SUPABASE_URL) {
     bases.push(buildAllowedImageBase(process.env.SUPABASE_URL));
   }
-  if (process.env.STORAGE_ENDPOINT && process.env.STORAGE_BUCKET) {
-    bases.push(buildAllowedStorageBase(process.env.STORAGE_ENDPOINT, process.env.STORAGE_BUCKET));
+  // URLs vues ici viennent toujours du navigateur (jamais du réseau interne
+  // Docker) — on whitelist l'endpoint PUBLIC (voir StorageService), pas
+  // STORAGE_ENDPOINT qui peut être un hostname Docker interne (ex: minio:9000).
+  const storageEndpoint = process.env.STORAGE_PUBLIC_ENDPOINT || process.env.STORAGE_ENDPOINT;
+  if (storageEndpoint && process.env.STORAGE_BUCKET) {
+    bases.push(buildAllowedStorageBase(storageEndpoint, process.env.STORAGE_BUCKET));
   }
   return bases.some((base) => sanitizeImageUrl(url, base) !== '');
 }

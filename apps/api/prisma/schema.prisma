@@ -384,3 +384,20 @@ model PlatformSettings {
 
   @@map("platform_settings")
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CONTENU LANDING (CMS admin-configurable, 2026-07-22)
+// ─────────────────────────────────────────────────────────────────────────────
+
+// LandingSettings — Ligne singleton (même convention que PlatformSettings) :
+// tout le contenu éditable de la landing publique en une seule ligne, lue en
+// une requête. Les listes (features/roles/pricingPlans/blogPosts) sont des
+// colonnes JSON plutôt que des tables relationnelles séparées — même pattern
+// que Event.faqs/schedule/speakers (contenu structuré propre à un seul
+// propriétaire, validé en class-validator à l'écriture, jamais de confiance
+// aveugle au JSON stocké).
+//
+// LandingSettings retiré (2026-07-23, décision produit) : toute la landing
+// est désormais éditée à la main (apps/web/lib/content/) — seuls les logos
+// "confiance" restent pilotables depuis l'admin, via un simple dossier S3
+// (trusted-logos/), pas de table dédiée.

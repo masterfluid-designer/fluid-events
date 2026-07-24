@@ -84,11 +84,12 @@ export default function HorizontalScrollCards({
       ref={sectionRef}
       className="flex min-h-svh flex-col items-center justify-center gap-10 py-16"
     >
-      <div className="w-full px-6 md:px-12">{header}</div>
+      <div className="mx-auto w-full max-w-[1600px] px-6 md:px-12">{header}</div>
       {/* Pas de padding/max-w à droite ici : le rail déborde jusqu'au bord
           réel du viewport et la carte suivante y est visiblement coupée par
           l'overflow-hidden (effet "il y a plus à voir"), au lieu d'être
-          proprement contenue dans une colonne centrée. */}
+          proprement contenue dans une colonne centrée — seul cet élément
+          (celui qui défile horizontalement) reste en plein écran. */}
       <div ref={viewportRef} className="relative w-full overflow-hidden pl-6 md:pl-12">
         <div ref={trackRef} className="flex gap-6 will-change-transform">
           {items.map((item) => (
@@ -98,7 +99,7 @@ export default function HorizontalScrollCards({
           ))}
         </div>
       </div>
-      <div className="flex w-full items-center justify-between gap-6 px-6 md:px-12">
+      <div className="mx-auto flex w-full max-w-[1600px] items-center justify-between gap-6 px-6 md:px-12">
         <div className="min-w-0">{showCaption && items[active]?.caption}</div>
         <div className="ml-auto flex shrink-0 items-center gap-2">
           <button

@@ -6,19 +6,17 @@ import { Ticket } from "lucide-react";
 import { useGSAP } from "@gsap/react";
 import { gsap, ScrollTrigger } from "@/lib/gsap";
 import Typewriter from "@/components/motion/Typewriter";
-
-const LOGOS = [
-  { name: "Kkiapay", src: "/images/partenaire-logo/kkiapay-logo.png" },
-  { name: "CinetPay", src: "/images/partenaire-logo/cinetpay-logo.jpg" },
-  { name: "FedaPay", src: "/images/partenaire-logo/fedapay-logo.jpg" },
-  { name: "Orange Money", src: "/images/partenaire-logo/Orange-Money-logo.png" },
-  { name: "Moov Money", src: "/images/partenaire-logo/Moov_Money_Flooz-logo.png" },
-  { name: "Mastercard", src: "/images/partenaire-logo/Mastercard-logo.webp" },
-];
+import type { PaymentLogo } from "@/lib/payment-logos.server";
+import { paymentsContent } from "@/lib/content/landing/payments";
 
 const ITEM_SIZE = 80;
 
-export default function PaymentsShowcase() {
+interface PaymentsShowcaseProps {
+  /** Lu côté serveur depuis public/images/payment-logos/ (getPaymentLogos()). */
+  logos: PaymentLogo[];
+}
+
+export default function PaymentsShowcase({ logos }: PaymentsShowcaseProps) {
   const sectionRef = useRef<HTMLDivElement>(null);
   const circleRef = useRef<HTMLDivElement>(null);
   const textRef = useRef<HTMLDivElement>(null);
@@ -63,17 +61,24 @@ export default function PaymentsShowcase() {
         if (reduceMotion) {
           gsap.set(textRef.current, { opacity: 1, scale: 1 });
         } else {
-          gsap.fromTo(
-            textRef.current,
-            { opacity: 0, scale: 0.5 },
-            {
-              opacity: 1,
-              scale: 1,
-              duration: 0.9,
-              ease: "power3.out",
-              scrollTrigger: { trigger: textRef.current, start: "top 85%", once: true },
-            },
-          );
+          const target = textRef.current;
+          gsap.set(target, { opacity: 0, scale: 0.5 });
+          // Deux tweens distincts (pas un seul reversé) pour pouvoir donner
+          // à chaque sens sa propre courbe : ease-in à l'entrée (0.5→1),
+          // ease-out à la sortie (1→0.5), dans les deux sens de scroll.
+          const growIn = () =>
+            gsap.to(target, { opacity: 1, scale: 1, duration: 0.8, ease: "power2.in", overwrite: true });
+          const shrinkOut = () =>
+            gsap.to(target, { opacity: 0, scale: 0.5, duration: 0.8, ease: "power2.out", overwrite: true });
+          ScrollTrigger.create({
+            trigger: target,
+            start: "top 85%",
+            end: "bottom 15%",
+            onEnter: growIn,
+            onEnterBack: growIn,
+            onLeave: shrinkOut,
+            onLeaveBack: shrinkOut,
+          });
         }
       }
 
@@ -98,31 +103,26 @@ export default function PaymentsShowcase() {
 
       return () => window.removeEventListener("resize", handleResize);
     },
-    { scope: sectionRef },
+    { scope: sectionRef, dependencies: [logos.length] },
   );
 
   return (
     <section id="payments" ref={sectionRef} className="py-20 md:py-28">
       <div ref={textRef} className="mx-auto max-w-c-1016 px-6 text-center md:px-12">
         <span className="text-accent-terracotta dark:text-accent-terracotta-dark text-sectiontitle font-bold uppercase tracking-[0.06em]">
-          Paiements
+          {paymentsContent.eyebrow}
         </span>
         <h2 className="font-space-grotesk mt-3 text-3xl font-medium text-black md:text-5xl dark:text-white">
-          <Typewriter
-            once
-            segments={[{ text: "Encaissez avec les moyens que vos participants utilisent déjà" }]}
-          />
+          <Typewriter once segments={[{ text: paymentsContent.title }]} />
         </h2>
         <p className="mx-auto mt-4 max-w-xl text-regular text-waterloo dark:text-manatee">
-          Connectez vos billets aux providers locaux et laissez Fluid Events
-          préparer automatiquement confirmation, reçu et QR code après
-          paiement.
+          {paymentsContent.description}
         </p>
       </div>
 
       <div
         ref={circleRef}
-        className="relative mx-auto mt-16 flex size-[300px] items-center justify-center sm:size-[380px] md:size-[440px]"
+        className="relative mx-auto mt-16 flex size-[clamp(280px,50vw,900px)] items-center justify-center"
       >
         {/* Onde radar : 3 anneaux concentriques qui grossissent et
             s'estompent en boucle, décalés dans le temps — à un instant
@@ -142,7 +142,7 @@ export default function PaymentsShowcase() {
         <div className="border-primary/40 relative flex size-20 items-center justify-center rounded-full border bg-zumthor shadow-solid-7 dark:bg-btndark">
           <Ticket className="text-primary size-8" />
         </div>
-        {LOGOS.map((logo, i) => (
+        {logos.map((logo, i) => (
           <div
             key={logo.name}
             ref={(el) => {

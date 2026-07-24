@@ -1,46 +1,14 @@
 "use client";
 
 import { useRef } from "react";
-import { CreditCard, QrCode, Palette, BarChart3, Play } from "lucide-react";
+import { Play } from "lucide-react";
 import { useGSAP } from "@gsap/react";
 import { ScrollTrigger } from "@/lib/gsap";
 import ScrollReveal from "@/components/motion/ScrollReveal";
 import Typewriter from "@/components/motion/Typewriter";
+import { featuresContent } from "@/lib/content/landing/features";
 
-const PANELS = [
-  {
-    id: "builder",
-    icon: Palette,
-    title: "No-code Builder",
-    description:
-      "Composez la page de votre événement par blocs. Hero, description, galerie — sans écrire une ligne de code.",
-    glow: "from-primary/40 via-primary/10 to-transparent",
-  },
-  {
-    id: "scanner",
-    icon: QrCode,
-    title: "Scanner PWA",
-    description:
-      "Transformez n'importe quel téléphone en scanner de billets QR. Installation en 1 clic, fonctionne hors ligne.",
-    glow: "from-emerald-500/30 via-emerald-500/10 to-transparent",
-  },
-  {
-    id: "payments",
-    icon: CreditCard,
-    title: "Paiements Mobile Money",
-    description:
-      "Kkiapay, CinetPay, FedaPay — acceptez les paiements que vos clients utilisent vraiment.",
-    glow: "from-amber-500/30 via-amber-500/10 to-transparent",
-  },
-  {
-    id: "dashboard",
-    icon: BarChart3,
-    title: "Dashboard temps réel",
-    description:
-      "Suivez vos ventes, scans et revenus en direct. Export CSV des participants.",
-    glow: "from-sky-500/30 via-sky-500/10 to-transparent",
-  },
-];
+const PANELS = featuresContent.panels;
 
 export default function Showcase() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -79,7 +47,7 @@ export default function Showcase() {
         return (
           <section
             key={panel.id}
-            className={`flex min-h-svh flex-col items-center justify-center gap-12 px-6 py-24 md:gap-20 md:px-12 lg:gap-28 ${
+            className={`flex min-h-svh flex-col items-center justify-center gap-6 px-6 py-24 md:gap-10 md:px-12 lg:gap-14 ${
               reverse ? "md:flex-row-reverse" : "md:flex-row"
             }`}
           >

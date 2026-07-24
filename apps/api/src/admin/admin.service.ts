@@ -8,6 +8,7 @@ import { bucketSalesByDay } from '../common/analytics.util';
 import { AuditService } from '../common/audit.service';
 import { EmailService } from '../notifications/email.service';
 import { AuthService } from '../auth/auth.service';
+import { StorageService } from '../storage/storage.service';
 import { ErrorCodes, EventStatus, PaymentProviderType, Role, TokenPair } from '@saas-events/types';
 import { FRONTEND_URL } from '../common/constants';
 import { UpsertPaymentConfigDto } from './dto/upsert-payment-config.dto';
@@ -43,6 +44,7 @@ export class AdminService {
     private readonly email: EmailService,
     private readonly audit: AuditService,
     private readonly authService: AuthService,
+    private readonly storage: StorageService,
   ) {}
 
   async getOverview() {
@@ -245,6 +247,73 @@ export class AdminService {
     });
     await this.audit.log('event.status.changed', 'Event', eventId, { status, changedByAdmin: true });
     return updated;
+  }
+
+  /**
+   * GET /api/admin/trusted-logo-candidates — événements ayant un logo,
+   * utilisables pour la section "confiance" de la landing (décision produit
+   * 2026-07-22 : c'est l'Admin qui choisit lesquels afficher, pas un
+   * consentement du Manager). `alreadyAdded` se déduit de la clé S3
+   * déterministe `trusted-logos/event-{id}.*` posée par `addEventLogoToTrusted`.
+   */
+  async listTrustedLogoCandidates() {
+    const events = await this.prisma.event.findMany({
+      where: { logoUrl: { not: null } },
+      select: { id: true, title: true, logoUrl: true },
+      orderBy: { title: 'asc' },
+    });
+
+    const existing = await this.storage.listObjectUrls('trusted-logos/');
+    const keyByEventId = new Map<string, string>();
+    for (const obj of existing) {
+      const eventId = /^trusted-logos\/event-([^.]+)\./.exec(obj.key)?.[1];
+      if (eventId) keyByEventId.set(eventId, obj.key);
+    }
+
+    return events.map((e) => ({
+      id: e.id,
+      title: e.title,
+      logoUrl: e.logoUrl,
+      addedKey: keyByEventId.get(e.id) ?? null,
+    }));
+  }
+
+  /**
+   * POST /api/admin/trusted-logo-candidates/:eventId — copie le logo de cet
+   * événement dans le dossier S3 trusted-logos/ (clé déterministe par
+   * événement, remplace toute copie précédente pour ce même événement).
+   */
+  async addEventLogoToTrusted(eventId: string) {
+    const event = await this.prisma.event.findUnique({
+      where: { id: eventId },
+      select: { id: true, logoUrl: true },
+    });
+    if (!event) {
+      throw new NotFoundException({ code: ErrorCodes.EVENT_NOT_FOUND, message: 'Événement introuvable.' });
+    }
+    if (!event.logoUrl) {
+      throw new BadRequestException({
+        code: ErrorCodes.DESIGN_IMAGE_URL_INVALID,
+        message: "Cet événement n'a pas de logo.",
+      });
+    }
+
+    const sourceKey = this.storage.keyFromPublicUrl(event.logoUrl);
+    if (!sourceKey) {
+      throw new BadRequestException({
+        code: ErrorCodes.DESIGN_IMAGE_URL_INVALID,
+        message: 'Ce logo ne provient pas du stockage whitelisté.',
+      });
+    }
+
+    const destPrefix = `trusted-logos/event-${eventId}`;
+    const previous = await this.storage.listObjectUrls(destPrefix);
+    await Promise.all(previous.map((obj) => this.storage.deleteObject(obj.key)));
+
+    const ext = sourceKey.includes('.') ? sourceKey.slice(sourceKey.lastIndexOf('.')) : '';
+    const url = await this.storage.copyObject(sourceKey, `${destPrefix}${ext}`);
+    await this.audit.log('admin.trusted_logos.event_added', 'Event', eventId, {});
+    return { url };
   }
 
   /**

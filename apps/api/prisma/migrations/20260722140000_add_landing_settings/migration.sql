@@ -1,0 +1,33 @@
+-- CreateTable
+CREATE TABLE "landing_settings" (
+    "id" TEXT NOT NULL DEFAULT 'singleton',
+    "heroTitle" TEXT NOT NULL DEFAULT 'Créez des événements, vendez vos billets et scannez les entrées.',
+    "heroDemoVideoUrl" TEXT,
+    "featuresEyebrow" TEXT NOT NULL DEFAULT 'FONCTIONNALITÉS',
+    "featuresTitle" TEXT NOT NULL DEFAULT 'Tout pour vos événements',
+    "features" JSONB NOT NULL DEFAULT '[]',
+    "rolesEyebrow" TEXT NOT NULL DEFAULT 'PENSÉ POUR CHAQUE RÔLE',
+    "rolesTitle" TEXT NOT NULL DEFAULT 'Une expérience pensée pour chacun',
+    "roles" JSONB NOT NULL DEFAULT '[]',
+    "trustedEyebrow" TEXT NOT NULL DEFAULT 'ILS NOUS FONT CONFIANCE',
+    "trustedTitle" TEXT NOT NULL DEFAULT 'Des organisateurs qui nous confient leurs événements',
+    "trustedLogos" JSONB NOT NULL DEFAULT '[]',
+    "paymentsEyebrow" TEXT NOT NULL DEFAULT 'PAIEMENTS',
+    "paymentsTitle" TEXT NOT NULL DEFAULT 'Encaissez avec les moyens que vos participants utilisent déjà',
+    "paymentLogos" JSONB NOT NULL DEFAULT '[]',
+    "pricingEyebrow" TEXT NOT NULL DEFAULT 'TARIFS',
+    "pricingTitle" TEXT NOT NULL DEFAULT 'Tarifs',
+    "pricingPlans" JSONB NOT NULL DEFAULT '[]',
+    "blogEyebrow" TEXT NOT NULL DEFAULT 'BLOG',
+    "blogTitle" TEXT NOT NULL DEFAULT 'Dernières actualités',
+    "blogPosts" JSONB NOT NULL DEFAULT '[]',
+    "socialFacebookUrl" TEXT,
+    "socialTwitterUrl" TEXT,
+    "socialLinkedinUrl" TEXT,
+    "socialInstagramUrl" TEXT,
+    "contactEmail" TEXT,
+    "contactPhone" TEXT,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "landing_settings_pkey" PRIMARY KEY ("id")
+);

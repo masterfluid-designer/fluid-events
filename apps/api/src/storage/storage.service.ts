@@ -1,7 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import {
+  CopyObjectCommand,
   CreateBucketCommand,
+  DeleteObjectCommand,
   HeadBucketCommand,
+  ListObjectsV2Command,
   PutBucketPolicyCommand,
   PutObjectCommand,
   S3Client,
@@ -14,10 +17,19 @@ import {
  * config (`STORAGE_*` en env) change. Pas de dépendance directe à un SDK
  * propriétaire, uniquement `@aws-sdk/client-s3` (protocole S3 standard).
  *
- * ⚠️ La construction d'URL publique ci-dessous (`${endpoint}/${bucket}/${key}`)
+ * ⚠️ La construction d'URL publique ci-dessous (`${publicEndpoint}/${bucket}/${key}`)
  * correspond au style RustFS/MinIO en path-style. Un déploiement Supabase
  * Storage en prod peut nécessiter un préfixe différent
  * (`/storage/v1/object/public/...`) — à adapter si besoin le jour venu.
+ *
+ * ⚠️ `endpoint` (connexion du client S3) et `publicEndpoint` (URLs renvoyées
+ * au navigateur) sont volontairement DEUX valeurs distinctes : en Docker,
+ * l'API atteint MinIO via le nom de service interne (`http://minio:9000`,
+ * résolu par le DNS du réseau Docker), mais ce nom n'existe pas pour le
+ * navigateur de l'utilisateur — il lui faut l'URL publique (`http://localhost:9000`
+ * en dev, le domaine du bucket en prod). Sans cette distinction, les images
+ * uploadées pointent vers une URL injoignable côté client (carré blanc /
+ * image cassée) alors que tout fonctionne côté serveur.
  */
 @Injectable()
 export class StorageService {
@@ -25,10 +37,12 @@ export class StorageService {
   private readonly client: S3Client;
   private readonly bucket: string;
   private readonly endpoint: string;
+  private readonly publicEndpoint: string;
   private bucketEnsured = false;
 
   constructor() {
     this.endpoint = requireEnv('STORAGE_ENDPOINT');
+    this.publicEndpoint = process.env.STORAGE_PUBLIC_ENDPOINT || this.endpoint;
     const accessKeyId = requireEnv('STORAGE_ACCESS_KEY');
     const secretAccessKey = requireEnv('STORAGE_SECRET_KEY');
     this.bucket = requireEnv('STORAGE_BUCKET');
@@ -52,7 +66,54 @@ export class StorageService {
         ContentType: contentType,
       }),
     );
-    return `${this.endpoint.replace(/\/$/, '')}/${this.bucket}/${key}`;
+    return `${this.publicEndpoint.replace(/\/$/, '')}/${this.bucket}/${key}`;
+  }
+
+  /**
+   * Liste les URLs publiques des objets sous un préfixe ("dossier") du bucket
+   * — utilisé pour les logos "confiance"/"paiements" de la landing (décision
+   * produit 2026-07-22) : pas de métadonnée en base, on dépose/retire un
+   * fichier dans le dossier et le front le récupère en bouclant sur cette liste.
+   */
+  async listObjectUrls(prefix: string): Promise<{ key: string; url: string }[]> {
+    await this.ensureBucket();
+    const result = await this.client.send(
+      new ListObjectsV2Command({ Bucket: this.bucket, Prefix: prefix }),
+    );
+    const base = `${this.publicEndpoint.replace(/\/$/, '')}/${this.bucket}`;
+    return (result.Contents ?? [])
+      .filter((obj) => obj.Key && !obj.Key.endsWith('/'))
+      .map((obj) => ({ key: obj.Key!, url: `${base}/${obj.Key}` }))
+      .sort((a, b) => a.key.localeCompare(b.key));
+  }
+
+  /** Supprime un objet par sa clé complète (ex: "payment-logos/xyz.png"). */
+  async deleteObject(key: string): Promise<void> {
+    await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }));
+  }
+
+  /**
+   * Retrouve la clé S3 d'un objet à partir de son URL publique (inverse de
+   * `uploadBuffer`) — `null` si l'URL ne pointe pas vers ce bucket. Utilisé
+   * pour copier un fichier déjà uploadé (ex: logo d'événement) vers un autre
+   * dossier sans le re-télécharger côté client.
+   */
+  keyFromPublicUrl(url: string): string | null {
+    const base = `${this.publicEndpoint.replace(/\/$/, '')}/${this.bucket}/`;
+    return url.startsWith(base) ? url.slice(base.length) : null;
+  }
+
+  /** Copie un objet existant vers une nouvelle clé (server-side, sans re-upload) et retourne sa nouvelle URL publique. */
+  async copyObject(sourceKey: string, destKey: string): Promise<string> {
+    await this.ensureBucket();
+    await this.client.send(
+      new CopyObjectCommand({
+        Bucket: this.bucket,
+        CopySource: `/${this.bucket}/${sourceKey}`,
+        Key: destKey,
+      }),
+    );
+    return `${this.publicEndpoint.replace(/\/$/, '')}/${this.bucket}/${destKey}`;
   }
 
   /**

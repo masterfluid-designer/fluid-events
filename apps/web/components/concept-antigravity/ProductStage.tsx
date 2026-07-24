@@ -152,7 +152,7 @@ export default function ProductStage() {
   return (
     <section
       ref={sectionRef}
-      className="relative flex min-h-svh items-center justify-center overflow-hidden bg-blackho py-20"
+      className="relative flex min-h-svh items-center justify-center overflow-hidden py-20"
     >
       <div className="relative mx-auto w-full max-w-[1600px] px-6 md:px-12">
         <div

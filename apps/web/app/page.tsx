@@ -12,8 +12,13 @@ import TrustedByCarousel from "@/components/concept-antigravity/TrustedByCarouse
 import PaymentsShowcase from "@/components/concept-antigravity/PaymentsShowcase";
 import BlogCarousel from "@/components/concept-antigravity/BlogCarousel";
 import DarkCta from "@/components/concept-antigravity/DarkCta";
+import { getPaymentLogos } from "@/lib/payment-logos.server";
+import { getTrustedLogos } from "@/lib/trusted-logos.server";
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  const paymentLogos = getPaymentLogos();
+  const trustedLogos = await getTrustedLogos();
+
   return (
     <>
       <Header />
@@ -28,8 +33,8 @@ export default function LandingPage() {
         <Showcase />
         <RolesCarousel />
         <Pricing />
-        <TrustedByCarousel />
-        <PaymentsShowcase />
+        <TrustedByCarousel logos={trustedLogos} />
+        <PaymentsShowcase logos={paymentLogos} />
         <BlogCarousel />
         <DarkCta />
       </main>

@@ -16,6 +16,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   ImageIcon,
+  BadgeCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -37,6 +38,7 @@ const navByRole: Record<Role, NavItem[]> = {
     { href: '/admin/logs', label: 'Logs', icon: <BarChart3 className="size-4" /> },
     { href: '/admin/providers', label: 'Paiements', icon: <Settings className="size-4" /> },
     { href: '/admin/branding', label: 'Branding', icon: <ImageIcon className="size-4" /> },
+    { href: '/admin/trusted-logos', label: 'Confiance', icon: <BadgeCheck className="size-4" /> },
     { href: '/admin/appearance', label: 'Apparence', icon: <Palette className="size-4" /> },
   ],
   [Role.MANAGER]: [
@@ -76,10 +78,19 @@ function NavLinks({
   collapsed?: boolean;
   onNavigate?: () => void;
 }) {
+  // Le lien actif est le href le PLUS SPÉCIFIQUE qui matche le pathname —
+  // pas un simple startsWith indépendant par item, sinon une racine courte
+  // comme '/admin' matche aussi toutes ses sous-pages ('/admin/appearance'
+  // commence bien par '/admin/') et reste allumée en même temps qu'elles.
+  const activeHref = items
+    .map((i) => i.href)
+    .filter((href) => pathname === href || pathname.startsWith(href + '/'))
+    .sort((a, b) => b.length - a.length)[0];
+
   return (
     <nav className="flex-1 space-y-1 overflow-y-auto p-3">
       {items.map((item) => {
-        const active = pathname === item.href || pathname.startsWith(item.href + '/');
+        const active = item.href === activeHref;
         return (
           <Link
             key={item.href}

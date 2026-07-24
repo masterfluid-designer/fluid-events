@@ -3,6 +3,7 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import Lines from "@/components/Lines";
 import Contact from "@/components/landing/Contact";
+import { supportPageContent } from "@/lib/content/support";
 
 export const metadata: Metadata = {
   title: "Support — Fluid Events",
@@ -17,9 +18,9 @@ export default function SupportPage() {
       <main className="relative overflow-hidden pb-10 pt-28">
         <Lines />
         <Contact
-          eyebrow="SUPPORT"
-          title="Besoin d'aide sur un événement en cours ?"
-          description="Notre support vous accompagne sur la configuration des tickets, les paiements, les accès scanner et les questions avant ouverture des portes."
+          eyebrow={supportPageContent.eyebrow}
+          title={supportPageContent.title}
+          description={supportPageContent.description}
         />
       </main>
       <Footer />

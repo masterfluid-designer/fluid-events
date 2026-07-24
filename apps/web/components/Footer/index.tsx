@@ -2,6 +2,7 @@
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { Ticket } from "lucide-react";
+import { footerContent } from "@/lib/content/landing/social";
 
 const Footer = () => {
   return (
@@ -36,19 +37,16 @@ const Footer = () => {
                   </span>
                 </Link>
 
-                <p className="mb-10 mt-5">
-                  Plateforme de billetterie et gestion d'événements pour
-                  l'Afrique. Paiement Mobile Money, scanner QR, no-code builder.
-                </p>
+                <p className="mb-10 mt-5">{footerContent.tagline}</p>
 
                 <p className="mb-1.5 text-sectiontitle uppercase tracking-[5px]">
                   contact
                 </p>
                 <a
-                  href="mailto:hello@fluidevents.africa"
+                  href={`mailto:${footerContent.contactEmail}`}
                   className="text-itemtitle font-medium text-black dark:text-white"
                 >
-                  hello@fluidevents.africa
+                  {footerContent.contactEmail}
                 </a>
               </motion.div>
 
@@ -160,7 +158,7 @@ const Footer = () => {
                     </li>
                     <li>
                       <Link
-                        href="mailto:hello@fluidevents.africa"
+                        href={`mailto:${footerContent.contactEmail}`}
                         className="mb-3 inline-block hover:text-primary"
                       >
                         Contactez-nous
@@ -190,9 +188,7 @@ const Footer = () => {
                   <h4 className="mb-9 text-itemtitle2 font-medium text-black dark:text-white">
                     Newsletter
                   </h4>
-                  <p className="mb-4 w-[90%]">
-                    Recevez nos actualités et mises à jour.
-                  </p>
+                  <p className="mb-4 w-[90%]">{footerContent.newsletterText}</p>
 
                   <form action="#">
                     <div className="relative">
@@ -234,7 +230,26 @@ const Footer = () => {
             </div>
           </div>
           {/* <!-- Footer Top --> */}
+        </div>
 
+        {/* <!-- Watermark --> */}
+        {/* Hors du conteneur max-w-c-1390 volontairement : doit occuper
+            toute la largeur réelle de l'écran sur desktop, pas seulement la
+            colonne de contenu (sinon le texte à 14vw dépasse une colonne
+            plus étroite que le viewport et se fait couper par l'overflow).
+            Placé ici, juste au-dessus de la ligne de séparation du Footer
+            Bottom, sur tous les breakpoints (pas de classe responsive qui
+            le masquerait). */}
+        <div aria-hidden="true" className="overflow-hidden">
+          <p
+            className="font-space-grotesk select-none whitespace-nowrap text-center font-bold leading-none tracking-tight text-black/5 dark:text-white/5"
+            style={{ fontSize: "14vw" }}
+          >
+            Fluid Events
+          </p>
+        </div>
+
+        <div className="mx-auto max-w-c-1390 px-4 md:px-8 2xl:px-0">
           {/* <!-- Footer Bottom --> */}
           <div className="flex flex-col flex-wrap items-center justify-center gap-5 border-t border-stroke py-7 dark:border-strokedark lg:flex-row lg:justify-between lg:gap-0">
             <motion.div
@@ -318,7 +333,7 @@ const Footer = () => {
             >
               <ul className="flex items-center gap-5">
                 <li>
-                  <a href="#" aria-label="social icon">
+                  <a href={footerContent.social.facebookUrl} aria-label="Facebook">
                     <svg
                       className="fill-[#D1D8E0] transition-all duration-300 hover:fill-primary"
                       width="24"
@@ -342,7 +357,7 @@ const Footer = () => {
                   </a>
                 </li>
                 <li>
-                  <a href="#" aria-label="social icon">
+                  <a href={footerContent.social.twitterUrl} aria-label="X (Twitter)">
                     <svg
                       className="fill-[#D1D8E0] transition-all duration-300 hover:fill-primary"
                       width="24"
@@ -366,7 +381,7 @@ const Footer = () => {
                   </a>
                 </li>
                 <li>
-                  <a href="#" aria-label="social icon">
+                  <a href={footerContent.social.linkedinUrl} aria-label="LinkedIn">
                     <svg
                       className="fill-[#D1D8E0] transition-all duration-300 hover:fill-primary"
                       width="24"
@@ -393,20 +408,6 @@ const Footer = () => {
             </motion.div>
           </div>
           {/* <!-- Footer Bottom --> */}
-        </div>
-
-        {/* <!-- Watermark --> */}
-        {/* Hors du conteneur max-w-c-1390 volontairement : doit occuper
-            toute la largeur réelle de l'écran sur desktop, pas seulement la
-            colonne de contenu (sinon le texte à 14vw dépasse une colonne
-            plus étroite que le viewport et se fait couper par l'overflow). */}
-        <div aria-hidden="true" className="overflow-hidden">
-          <p
-            className="font-space-grotesk select-none whitespace-nowrap text-center font-bold leading-none tracking-tight text-black/5 dark:text-white/5"
-            style={{ fontSize: "14vw" }}
-          >
-            Fluid Events
-          </p>
         </div>
       </footer>
     </>
