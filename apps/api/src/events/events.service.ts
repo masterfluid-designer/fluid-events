@@ -7,6 +7,7 @@ import { UpdateEventDto } from './dto/update-event.dto';
 import { ErrorCodes } from '@saas-events/types';
 import { isAllowedImageUrl } from '../storage/image-whitelist.util';
 import { bucketSalesByDay } from '../common/analytics.util';
+import { AuditService } from '../common/audit.service';
 
 /** Fenêtre de la série temporelle "ventes dans le temps" (Analytics, 2026-07-14). */
 const SALES_TREND_DAYS = 30;
@@ -16,12 +17,15 @@ const UNIQUE_VIOLATION = 'P2002';
 
 @Injectable()
 export class EventsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
   /** managerId dérivé du JWT (@CurrentUser), jamais du body — voir CreateEventDto. */
   async createEvent(managerId: string, data: CreateEventDto) {
     try {
-      return await this.prisma.event.create({
+      const event = await this.prisma.event.create({
         data: {
           ...data,
           managerId,
@@ -29,6 +33,8 @@ export class EventsService {
           endDate: new Date(data.endDate),
         },
       });
+      await this.audit.log('event.created', 'Event', event.id, { slug: event.slug }, managerId);
+      return event;
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === UNIQUE_VIOLATION) {
         // Contrainte V1 : 1 Manager = 1 Event (Event.managerId @unique).
@@ -58,7 +64,7 @@ export class EventsService {
 
     const { faqs, schedule, speakers, galleryImages, sponsorImages, startDate, endDate, ...rest } = data;
 
-    return this.prisma.event.update({
+    const updated = await this.prisma.event.update({
       where: { id: event.id },
       data: {
         ...rest,
@@ -71,6 +77,8 @@ export class EventsService {
         sponsorImages: sponsorImages as unknown as InputJsonValue | undefined,
       },
     });
+    await this.audit.log('event.updated', 'Event', updated.id, { fields: Object.keys(rest) }, managerId);
+    return updated;
   }
 
   /**
@@ -96,14 +104,6 @@ export class EventsService {
         });
       }
     }
-  }
-
-  async getEvent(id: string) {
-    return this.prisma.event.findUnique({ where: { id } });
-  }
-
-  async listEvents() {
-    return this.prisma.event.findMany();
   }
 
   /**

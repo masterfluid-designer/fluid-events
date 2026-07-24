@@ -47,16 +47,6 @@ export class EventsController {
     return this.eventsService.getMyEventOverview(user.id);
   }
 
-  @Get(':id')
-  async getEvent(@Param('id') id: string) {
-    return this.eventsService.getEvent(id);
-  }
-
-  @Get()
-  async listEvents() {
-    return this.eventsService.listEvents();
-  }
-
   /** Participants (billets payés) — ownership Manager vérifiée dans le service. */
   @Roles(Role.MANAGER)
   @Get(':eventId/participants')

@@ -140,4 +140,15 @@ describe('ClientProfileService — enrichClientProfile() (persistance)', () => {
       }),
     });
   });
+
+  it("n'écrit rien (et n'estampille pas profileCompletedAt) quand phone/country sont déjà renseignés", async () => {
+    const phoneService = new PhoneService();
+    const findUnique = vi.fn().mockResolvedValue({ id: 'u1', phone: '+22811111111', country: 'CI' });
+    const prisma = { user: { findUnique, update: updateMock } } as any;
+    service = new ClientProfileService(prisma, phoneService);
+
+    await service.enrichClientProfile('u1', { phone: '+22890123456', country: 'TG' });
+
+    expect(updateMock).not.toHaveBeenCalled();
+  });
 });

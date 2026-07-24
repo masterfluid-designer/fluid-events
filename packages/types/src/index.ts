@@ -366,6 +366,8 @@ export const ErrorCodes = {
   PHONE_INVALID: 'PHONE_INVALID',
   PHONE_VERIFICATION_CODE_INVALID: 'PHONE_VERIFICATION_CODE_INVALID',
   PHONE_VERIFICATION_CODE_EXPIRED: 'PHONE_VERIFICATION_CODE_EXPIRED',
+  // Formulaire de contact public (/contact, /support — 2026-07-24)
+  CONTACT_SEND_FAILED: 'CONTACT_SEND_FAILED',
 } as const;
 
 export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes];

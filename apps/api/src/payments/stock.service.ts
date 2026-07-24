@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { AuditService } from '../common/audit.service';
 
 /**
  * StockService — Logique de décrément atomique du stock de billets.
@@ -16,6 +17,8 @@ import { Injectable, Logger } from '@nestjs/common';
 @Injectable()
 export class StockService {
   private readonly logger = new Logger(StockService.name);
+
+  constructor(private readonly audit: AuditService) {}
 
   /**
    * Vérifie préventement (avant initiation paiement) si du stock est disponible.
@@ -66,6 +69,10 @@ export class StockService {
       this.logger.warn(
         `Race condition stock détectée — ticket ${ticketId} épuisé (capacité ${stock})`,
       );
+      // Fire-and-forget : n'écrit pas dans `tx` (l'audit log n'a pas besoin
+      // d'être transactionnel avec le décrément) et ne doit jamais faire
+      // échouer le flux paiement si l'écriture d'audit échoue.
+      void this.audit.log('payment.stock.race', 'Ticket', ticketId, { stock, quantity });
     }
     return success;
   }

@@ -7,6 +7,7 @@ import {
   IsOptional,
   IsString,
   IsUrl,
+  MaxLength,
   ValidateNested,
 } from 'class-validator';
 import { EventStatus } from '@saas-events/types';
@@ -29,10 +30,12 @@ import { FaqEntryDto, MediaEntryDto, ScheduleEntryDto, SpeakerEntryDto } from '.
 export class UpdateEventDto {
   @IsOptional()
   @IsString()
+  @MaxLength(200)
   title?: string;
 
   @IsOptional()
   @IsString()
+  @MaxLength(5000)
   description?: string;
 
   @IsOptional()
@@ -45,6 +48,7 @@ export class UpdateEventDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(300)
   location?: string;
 
   @IsOptional()

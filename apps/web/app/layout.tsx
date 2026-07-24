@@ -17,8 +17,8 @@ const fontSerif = Newsreader({
   variable: "--font-serif",
 });
 
-// Réservée à la page concept /concept/antigravity (titres) — pas le sans-serif
-// par défaut du site, voir globals.css --font-space-grotesk.
+// Titres de la landing (Hero, sections, etc.) — pas le sans-serif par défaut
+// du site, voir globals.css --font-space-grotesk.
 const fontSpaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
   weight: ["500", "600", "700"],

@@ -14,7 +14,7 @@
   --font-mono: var(--font-mono), ui-monospace, monospace;
   --font-serif: var(--font-serif), ui-serif, serif;
   --font-inter: var(--font-sans), ui-sans-serif, sans-serif;
-  /* Réservée à la page concept /concept/antigravity, pas le sans-serif par défaut du site. */
+  /* Titres de la landing (Hero, sections, etc.), pas le sans-serif par défaut du site. */
   --font-space-grotesk: var(--font-space-grotesk), ui-sans-serif, sans-serif;
 
   /* ── Colors ── */

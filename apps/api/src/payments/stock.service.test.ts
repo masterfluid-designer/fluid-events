@@ -52,7 +52,7 @@ describe('StockService — decrementStockAtomic()', () => {
   let stockService: StockService;
 
   beforeEach(() => {
-    stockService = new StockService();
+    stockService = new StockService({ log: vi.fn().mockResolvedValue(undefined) } as any);
   });
 
   it('décrémente le stock avec succès quand la capacité le permet', async () => {
@@ -124,7 +124,7 @@ describe('StockService — releaseStockAtomic()', () => {
   let stockService: StockService;
 
   beforeEach(() => {
-    stockService = new StockService();
+    stockService = new StockService({ log: vi.fn().mockResolvedValue(undefined) } as any);
   });
 
   it('décrémente stockSold de la quantité relâchée', async () => {
@@ -151,7 +151,7 @@ describe('StockService — releaseStockAtomic()', () => {
 describe('StockService — checkStockAvailable()', () => {
   let stockService: StockService;
   beforeEach(() => {
-    stockService = new StockService();
+    stockService = new StockService({ log: vi.fn().mockResolvedValue(undefined) } as any);
   });
 
   it('retourne true si du stock est disponible', () => {

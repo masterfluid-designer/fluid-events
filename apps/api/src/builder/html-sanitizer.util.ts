@@ -1,4 +1,5 @@
 import sanitizeHtml from 'sanitize-html';
+import { isAllowedImageUrl } from '../storage/image-whitelist.util';
 
 /**
  * Nettoyage du contenu du bloc `html` (Event Builder) — décision produit
@@ -32,6 +33,12 @@ export function sanitizeBlockHtml(html: string): string {
     // Jamais de script/style/iframe/object/svg — même raisonnement que le
     // rejet des SVG sur l'upload d'image (image-whitelist.util.ts).
     disallowedTagsMode: 'discard',
+    // Un <img> dont le src ne pointe pas vers le stockage whitelisté est
+    // retiré entièrement (RULES.md §6) — sans ce filtre, ce bloc était le
+    // seul endroit du Builder à laisser passer une URL d'image externe
+    // arbitraire (tracking pixel, hotlinking) malgré la whitelist déjà
+    // appliquée partout ailleurs (logo, couverture, galerie, sponsors...).
+    exclusiveFilter: (frame) => frame.tag === 'img' && !isAllowedImageUrl(frame.attribs.src ?? ''),
     transformTags: {
       a: sanitizeHtml.simpleTransform('a', { rel: 'noopener noreferrer', target: '_blank' }),
     },

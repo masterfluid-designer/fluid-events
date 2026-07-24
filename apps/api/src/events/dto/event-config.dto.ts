@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsUrl, MaxLength } from 'class-validator';
+import { IsDateString, IsOptional, IsString, IsUrl, MaxLength } from 'class-validator';
 
 /**
  * Sous-DTOs — contenu centralisé de l'événement (décision produit
@@ -29,7 +29,7 @@ export class ScheduleEntryDto {
   @IsString()
   id!: string;
 
-  @IsString()
+  @IsDateString()
   startsAt!: string;
 
   @IsString()

@@ -75,7 +75,11 @@ export class ClientProfileService {
       }
 
       const data = this.buildEnrichmentData(user, paymentData);
-      if (!data) return;
+      // `data` peut être un objet vide (rien à combler) — ne toucher la BDD,
+      // et surtout ne pas estampiller `profileCompletedAt`, que si un champ a
+      // réellement été renseigné (le nom du champ implique un événement réel,
+      // pas une réécriture à chaque paiement).
+      if (!data || Object.keys(data).length === 0) return;
 
       await this.prisma.user.update({
         where: { id: clientId },

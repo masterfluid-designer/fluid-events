@@ -390,7 +390,7 @@ export class AdminService {
     const encryptedPrivateKey = this.crypto.encrypt(dto.privateKey);
     const encryptedWebhookSecret = this.crypto.encrypt(dto.webhookSecret);
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       if (dto.isActive) {
         await tx.paymentProviderConfig.updateMany({
           where: { eventId, provider: { not: dto.provider } },
@@ -419,6 +419,14 @@ export class AdminService {
         select: SAFE_CONFIG_SELECT,
       });
     });
+
+    // Jamais les identifiants dans l'audit (RULES.md §9) — juste le fait
+    // qu'un provider a été (re)configuré, par qui et sur quel événement.
+    await this.audit.log('admin.provider.updated', 'PaymentProviderConfig', eventId, {
+      provider: dto.provider,
+      isActive: dto.isActive ?? false,
+    });
+    return result;
   }
 
   /** Active/désactive un provider déjà configuré, sans toucher aux identifiants. */
@@ -437,7 +445,7 @@ export class AdminService {
       });
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       if (isActive) {
         await tx.paymentProviderConfig.updateMany({
           where: { eventId, provider: { not: provider } },
@@ -450,6 +458,12 @@ export class AdminService {
         select: SAFE_CONFIG_SELECT,
       });
     });
+
+    await this.audit.log('admin.provider.updated', 'PaymentProviderConfig', eventId, {
+      provider,
+      isActive,
+    });
+    return result;
   }
 
   async deleteEventPaymentConfig(eventId: string, provider: PaymentProviderType): Promise<void> {

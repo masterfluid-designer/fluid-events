@@ -1,12 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import jwt, { JwtPayload } from 'jsonwebtoken';
-import {
-  sanitizeBgColor,
-  sanitizeImageUrl,
-  buildAllowedImageBase,
-  escapeHtml,
-} from '@saas-events/utils';
+import { sanitizeBgColor, escapeHtml } from '@saas-events/utils';
 import { QrTokenPayload, ScanResult } from '@saas-events/types';
+import { isAllowedImageUrl } from '../storage/image-whitelist.util';
 
 /** Durée de grâce QR après la fin de l'événement (24h). */
 export const QR_GRACE_SECONDS = 24 * 60 * 60;
@@ -180,19 +176,21 @@ export class TicketDesignService {
   }
 
   /**
-   * Valide `designImageUrl` contre la whitelist du bucket (CDC §9.3).
-   * Non-bloquant : si SUPABASE_URL est absent (dev sans Supabase configuré),
-   * on ignore l'image plutôt que de faire échouer toute la génération du
-   * billet pour une fonctionnalité optionnelle.
+   * Valide `designImageUrl` contre la whitelist de stockage (CDC §9.3) —
+   * même vérification double (Supabase et/ou S3-compatible générique) que
+   * `isAllowedImageUrl` utilisée partout ailleurs à l'écriture
+   * (RULES.md §6). Avant ce correctif, seul Supabase était accepté ici :
+   * une image uploadée sur le stockage S3-compatible générique (RustFS/
+   * MinIO, config dev par défaut — voir RULES.md §17) passait la validation
+   * à l'écriture mais disparaissait silencieusement du PDF généré.
+   * Non-bloquant : une URL refusée fait juste ignorer l'image plutôt que
+   * d'échouer toute la génération du billet pour une fonctionnalité optionnelle.
    */
   private sanitizeDesignImageUrl(url: string): string {
-    const supabaseUrl = process.env.SUPABASE_URL;
-    if (!supabaseUrl) {
-      this.logger.warn(
-        'SUPABASE_URL manquant — image de design ignorée (whitelist impossible).',
-      );
+    if (!isAllowedImageUrl(url)) {
+      this.logger.warn(`URL d'image de design hors whitelist, ignorée : ${url}`);
       return '';
     }
-    return sanitizeImageUrl(url, buildAllowedImageBase(supabaseUrl));
+    return url;
   }
 }

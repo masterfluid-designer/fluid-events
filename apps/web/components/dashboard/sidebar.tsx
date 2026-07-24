@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard,
   Ticket,
@@ -128,6 +128,7 @@ const COLLAPSE_STORAGE_KEY = 'sidebar-collapsed';
  */
 export function DashboardSidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const role = roleFromPathname(pathname);
   const items = navByRole[role] ?? navByRole[Role.CLIENT];
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -146,6 +147,17 @@ export function DashboardSidebar() {
       return next;
     });
   };
+
+  // Efface les cookies httpOnly côté serveur avant de rediriger — un simple
+  // <Link href="/auth/login"> ne fait que naviguer, la session restait
+  // valide (access_token/refresh_token toujours posés) tant que l'onglet
+  // n'était pas fermé. Même appel que app/scanner/scan/page.tsx.
+  function handleLogout() {
+    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? '';
+    fetch(`${apiBase}/api/auth/logout`, { method: 'POST', credentials: 'include' }).finally(() =>
+      router.push('/auth/login'),
+    );
+  }
 
   return (
     <>
@@ -173,10 +185,16 @@ export function DashboardSidebar() {
             </div>
             <NavLinks items={items} pathname={pathname} onNavigate={() => setMobileOpen(false)} />
             <div className="border-t p-3">
-              <Button variant="ghost" size="sm" className="w-full justify-start text-muted-foreground" asChild>
-                <Link href="/auth/login" onClick={() => setMobileOpen(false)}>
-                  <LogOut className="size-4" /> Déconnexion
-                </Link>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full justify-start text-muted-foreground"
+                onClick={() => {
+                  setMobileOpen(false);
+                  handleLogout();
+                }}
+              >
+                <LogOut className="size-4" /> Déconnexion
               </Button>
             </div>
           </aside>
@@ -234,11 +252,9 @@ export function DashboardSidebar() {
             size={collapsed ? 'icon' : 'sm'}
             className={cn(!collapsed && 'w-full justify-start text-muted-foreground')}
             title={collapsed ? 'Déconnexion' : undefined}
-            asChild
+            onClick={handleLogout}
           >
-            <Link href="/auth/login">
-              <LogOut className="size-4" /> {!collapsed && 'Déconnexion'}
-            </Link>
+            <LogOut className="size-4" /> {!collapsed && 'Déconnexion'}
           </Button>
         </div>
       </aside>

@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { AuditService } from '../common/audit.service';
 
 /**
  * WhatsappService — Notification WhatsApp via Meta Cloud API (CDC — WhatsApp
@@ -29,6 +30,8 @@ export interface TicketWhatsappParams {
 @Injectable()
 export class WhatsappService {
   private readonly logger = new Logger(WhatsappService.name);
+
+  constructor(private readonly audit: AuditService) {}
 
   async sendTicketReadyMessage(params: TicketWhatsappParams): Promise<void> {
     const { to, clientName, eventTitle, orderNumber } = params;
@@ -88,10 +91,16 @@ export class WhatsappService {
       this.logger.log(
         `Message WhatsApp "billets prêts" envoyé à ${to} (commande ${orderNumber}) — id ${body.messages?.[0]?.id ?? '?'}`,
       );
+      await this.audit.log('whatsapp.sent', 'Order', null, { to, orderNumber });
     } catch (err) {
       this.logger.warn(
         `Échec envoi WhatsApp billets (commande ${orderNumber}) : ${(err as Error).message}`,
       );
+      await this.audit.log('whatsapp.failed', 'Order', null, {
+        to,
+        orderNumber,
+        error: (err as Error).message,
+      });
     }
   }
 

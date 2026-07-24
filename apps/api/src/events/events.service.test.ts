@@ -21,7 +21,7 @@ describe('EventsService.createEvent()', () => {
 
   beforeEach(() => {
     prisma = makePrisma();
-    service = new EventsService(prisma as any);
+    service = new EventsService(prisma as any, { log: vi.fn().mockResolvedValue(undefined) } as any);
   });
 
   const dto = {
@@ -64,7 +64,7 @@ describe('EventsService.updateMyEvent()', () => {
 
   beforeEach(() => {
     prisma = makePrisma();
-    service = new EventsService(prisma as any);
+    service = new EventsService(prisma as any, { log: vi.fn().mockResolvedValue(undefined) } as any);
   });
 
   it("met à jour l'événement du manager authentifié", async () => {
@@ -173,7 +173,7 @@ describe('EventsService.getMyEvent()', () => {
 
   beforeEach(() => {
     prisma = makePrisma();
-    service = new EventsService(prisma as any);
+    service = new EventsService(prisma as any, { log: vi.fn().mockResolvedValue(undefined) } as any);
   });
 
   it("retourne l'événement du manager avec ses tickets", async () => {
@@ -194,7 +194,7 @@ describe('EventsService.getMyEventOverview()', () => {
 
   beforeEach(() => {
     prisma = makePrisma();
-    service = new EventsService(prisma as any);
+    service = new EventsService(prisma as any, { log: vi.fn().mockResolvedValue(undefined) } as any);
   });
 
   it('agrège revenus, ventes et scans depuis les vraies commandes payées', async () => {
@@ -309,7 +309,7 @@ describe('EventsService.getParticipants()', () => {
 
   beforeEach(() => {
     prisma = makePrisma();
-    service = new EventsService(prisma as any);
+    service = new EventsService(prisma as any, { log: vi.fn().mockResolvedValue(undefined) } as any);
   });
 
   it('liste les participants des commandes payées uniquement', async () => {
@@ -357,7 +357,7 @@ describe('EventsService.getPublicEventBySlug()', () => {
 
   beforeEach(() => {
     prisma = makePrisma();
-    service = new EventsService(prisma as any);
+    service = new EventsService(prisma as any, { log: vi.fn().mockResolvedValue(undefined) } as any);
   });
 
   it('retourne l’événement publié avec ses billets et les blocs Builder', async () => {

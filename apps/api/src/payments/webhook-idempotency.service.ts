@@ -5,7 +5,7 @@ import { AuditService } from '../common/audit.service';
 import { PaymentProviderType } from '@saas-events/types';
 
 /** Code d'erreur Prisma pour une violation de contrainte d'unicité. */
-export const PRisma_UNIQUE_VIOLATION = 'P2002';
+export const PRISMA_UNIQUE_VIOLATION = 'P2002';
 
 /** Valeur sentinelle retournée quand le webhook a déjà été traité. */
 export const ALREADY_PROCESSED = Symbol('ALREADY_PROCESSED');
@@ -56,7 +56,7 @@ export class WebhookIdempotencyService {
     } catch (err) {
       if (
         err instanceof Prisma.PrismaClientKnownRequestError &&
-        err.code === PRisma_UNIQUE_VIOLATION
+        err.code === PRISMA_UNIQUE_VIOLATION
       ) {
         // Doublon → déjà traité → on ignore proprement
         this.logger.warn(
@@ -73,10 +73,5 @@ export class WebhookIdempotencyService {
       // Autre erreur → propager (ne pas masquer une vraie anomalie)
       throw err;
     }
-  }
-
-  /** Type guard utilitaire pour vérifier le résultat sentinelle. */
-  static isAlreadyProcessed(result: unknown): result is typeof ALREADY_PROCESSED {
-    return result === ALREADY_PROCESSED;
   }
 }

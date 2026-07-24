@@ -199,6 +199,7 @@ const Footer = () => {
                       />
 
                       <button
+                        type="button"
                         aria-label="signup to newsletter"
                         className="absolute right-0 p-4"
                       >
@@ -251,7 +252,7 @@ const Footer = () => {
 
         <div className="mx-auto max-w-c-1390 px-4 md:px-8 2xl:px-0">
           {/* <!-- Footer Bottom --> */}
-          <div className="flex flex-col flex-wrap items-center justify-center gap-5 border-t border-stroke py-7 dark:border-strokedark lg:flex-row lg:justify-between lg:gap-0">
+          <div className="flex flex-col flex-wrap items-center justify-center gap-5 border-t border-stroke pb-14 pt-7 dark:border-strokedark lg:flex-row lg:justify-between lg:gap-0">
             <motion.div
               variants={{
                 hidden: {

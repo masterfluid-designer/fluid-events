@@ -1,7 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import { motion } from "framer-motion";
 import Image from "next/image";
+import { useMutation } from "@tanstack/react-query";
+import toast from "react-hot-toast";
+import { apiPost, ApiError } from "@/lib/api";
 import { contactFormContent, contactPageContent } from "@/lib/content/contact";
 
 type ContactProps = {
@@ -10,11 +14,38 @@ type ContactProps = {
   description?: string;
 };
 
+const EMPTY_FORM = { name: "", email: "", subject: "", phone: "", message: "" };
+
 export default function Contact({
   eyebrow = contactPageContent.eyebrow,
   title = contactPageContent.title,
   description = contactPageContent.description,
 }: ContactProps) {
+  const [form, setForm] = useState(EMPTY_FORM);
+
+  const send = useMutation({
+    mutationFn: () =>
+      apiPost("/api/contact", {
+        name: form.name,
+        email: form.email,
+        subject: form.subject || undefined,
+        phone: form.phone || undefined,
+        message: form.message,
+      }),
+    onSuccess: () => {
+      toast.success("Message envoyé — nous vous répondons rapidement.");
+      setForm(EMPTY_FORM);
+    },
+    onError: (err) => {
+      toast.error(err instanceof ApiError ? err.message : "Impossible d'envoyer votre message.");
+    },
+  });
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    send.mutate();
+  }
+
   return (
     <section id="contact" className="px-4 py-20 md:px-8 lg:py-25 2xl:px-0">
       <div className="relative mx-auto max-w-c-1390 px-7.5 pt-10 lg:px-15 lg:pt-15 xl:px-20 xl:pt-20">
@@ -60,15 +91,21 @@ export default function Contact({
               {contactFormContent.formHeading}
             </h2>
 
-            <form>
+            <form onSubmit={handleSubmit}>
               <div className="mb-7.5 flex flex-col gap-7.5 lg:flex-row lg:justify-between lg:gap-14">
                 <input
                   type="text"
+                  required
+                  value={form.name}
+                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                   placeholder={contactFormContent.placeholders.name}
                   className="w-full border-b border-stroke bg-transparent pb-3.5 focus:border-waterloo focus:placeholder:text-black focus-visible:outline-hidden dark:border-strokedark dark:focus:border-manatee dark:focus:placeholder:text-white lg:w-1/2"
                 />
                 <input
                   type="email"
+                  required
+                  value={form.email}
+                  onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
                   placeholder={contactFormContent.placeholders.email}
                   className="w-full border-b border-stroke bg-transparent pb-3.5 focus:border-waterloo focus:placeholder:text-black focus-visible:outline-hidden dark:border-strokedark dark:focus:border-manatee dark:focus:placeholder:text-white lg:w-1/2"
                 />
@@ -77,11 +114,15 @@ export default function Contact({
               <div className="mb-12.5 flex flex-col gap-7.5 lg:flex-row lg:justify-between lg:gap-14">
                 <input
                   type="text"
+                  value={form.subject}
+                  onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))}
                   placeholder={contactFormContent.placeholders.subject}
                   className="w-full border-b border-stroke bg-transparent pb-3.5 focus:border-waterloo focus:placeholder:text-black focus-visible:outline-hidden dark:border-strokedark dark:focus:border-manatee dark:focus:placeholder:text-white lg:w-1/2"
                 />
                 <input
                   type="text"
+                  value={form.phone}
+                  onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
                   placeholder={contactFormContent.placeholders.phone}
                   className="w-full border-b border-stroke bg-transparent pb-3.5 focus:border-waterloo focus:placeholder:text-black focus-visible:outline-hidden dark:border-strokedark dark:focus:border-manatee dark:focus:placeholder:text-white lg:w-1/2"
                 />
@@ -89,6 +130,9 @@ export default function Contact({
 
               <div className="mb-11.5 flex">
                 <textarea
+                  required
+                  value={form.message}
+                  onChange={(e) => setForm((f) => ({ ...f, message: e.target.value }))}
                   placeholder={contactFormContent.placeholders.message}
                   rows={4}
                   className="w-full border-b border-stroke bg-transparent focus:border-waterloo focus:placeholder:text-black focus-visible:outline-hidden dark:border-strokedark dark:focus:border-manatee dark:focus:placeholder:text-white"
@@ -100,11 +144,12 @@ export default function Contact({
                   {contactFormContent.consentText}
                 </p>
                 <button
-                  type="button"
+                  type="submit"
+                  disabled={send.isPending}
                   aria-label="send message"
-                  className="inline-flex items-center gap-2.5 rounded-full bg-black px-6 py-3 font-medium text-white duration-300 ease-in-out hover:bg-blackho dark:bg-btndark"
+                  className="inline-flex items-center gap-2.5 rounded-full bg-black px-6 py-3 font-medium text-white duration-300 ease-in-out hover:bg-blackho disabled:opacity-60 dark:bg-btndark"
                 >
-                  {contactFormContent.submitLabel}
+                  {send.isPending ? "Envoi..." : contactFormContent.submitLabel}
                   <svg className="fill-white" width="14" height="14" viewBox="0 0 14 14">
                     <path d="M10.4767 6.16664L6.00668 1.69664L7.18501 0.518311L13.6667 6.99998L7.18501 13.4816L6.00668 12.3033L10.4767 7.83331H0.333344V6.16664H10.4767Z" />
                   </svg>

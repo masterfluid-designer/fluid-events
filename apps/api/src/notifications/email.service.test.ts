@@ -10,6 +10,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const sendMailMock = vi.fn().mockResolvedValue({ messageId: 'fake-id' });
 const createTransportMock = vi.fn().mockReturnValue({ sendMail: sendMailMock });
 const resendSendMock = vi.fn().mockResolvedValue({ data: { id: 'resend-id' }, error: null });
+const mockAudit = { log: vi.fn().mockResolvedValue(undefined) } as any;
 
 vi.mock('nodemailer', () => ({
   default: { createTransport: (...args: unknown[]) => createTransportMock(...args) },
@@ -31,7 +32,7 @@ describe('EmailService.sendTicketReadyEmail() — transport SMTP (dev, sans RESE
 
   it('envoie un email avec le sujet, le destinataire et les liens de téléchargement', async () => {
     const { EmailService } = await import('./email.service');
-    const service = new EmailService();
+    const service = new EmailService(mockAudit);
 
     await service.sendTicketReadyEmail({
       to: 'client@example.com',
@@ -56,7 +57,7 @@ describe('EmailService.sendTicketReadyEmail() — transport SMTP (dev, sans RESE
 
   it('inclut un lien par billet quand la commande contient plusieurs OrderItem', async () => {
     const { EmailService } = await import('./email.service');
-    const service = new EmailService();
+    const service = new EmailService(mockAudit);
 
     await service.sendTicketReadyEmail({
       to: 'client@example.com',
@@ -76,7 +77,7 @@ describe('EmailService.sendTicketReadyEmail() — transport SMTP (dev, sans RESE
 
   it("échappe le HTML dans les champs saisis par l'utilisateur (nom, titre)", async () => {
     const { EmailService } = await import('./email.service');
-    const service = new EmailService();
+    const service = new EmailService(mockAudit);
 
     await service.sendTicketReadyEmail({
       to: 'client@example.com',
@@ -94,7 +95,7 @@ describe('EmailService.sendTicketReadyEmail() — transport SMTP (dev, sans RESE
   it("ne relance jamais d'exception si l'envoi échoue (best-effort)", async () => {
     sendMailMock.mockRejectedValueOnce(new Error('SMTP down'));
     const { EmailService } = await import('./email.service');
-    const service = new EmailService();
+    const service = new EmailService(mockAudit);
 
     await expect(
       service.sendTicketReadyEmail({
@@ -115,7 +116,7 @@ describe('EmailService.sendTicketReadyEmail() — transport SMTP (dev, sans RESE
     process.env.SMTP_PASSWORD = 'pass';
 
     const { EmailService } = await import('./email.service');
-    new EmailService();
+    new EmailService(mockAudit);
 
     expect(createTransportMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -140,7 +141,7 @@ describe('EmailService.sendTicketReadyEmail() — transport Resend (prod, RESEND
 
   it('utilise Resend plutôt que nodemailer quand RESEND_API_KEY est configuré', async () => {
     const { EmailService } = await import('./email.service');
-    const service = new EmailService();
+    const service = new EmailService(mockAudit);
 
     await service.sendTicketReadyEmail({
       to: 'client@example.com',
@@ -168,7 +169,7 @@ describe('EmailService.sendTicketReadyEmail() — transport Resend (prod, RESEND
       error: { message: 'Domain not verified', name: 'validation_error' },
     });
     const { EmailService } = await import('./email.service');
-    const service = new EmailService();
+    const service = new EmailService(mockAudit);
 
     await expect(
       service.sendTicketReadyEmail({
@@ -184,7 +185,7 @@ describe('EmailService.sendTicketReadyEmail() — transport Resend (prod, RESEND
   it("ne relance jamais d'exception si l'appel Resend rejette (best-effort)", async () => {
     resendSendMock.mockRejectedValueOnce(new Error('network down'));
     const { EmailService } = await import('./email.service');
-    const service = new EmailService();
+    const service = new EmailService(mockAudit);
 
     await expect(
       service.sendTicketReadyEmail({
@@ -211,7 +212,7 @@ describe('EmailService.sendManagerInviteEmail()', () => {
 
   it("envoie un email avec le lien d'invitation", async () => {
     const { EmailService } = await import('./email.service');
-    const service = new EmailService();
+    const service = new EmailService(mockAudit);
 
     await service.sendManagerInviteEmail({
       to: 'manager@example.com',
@@ -231,7 +232,7 @@ describe('EmailService.sendManagerInviteEmail()', () => {
   it("propage l'erreur à l'appelant si l'envoi échoue (contrairement à sendTicketReadyEmail)", async () => {
     sendMailMock.mockRejectedValueOnce(new Error('SMTP down'));
     const { EmailService } = await import('./email.service');
-    const service = new EmailService();
+    const service = new EmailService(mockAudit);
 
     await expect(
       service.sendManagerInviteEmail({

@@ -17,6 +17,7 @@ import { TicketDesignModule } from './ticket-design/ticket-design.module';
 import { StorageModule } from './storage/storage.module';
 import { RetentionModule } from './retention/retention.module';
 import { PlatformSettingsModule } from './platform-settings/platform-settings.module';
+import { ContactModule } from './contact/contact.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { HttpExceptionFilter } from './common/filters/http-exception-filter';
@@ -31,12 +32,10 @@ import { ResponseInterceptor } from './common/interceptors/response.interceptor'
  *  - HttpExceptionFilter  → format d'erreur standardisé (CDC §6.12)
  *  - ResponseInterceptor  → format de succès { success: true, data }
  *
- * Les modules métier gèrent leurs propres providers/services. AuthModule et
- * EventsModule exposent déjà leurs controllers HTTP ; scanner/builder/
- * tickets/payments/pdf-queue/admin restent des coquilles vides tant que
- * leurs controllers ne sont pas écrits (prochaine étape). Leur logique
- * métier déjà écrite et testée est provisionnée via payments/ticket-design/
- * notifications modules en attendant.
+ * Les modules métier gèrent leurs propres providers/services. Chacun expose
+ * ses controllers HTTP (auth/events/scanner/builder/tickets/payments/
+ * pdf-queue/admin/storage/contact/etc.) — voir chaque *.module.ts pour le
+ * détail de ce qu'il fournit/exporte.
  */
 @Module({
   imports: [
@@ -60,6 +59,7 @@ import { ResponseInterceptor } from './common/interceptors/response.interceptor'
     StorageModule,
     RetentionModule,
     PlatformSettingsModule,
+    ContactModule,
   ],
   providers: [
     // Sécurité transverse globale

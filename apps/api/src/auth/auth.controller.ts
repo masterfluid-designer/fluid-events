@@ -21,8 +21,14 @@ import { GoogleProfile } from './strategies/google.strategy';
 import { RequestUser } from './strategies/jwt.strategy';
 import { GoogleAuthGuard } from './guards/google-auth.guard';
 import { Public } from '../common/decorators/public.decorator';
+import { AuditService } from '../common/audit.service';
 import { FRONTEND_URL } from '../common/constants';
-import { setAuthCookies, setImpersonatedAccessCookie, clearImpersonatorCookie } from '../common/cookies.util';
+import {
+  setAuthCookies,
+  setImpersonatedAccessCookie,
+  clearImpersonatorCookie,
+  clearAuthCookies,
+} from '../common/cookies.util';
 
 const authLogger = new Logger('AuthController');
 
@@ -44,7 +50,10 @@ const authLogger = new Logger('AuthController');
  */
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly orchestrator: AuthOrchestratorService) {}
+  constructor(
+    private readonly orchestrator: AuthOrchestratorService,
+    private readonly audit: AuditService,
+  ) {}
 
   /**
    * Déclenche l'OAuth Google. `eventSlug` (session événementielle, CDC §7.2),
@@ -177,13 +186,17 @@ export class AuthController {
     return this.orchestrator.confirmPhoneVerification(req.user!.id, dto.code);
   }
 
-  /** Déconnexion — efface les cookies d'authentification. */
+  /**
+   * Déconnexion — efface les cookies d'authentification. `@Public()`
+   * volontaire (doit fonctionner même avec un access_token déjà expiré) —
+   * voir `clearAuthCookies` pour pourquoi le `path` de chaque cookie doit
+   * correspondre exactement à celui utilisé lors de sa pose.
+   */
   @Public()
   @Post('logout')
-  logout(@Res({ passthrough: true }) res: Response): { success: true } {
-    res.clearCookie('access_token');
-    res.clearCookie('refresh_token');
-    res.clearCookie('impersonator_token');
+  async logout(@Res({ passthrough: true }) res: Response): Promise<{ success: true }> {
+    clearAuthCookies(res);
+    await this.audit.log('auth.logout');
     return { success: true };
   }
 }

@@ -37,3 +37,17 @@ export function setImpersonatorCookie(res: Response, adminAccessToken: string): 
 export function clearImpersonatorCookie(res: Response): void {
   res.clearCookie('impersonator_token', { path: '/' });
 }
+
+/**
+ * Efface tous les cookies d'authentification (déconnexion). Le `path` doit
+ * correspondre EXACTEMENT à celui utilisé lors de la pose du cookie
+ * (`setAuthCookies`) — un navigateur traite le path comme faisant partie de
+ * l'identité du cookie, donc `res.clearCookie('refresh_token')` sans
+ * `{ path: '/api/auth' }` échoue silencieusement à l'effacer (il reste posé
+ * sur `/api/auth`, seul son homonyme sur `/` — inexistant — serait effacé).
+ */
+export function clearAuthCookies(res: Response): void {
+  res.clearCookie('access_token', { path: '/' });
+  res.clearCookie('refresh_token', { path: '/api/auth' });
+  res.clearCookie('impersonator_token', { path: '/' });
+}

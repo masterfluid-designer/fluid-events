@@ -19,6 +19,8 @@ import {
 } from '@/components/ui/card';
 import { useScannerStore } from '@/store/scannerStore';
 import { ScanResult } from '@saas-events/types';
+import type { Html5Qrcode } from 'html5-qrcode';
+import type { BadgeProps } from '@/components/ui/badge';
 
 /**
  * Page Scanner PWA — Contrôle d'accès événement (CDC §10.3).
@@ -32,7 +34,7 @@ import { ScanResult } from '@saas-events/types';
  */
 export default function ScannerPage() {
   const router = useRouter();
-  const scannerRef = useRef<any>(null);
+  const scannerRef = useRef<Html5Qrcode | null>(null);
   const isScanningRef = useRef(false);
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -282,7 +284,7 @@ function ScanFeedback({
 }
 
 function ScanResultBadge({ result }: { result: ScanResult }) {
-  const map: Record<ScanResult, { variant: any; label: string }> = {
+  const map: Record<ScanResult, { variant: BadgeProps['variant']; label: string }> = {
     [ScanResult.VALID]: { variant: 'success', label: '✓ Valide' },
     [ScanResult.ALREADY_USED]: {
       variant: 'warning',

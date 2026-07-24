@@ -61,33 +61,42 @@ export class PdfProcessor {
       return;
     }
 
-    const qrCodeBase64 = await QRCode.toDataURL(orderItem.qrCode);
+    try {
+      const qrCodeBase64 = await QRCode.toDataURL(orderItem.qrCode);
 
-    const html = this.ticketDesignService.buildHtml({
-      designImageUrl: orderItem.ticket.designImageUrl,
-      designBgColor: orderItem.ticket.designBgColor,
-      eventName: orderItem.order.event.title,
-      ticketType: orderItem.ticket.name,
-      qrCodeBase64,
-      orderNumber: orderItem.order.orderNumber,
-      clientName: orderItem.order.client.name ?? 'Client',
-      clientPhone: orderItem.order.client.phone ?? '',
-    });
+      const html = this.ticketDesignService.buildHtml({
+        designImageUrl: orderItem.ticket.designImageUrl,
+        designBgColor: orderItem.ticket.designBgColor,
+        eventName: orderItem.order.event.title,
+        ticketType: orderItem.ticket.name,
+        qrCodeBase64,
+        orderNumber: orderItem.order.orderNumber,
+        clientName: orderItem.order.client.name ?? 'Client',
+        clientPhone: orderItem.order.client.phone ?? '',
+      });
 
-    const pdfBuffer = await this.renderPdf(html);
-    const url = await this.storageService.uploadBuffer(
-      `tickets/${orderItem.id}.pdf`,
-      pdfBuffer,
-      'application/pdf',
-    );
+      const pdfBuffer = await this.renderPdf(html);
+      const url = await this.storageService.uploadBuffer(
+        `tickets/${orderItem.id}.pdf`,
+        pdfBuffer,
+        'application/pdf',
+      );
 
-    await this.prisma.orderItem.update({
-      where: { id: orderItem.id },
-      data: { qrCodeUrl: url },
-    });
+      await this.prisma.orderItem.update({
+        where: { id: orderItem.id },
+        data: { qrCodeUrl: url },
+      });
 
-    await this.audit.log('ticket.pdf.generated', 'OrderItem', orderItem.id, { url });
-    this.logger.log(`PDF généré pour OrderItem ${orderItem.id} → ${url}`);
+      await this.audit.log('ticket.pdf.generated', 'OrderItem', orderItem.id, { url });
+      this.logger.log(`PDF généré pour OrderItem ${orderItem.id} → ${url}`);
+    } catch (err) {
+      // Remonté à BullMQ (retry/observabilité de la queue, voir ADR §3) —
+      // seul l'audit log est ajouté ici, jamais avalé silencieusement.
+      await this.audit.log('ticket.pdf.failed', 'OrderItem', orderItem.id, {
+        error: (err as Error).message,
+      });
+      throw err;
+    }
 
     await this.maybeSendTicketNotifications(orderItem.order.id);
   }

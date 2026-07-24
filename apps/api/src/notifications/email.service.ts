@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import nodemailer, { type Transporter } from 'nodemailer';
 import { Resend } from 'resend';
+import { AuditService } from '../common/audit.service';
 
 /**
  * EmailService — Notification email (CDC §7.6 / décision produit 2026-07-14,
@@ -36,7 +37,7 @@ export class EmailService {
   private readonly resend: Resend | null;
   private readonly transporter: Transporter | null;
 
-  constructor() {
+  constructor(private readonly audit: AuditService) {
     this.from = process.env.SMTP_FROM ?? 'noreply@fluid-events.dev';
 
     const resendApiKey = process.env.RESEND_API_KEY;
@@ -109,12 +110,62 @@ export class EmailService {
     this.logger.log(`Email d'invitation manager envoyé à ${to}`);
   }
 
-  private async send(to: string, subject: string, html: string): Promise<void> {
-    if (this.resend) {
-      const { error } = await this.resend.emails.send({ from: this.from, to, subject, html });
-      if (error) throw new Error(error.message);
-    } else {
-      await this.transporter!.sendMail({ from: this.from, to, subject, html });
+  /**
+   * Message du formulaire de contact public (/contact, /support —
+   * 2026-07-24). Contrairement à `sendTicketReadyEmail`, l'échec est
+   * remonté à l'appelant (même raisonnement que `sendManagerInviteEmail` :
+   * il n'y a pas de repli, l'utilisateur doit savoir que son message n'est
+   * pas parti). `replyTo` pointe vers le visiteur pour pouvoir lui répondre
+   * directement depuis le client mail.
+   */
+  async sendContactMessage(params: {
+    name: string;
+    email: string;
+    subject?: string;
+    phone?: string;
+    message: string;
+  }): Promise<void> {
+    const { name, email, subject, phone, message } = params;
+    const to = process.env.CONTACT_RECIPIENT_EMAIL || 'hello@fluidevents.africa';
+    const emailSubject = subject ? `[Contact] ${subject}` : `[Contact] Nouveau message de ${name}`;
+    const html = `
+      <p><strong>De :</strong> ${escapeHtml(name)} (${escapeHtml(email)})</p>
+      ${phone ? `<p><strong>Téléphone :</strong> ${escapeHtml(phone)}</p>` : ''}
+      <p><strong>Message :</strong></p>
+      <p>${escapeHtml(message).replace(/\n/g, '<br>')}</p>
+    `;
+    await this.send(to, emailSubject, html, email);
+    this.logger.log(`Message de contact envoyé (de ${email})`);
+  }
+
+  private async send(to: string, subject: string, html: string, replyTo?: string): Promise<void> {
+    try {
+      if (this.resend) {
+        const { error } = await this.resend.emails.send({
+          from: this.from,
+          to,
+          subject,
+          html,
+          ...(replyTo ? { replyTo } : {}),
+        });
+        if (error) throw new Error(error.message);
+      } else {
+        await this.transporter!.sendMail({
+          from: this.from,
+          to,
+          subject,
+          html,
+          ...(replyTo ? { replyTo } : {}),
+        });
+      }
+      await this.audit.log('email.sent', null, null, { to, subject });
+    } catch (err) {
+      await this.audit.log('email.failed', null, null, {
+        to,
+        subject,
+        error: (err as Error).message,
+      });
+      throw err;
     }
   }
 }
