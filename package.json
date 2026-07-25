@@ -24,6 +24,7 @@
     "docker:logs": "docker compose logs -f"
   },
   "devDependencies": {
+    "concurrently": "^9.1.0",
     "turbo": "^2.3.3",
     "typescript": "^5.7.2"
   },

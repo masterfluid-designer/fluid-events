@@ -176,10 +176,21 @@ services:
       # qu'un point de montage volume ne permet pas (EBUSY) — dist/ n'a de
       # toute façon pas besoin d'être protégé du bind mount en mode watch,
       # Nest le régénère en continu.
+      #
+      # packages/*/node_modules : même bug, découvert en ajoutant le watch
+      # `tsc --watch` sur packages/types et packages/utils (voir CMD ci-
+      # dessous côté Dockerfile) — les symlinks pnpm qu'ils contiennent
+      # pointent vers un chemin ABSOLU (ex: /c/Users/.../node_modules/.pnpm/...
+      # sur Windows), valide côté hôte mais inexistant dans le conteneur
+      # Linux une fois exposé par le bind mount ci-dessus. Avant le watch,
+      # rien n'exécutait de code depuis packages/*/ au runtime (seulement
+      # au build, sans bind mount actif) donc le bug était invisible.
       - /app/node_modules
       - /app/apps/api/node_modules
       - /app/packages/types/dist
+      - /app/packages/types/node_modules
       - /app/packages/utils/dist
+      - /app/packages/utils/node_modules
     ports:
       - "4000:4000"
       - "9229:9229"  # Debug port
@@ -215,12 +226,15 @@ services:
       - ./packages:/app/packages
       - ./package.json:/app/package.json
       - ./pnpm-lock.yaml:/app/pnpm-lock.yaml
-      # Voir les volumes anonymes du service api ci-dessus pour le pourquoi.
+      # Voir les volumes anonymes du service api ci-dessus pour le pourquoi
+      # (y compris packages/*/node_modules, requis depuis le watch tsc).
       - /app/node_modules
       - /app/apps/web/node_modules
       - /app/apps/web/.next
       - /app/packages/types/dist
+      - /app/packages/types/node_modules
       - /app/packages/utils/dist
+      - /app/packages/utils/node_modules
     ports:
       - "3000:3000"
     depends_on:

@@ -39,7 +39,14 @@ RUN cd apps/api && npx prisma generate
 
 EXPOSE 4000 9229
 
-CMD ["pnpm", "--filter", "@saas-events/api", "run", "dev"]
+# packages/types et packages/utils sont bind-montés en source (docker-compose)
+# mais résolus via leur dist/ compilé (voir plus haut) — sans watch dessus,
+# un changement de source y reste invisible pour apps/api tant qu'on ne relance
+# pas un build manuel, ce qui peut aussi casser le démarrage en silence si le
+# dist devient incompatible avec le code qui le consomme (bug réel rencontré).
+# `concurrently -k` : si un des trois process meurt, on tue les autres plutôt
+# que de laisser tourner une API qui ne recompilera plus jamais ses types.
+CMD ["npx", "concurrently", "-k", "-n", "types,utils,api", "-c", "blue,green,yellow", "pnpm --filter @saas-events/types run dev", "pnpm --filter @saas-events/utils run dev", "pnpm --filter @saas-events/api run dev"]
 
 # ============ Production Stage ============
 FROM node:20-alpine AS production

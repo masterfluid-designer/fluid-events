@@ -7,6 +7,7 @@
   "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "dev": "rm -f tsconfig.build.tsbuildinfo && tsc -p tsconfig.build.json --watch --preserveWatchOutput --watchFile PriorityPollingInterval --watchDirectory DynamicPriorityPolling",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

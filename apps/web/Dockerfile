@@ -23,9 +23,10 @@ RUN npx tsc -p packages/types/tsconfig.build.json && npx tsc -p packages/utils/t
 
 EXPOSE 3000
 
-# --filter, pas "pnpm run dev" à la racine : apps/api n'est pas copié dans
-# cette image, autant être explicite sur ce qui doit tourner ici.
-CMD ["pnpm", "--filter", "@saas-events/web", "run", "dev"]
+# Même raisonnement que apps/api/Dockerfile : packages/types et packages/utils
+# sont résolus via leur dist/ compilé, jamais rebuild automatiquement quand
+# leur source change (bind mount) — on les watch en parallèle du dev server.
+CMD ["npx", "concurrently", "-k", "-n", "types,utils,web", "-c", "blue,green,yellow", "pnpm --filter @saas-events/types run dev", "pnpm --filter @saas-events/utils run dev", "pnpm --filter @saas-events/web run dev"]
 
 # ============ Production Stage ============
 FROM node:20-alpine AS production
