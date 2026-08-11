@@ -5,6 +5,7 @@ import { SponsorsCarousel } from './sponsors-carousel';
 import { TicketSelector, type PublicTicket } from './ticket-selector';
 import { SpeakersGrid } from './speakers-grid';
 import { TimelineStrip } from './timeline-strip';
+import { SectionEyebrow } from './section-eyebrow';
 
 /**
  * BlockRenderer — Rend les blocs Builder (CDC §11) sur la page publique.
@@ -193,8 +194,8 @@ function BlockItem({
     if (eventConfig.faqs.length === 0) return null;
     return (
       <div className="px-6 py-8 md:px-9">
-        <div className="mb-3 text-xs font-bold uppercase tracking-[0.04em] text-manatee dark:text-waterloo">
-          Questions fréquentes
+        <div className="mb-3">
+          <SectionEyebrow>Questions fréquentes</SectionEyebrow>
         </div>
         <Accordion type="single" collapsible>
           {eventConfig.faqs.map((faq) => (
@@ -215,8 +216,8 @@ function BlockItem({
     );
     return (
       <div className="px-6 py-8 md:px-9">
-        <div className="mb-3 text-xs font-bold uppercase tracking-[0.04em] text-manatee dark:text-waterloo">
-          Programme
+        <div className="mb-3">
+          <SectionEyebrow>Programme</SectionEyebrow>
         </div>
         <div className="flex flex-col gap-3">
           {sortedSchedule.map((entry) => (

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { Minus, Plus } from 'lucide-react';
+import { SectionEyebrow } from './section-eyebrow';
 
 /**
  * TicketSelector — Panier multi-billets (décision produit "panier
@@ -91,9 +92,7 @@ export function TicketSelector({
 
   return (
     <div className="flex flex-col gap-3 px-6 py-8 md:px-9">
-      <div className="mb-1 text-xs font-bold uppercase tracking-[0.04em] text-manatee dark:text-waterloo">
-        Billets
-      </div>
+      <SectionEyebrow>Billets</SectionEyebrow>
 
       {activePromo && (
         <div className="mb-1 rounded-lg border border-accent-terracotta/40 bg-accent-terracotta/10 px-4 py-2.5 text-center text-xs font-semibold text-accent-terracotta dark:border-accent-terracotta-dark/40 dark:text-accent-terracotta-dark">

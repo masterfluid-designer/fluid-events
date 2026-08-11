@@ -191,7 +191,7 @@ export function ResumeCheckout({
             <p className="mt-2 text-sm text-manatee dark:text-waterloo">
               Vos billets sont en cours de génération. Vous les recevrez par email.
             </p>
-            <Button className="mt-5 w-full" onClick={() => setState({ step: 'idle' })}>
+            <Button className="mt-5 w-full rounded-full" onClick={() => setState({ step: 'idle' })}>
               Fermer
             </Button>
           </>
@@ -203,7 +203,7 @@ export function ResumeCheckout({
             <p className="mt-2 text-sm text-manatee dark:text-waterloo">{state.message}</p>
             <Button
               variant="outline"
-              className="mt-5 w-full"
+              className="mt-5 w-full rounded-full"
               onClick={() => setState({ step: 'idle' })}
             >
               Fermer

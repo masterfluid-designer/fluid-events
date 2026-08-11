@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import type { SpeakerEntry } from '@saas-events/types';
+import { SectionEyebrow } from './section-eyebrow';
 
 /**
  * SpeakersGrid — grille "Line-up" avec filtre par catégorie (si au moins une
@@ -21,9 +22,7 @@ export function SpeakersGrid({ speakers }: { speakers: SpeakerEntry[] }) {
 
   return (
     <div className="px-6 py-8 md:px-9">
-      <div className="mb-3 text-xs font-bold uppercase tracking-[0.04em] text-manatee dark:text-waterloo">
-        Speakers
-      </div>
+      <SectionEyebrow>Speakers</SectionEyebrow>
 
       {categories.length > 0 && (
         <div className="mb-4 flex flex-wrap gap-2">

@@ -50,7 +50,7 @@ export default function LostTicketsPage() {
               <p className="text-sm text-waterloo dark:text-manatee">
                 Si une commande correspond, vos billets viennent de vous être renvoyés par email.
               </p>
-              <Button variant="outline" className="mt-2" onClick={() => setSent(false)}>
+              <Button variant="outline" className="mt-2 rounded-full" onClick={() => setSent(false)}>
                 Réessayer avec une autre commande
               </Button>
             </div>
@@ -84,7 +84,7 @@ export default function LostTicketsPage() {
                     className="rounded-lg border border-stroke bg-transparent px-3.5 py-2.5 text-sm focus:border-black focus-visible:outline-none dark:border-strokedark dark:focus:border-white"
                   />
                 </label>
-                <Button type="submit" disabled={recover.isPending} className="mt-1">
+                <Button type="submit" disabled={recover.isPending} className="mt-1 rounded-full">
                   {recover.isPending ? 'Envoi...' : 'Récupérer mes billets'}
                 </Button>
               </form>

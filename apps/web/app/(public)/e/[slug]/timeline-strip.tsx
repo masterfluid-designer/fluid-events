@@ -1,4 +1,5 @@
 import type { TimelineEntry } from '@saas-events/types';
+import { SectionEyebrow } from './section-eyebrow';
 
 /**
  * TimelineStrip — bloc "Frise / Héritage" (storytelling, décision produit —
@@ -11,8 +12,8 @@ export function TimelineStrip({ entries, title }: { entries: TimelineEntry[]; ti
 
   return (
     <div className="px-6 py-8 md:px-9">
-      <div className="mb-6 text-xs font-bold uppercase tracking-[0.04em] text-manatee dark:text-waterloo">
-        {title || 'Notre histoire'}
+      <div className="mb-6">
+        <SectionEyebrow>{title || 'Notre histoire'}</SectionEyebrow>
       </div>
       <div className="flex gap-8 overflow-x-auto pb-2">
         {entries.map((entry, index) => (
