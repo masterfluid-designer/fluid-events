@@ -18,14 +18,15 @@ test.describe('Page événement publique', () => {
     );
   });
 
-  test('liste au moins un billet avec un prix et un CTA "Acheter"', async ({ page }) => {
+  test('liste au moins un billet avec un prix et un sélecteur de quantité (ou "Indisponible")', async ({ page }) => {
     await page.goto(`/e/${SEEDED_EVENT_SLUG}`);
 
-    // Le bouton "Acheter" (billet disponible) OU "Indisponible" (épuisé) —
-    // au moins un des deux doit exister si des billets sont configurés.
-    const buyLinks = page.getByRole('link', { name: 'Acheter' });
+    // Le stepper "Ajouter un billet ..." (billet disponible) OU "Indisponible"
+    // (épuisé/non publié) — au moins un des deux doit exister si des billets
+    // sont configurés (panier multi-billets, plus de lien "Acheter" unitaire).
+    const addButtons = page.getByRole('button', { name: /Ajouter un billet/i });
     const soldOutBadges = page.getByText('Indisponible');
-    const total = (await buyLinks.count()) + (await soldOutBadges.count());
+    const total = (await addButtons.count()) + (await soldOutBadges.count());
     expect(total).toBeGreaterThan(0);
   });
 
@@ -34,14 +35,18 @@ test.describe('Page événement publique', () => {
     expect(response?.status()).toBe(404);
   });
 
-  test('le CTA "Acheter" redirige vers le OAuth Google avec le bon intent (jamais un paiement direct sans auth)', async ({
+  test('sélectionner un billet puis "Continuer" redirige vers le OAuth Google avec le bon intent (jamais un paiement direct sans auth)', async ({
     page,
   }) => {
     await page.goto(`/e/${SEEDED_EVENT_SLUG}`);
-    const buyLink = page.getByRole('link', { name: 'Acheter' }).first();
-    if ((await buyLink.count()) === 0) {
+    const addButton = page.getByRole('button', { name: /Ajouter un billet/i }).first();
+    if ((await addButton.count()) === 0) {
       test.skip(true, 'Aucun billet disponible dans les données seedées actuelles');
     }
+
+    await addButton.click();
+    const continueButton = page.getByRole('button', { name: 'Continuer' });
+    await expect(continueButton).toBeVisible();
 
     // Intercepte la requête vers l'API (localhost:4000/api/auth/google) —
     // avant qu'elle ne redirige elle-même vers le vrai écran Google, qu'on
@@ -54,7 +59,7 @@ test.describe('Page événement publique', () => {
       await route.abort();
     });
 
-    await buyLink.click();
+    await continueButton.click();
     await expect.poll(() => capturedUrl, { timeout: 10_000 }).not.toBeNull();
     const url = new URL(capturedUrl!);
     expect(url.searchParams.get('intent')).toBe('buy');

@@ -2,6 +2,7 @@ import type { Block, FaqEntry, MediaEntry, ScheduleEntry, SpeakerEntry } from '@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Countdown } from './countdown';
 import { SponsorsCarousel } from './sponsors-carousel';
+import { TicketSelector, type PublicTicket } from './ticket-selector';
 
 /**
  * BlockRenderer — Rend les blocs Builder (CDC §11) sur la page publique.
@@ -24,15 +25,6 @@ import { SponsorsCarousel } from './sponsors-carousel';
  * ailleurs dans le bundle compilé.
  */
 
-interface PublicTicket {
-  id: string;
-  name: string;
-  price: number;
-  currency: string;
-  stock: number;
-  stockSold: number;
-}
-
 export interface EventConfigData {
   startDate: string;
   faqs: FaqEntry[];
@@ -48,14 +40,12 @@ export function BlockRenderer({
   isPublished,
   slug,
   eventConfig,
-  BuyButton,
 }: {
   blocks: Block[];
   tickets: PublicTicket[];
   isPublished: boolean;
   slug: string;
   eventConfig: EventConfigData;
-  BuyButton: (props: { slug: string; ticketId: string; highlighted: boolean }) => React.JSX.Element;
 }) {
   const sorted = [...blocks].sort((a, b) => a.order - b.order);
 
@@ -69,7 +59,6 @@ export function BlockRenderer({
             isPublished={isPublished}
             slug={slug}
             eventConfig={eventConfig}
-            BuyButton={BuyButton}
           />
         </div>
       ))}
@@ -83,14 +72,12 @@ function BlockItem({
   isPublished,
   slug,
   eventConfig,
-  BuyButton,
 }: {
   block: Block;
   tickets: PublicTicket[];
   isPublished: boolean;
   slug: string;
   eventConfig: EventConfigData;
-  BuyButton: (props: { slug: string; ticketId: string; highlighted: boolean }) => React.JSX.Element;
 }) {
   const textAlign = block.styles?.textAlign;
 
@@ -142,56 +129,7 @@ function BlockItem({
   }
 
   if (block.type === 'tickets') {
-    return (
-      <div className="flex flex-col gap-3 px-6 py-8 md:px-9">
-        <div className="mb-1 text-xs font-bold uppercase tracking-[0.04em] text-manatee dark:text-waterloo">
-          Billets
-        </div>
-        {tickets.length === 0 ? (
-          <div className="rounded-xl border border-stroke p-6 text-center text-sm text-muted-foreground dark:border-strokedark">
-            Aucun billet en vente pour le moment.
-          </div>
-        ) : (
-          tickets.map((ticket, index) => {
-            const available = ticket.stock - ticket.stockSold;
-            const soldOut = available <= 0;
-            const highlighted = index === 0 && !soldOut;
-            return (
-              <div
-                key={ticket.id}
-                className={`flex items-center justify-between gap-4 rounded-xl border p-5 ${
-                  soldOut ? 'opacity-50' : ''
-                } ${highlighted ? 'border-black dark:border-white' : 'border-stroke dark:border-strokedark'}`}
-              >
-                <div>
-                  <div className="font-semibold">{ticket.name}</div>
-                  <div className="mt-0.5 text-xs text-manatee dark:text-waterloo">
-                    {soldOut
-                      ? 'Épuisé'
-                      : `${available} place${available > 1 ? 's' : ''} restante${available > 1 ? 's' : ''}`}
-                  </div>
-                </div>
-                <div className="flex items-center gap-4">
-                  <div className="font-bold">
-                    {new Intl.NumberFormat('fr-FR', {
-                      style: 'currency',
-                      currency: ticket.currency,
-                    }).format(Number(ticket.price))}
-                  </div>
-                  {soldOut || !isPublished ? (
-                    <span className="rounded-lg border border-stroke px-4 py-2.5 text-sm font-semibold text-manatee dark:border-strokedark">
-                      Indisponible
-                    </span>
-                  ) : (
-                    <BuyButton slug={slug} ticketId={ticket.id} highlighted={highlighted} />
-                  )}
-                </div>
-              </div>
-            );
-          })
-        )}
-      </div>
-    );
+    return <TicketSelector tickets={tickets} slug={slug} isPublished={isPublished} />;
   }
 
   if (block.type === 'countdown') {

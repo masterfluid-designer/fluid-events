@@ -12,17 +12,18 @@
  * La logique pure (saveIntent / consumeIntent) vit dans @saas-events/utils
  * (testée unitairement, 37 tests verts). Ce module l'expose côté navigateur.
  */
-import { saveIntent, consumeIntent } from '@saas-events/utils';
+import { saveIntent, consumeIntent, type BuyIntentItem } from '@saas-events/utils';
 
 export { saveIntent, consumeIntent };
+export type { BuyIntentItem };
 
 /**
  * Déclenche le flux OAuth Google avec préservation de l'intent d'achat.
  * Redirige vers le backend qui initie OAuth puis revient sur la page événement.
  */
-export function startGoogleAuth(eventSlug: string, ticketId: string): void {
+export function startGoogleAuth(eventSlug: string, items: BuyIntentItem[]): void {
   // 1. Sauvegarde l'intent avant de quitter la page
-  saveIntent(eventSlug, ticketId);
+  saveIntent(eventSlug, items);
 
   // 2. Redirige vers le backend NestJS (init OAuth)
   const apiBase = process.env.NEXT_PUBLIC_API_URL ?? '';

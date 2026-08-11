@@ -230,21 +230,31 @@ describe('normalizeCountryCode', () => {
 describe('saveIntent / consumeIntent', () => {
   it('saveIntent stocke un intent horodaté avec clé spécifique à l\'événement', () => {
     const storage = new MockStorage();
-    saveIntent('concert-2026', 'ticket-123', storage as any);
+    saveIntent('concert-2026', [{ ticketId: 'ticket-123', quantity: 1 }], storage as any);
     const raw = storage.getItem('buy_intent_concert-2026');
     expect(raw).not.toBeNull();
     const parsed = JSON.parse(raw!);
-    expect(parsed.ticketId).toBe('ticket-123');
+    expect(parsed.items).toEqual([{ ticketId: 'ticket-123', quantity: 1 }]);
     expect(typeof parsed.timestamp).toBe('number');
   });
 
-  it('consumeIntent retourne le ticketId et supprime l\'intent (one-shot)', () => {
+  it('consumeIntent retourne le panier et supprime l\'intent (one-shot)', () => {
     const storage = new MockStorage();
-    saveIntent('concert-2026', 'ticket-456', storage as any);
+    saveIntent('concert-2026', [{ ticketId: 'ticket-456', quantity: 2 }], storage as any);
     const result = consumeIntent('concert-2026', storage as any);
-    expect(result).toEqual({ ticketId: 'ticket-456' });
+    expect(result).toEqual({ items: [{ ticketId: 'ticket-456', quantity: 2 }] });
     // L'intent doit être consommé (supprimé)
     expect(storage.getItem('buy_intent_concert-2026')).toBeNull();
+  });
+
+  it('consumeIntent gère un panier multi-billets (plusieurs types/quantités)', () => {
+    const storage = new MockStorage();
+    const items = [
+      { ticketId: 'ticket-vip', quantity: 2 },
+      { ticketId: 'ticket-standard', quantity: 1 },
+    ];
+    saveIntent('concert-2026', items, storage as any);
+    expect(consumeIntent('concert-2026', storage as any)).toEqual({ items });
   });
 
   it('consumeIntent retourne null si pas d\'intent', () => {
@@ -256,7 +266,7 @@ describe('saveIntent / consumeIntent', () => {
     const storage = new MockStorage();
     const baseNow = 1_000_000;
     // save et consume partagent la même horloge injectée pour un test déterministe
-    saveIntent('concert-2026', 'ticket-789', storage as any, () => baseNow);
+    saveIntent('concert-2026', [{ ticketId: 'ticket-789', quantity: 1 }], storage as any, () => baseNow);
     const future = baseNow + INTENT_TTL_MS + 1; // > 30 min plus tard
     const result = consumeIntent('concert-2026', storage as any, () => future);
     expect(result).toBeNull();
@@ -265,10 +275,10 @@ describe('saveIntent / consumeIntent', () => {
   it('consumeIntent accepte un intent récent (< 30 min)', () => {
     const storage = new MockStorage();
     const baseNow = 5_000_000;
-    saveIntent('concert-2026', 'ticket-999', storage as any, () => baseNow);
+    saveIntent('concert-2026', [{ ticketId: 'ticket-999', quantity: 1 }], storage as any, () => baseNow);
     const soon = baseNow + 1000; // 1s plus tard
     const result = consumeIntent('concert-2026', storage as any, () => soon);
-    expect(result).toEqual({ ticketId: 'ticket-999' });
+    expect(result).toEqual({ items: [{ ticketId: 'ticket-999', quantity: 1 }] });
   });
 
   it('consumeIntent nettoie un intent corrompu (JSON cassé)', () => {
@@ -278,11 +288,17 @@ describe('saveIntent / consumeIntent', () => {
     expect(storage.getItem('buy_intent_concert-2026')).toBeNull();
   });
 
+  it('consumeIntent retourne null si le panier stocké est vide', () => {
+    const storage = new MockStorage();
+    saveIntent('concert-2026', [], storage as any);
+    expect(consumeIntent('concert-2026', storage as any)).toBeNull();
+  });
+
   it('les intents sont isolés par événement (clés différentes)', () => {
     const storage = new MockStorage();
-    saveIntent('event-a', 'ticket-a', storage as any);
-    saveIntent('event-b', 'ticket-b', storage as any);
-    expect(consumeIntent('event-a', storage as any)).toEqual({ ticketId: 'ticket-a' });
-    expect(consumeIntent('event-b', storage as any)).toEqual({ ticketId: 'ticket-b' });
+    saveIntent('event-a', [{ ticketId: 'ticket-a', quantity: 1 }], storage as any);
+    saveIntent('event-b', [{ ticketId: 'ticket-b', quantity: 1 }], storage as any);
+    expect(consumeIntent('event-a', storage as any)).toEqual({ items: [{ ticketId: 'ticket-a', quantity: 1 }] });
+    expect(consumeIntent('event-b', storage as any)).toEqual({ items: [{ ticketId: 'ticket-b', quantity: 1 }] });
   });
 });

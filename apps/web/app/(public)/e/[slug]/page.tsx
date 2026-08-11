@@ -5,6 +5,7 @@ import type { Metadata } from 'next';
 import type { Block, FaqEntry, MediaEntry, ScheduleEntry, SpeakerEntry } from '@saas-events/types';
 import { ResumeCheckout } from './resume-checkout';
 import { BlockRenderer } from './block-renderer';
+import { TicketSelector } from './ticket-selector';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 
 /**
@@ -34,6 +35,7 @@ interface EventDetail {
     currency: string;
     stock: number;
     stockSold: number;
+    maxPerOrder: number;
   }>;
   eventPage: { blocks: Block[] } | null;
 }
@@ -141,7 +143,6 @@ export default async function EventPage({
                 galleryImages: event.galleryImages,
                 sponsorImages: event.sponsorImages,
               }}
-              BuyButton={BuyButton}
             />
           ) : (
             <>
@@ -195,92 +196,12 @@ export default async function EventPage({
 
               <div className="mx-6 border-t border-stroke dark:border-strokedark md:mx-9" />
 
-              {/* Billets */}
-              <div className="flex flex-col gap-3 px-6 py-8 md:px-9">
-                <div className="mb-1 text-xs font-bold uppercase tracking-[0.04em] text-manatee dark:text-waterloo">
-                  Billets
-                </div>
-                {event.tickets.length === 0 ? (
-                  <div className="rounded-xl border border-stroke p-6 text-center text-sm text-muted-foreground dark:border-strokedark">
-                    Aucun billet en vente pour le moment.
-                  </div>
-                ) : (
-                  event.tickets.map((ticket, index) => {
-                    const available = ticket.stock - ticket.stockSold;
-                    const soldOut = available <= 0;
-                    const highlighted = index === 0 && !soldOut;
-                    return (
-                      <div
-                        key={ticket.id}
-                        className={`flex items-center justify-between gap-4 rounded-xl border p-5 ${
-                          soldOut ? 'opacity-50' : ''
-                        } ${
-                          highlighted
-                            ? 'border-black dark:border-white'
-                            : 'border-stroke dark:border-strokedark'
-                        }`}
-                      >
-                        <div>
-                          <div className="font-semibold">{ticket.name}</div>
-                          <div className="mt-0.5 text-xs text-manatee dark:text-waterloo">
-                            {soldOut
-                              ? 'Épuisé'
-                              : `${available} place${available > 1 ? 's' : ''} restante${available > 1 ? 's' : ''}`}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-4">
-                          <div className="font-bold">
-                            {new Intl.NumberFormat('fr-FR', {
-                              style: 'currency',
-                              currency: ticket.currency,
-                            }).format(Number(ticket.price))}
-                          </div>
-                          {soldOut || !isPublished ? (
-                            <span className="rounded-lg border border-stroke px-4 py-2.5 text-sm font-semibold text-manatee dark:border-strokedark">
-                              Indisponible
-                            </span>
-                          ) : (
-                            <BuyButton
-                              slug={slug}
-                              ticketId={ticket.id}
-                              highlighted={highlighted}
-                            />
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
+              <TicketSelector tickets={event.tickets} slug={slug} isPublished={isPublished} />
             </>
           )}
         </div>
       </div>
       <ResumeCheckout slug={slug} resume={resume === '1'} orderId={orderId} />
     </main>
-  );
-}
-
-/** Bouton client qui déclenche l'OAuth avec intent d'achat horodaté. */
-function BuyButton({
-  slug,
-  ticketId,
-  highlighted,
-}: {
-  slug: string;
-  ticketId: string;
-  highlighted: boolean;
-}) {
-  return (
-    <a
-      href={`/api/buy-redirect?slug=${encodeURIComponent(slug)}&ticketId=${ticketId}`}
-      className={`rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors ${
-        highlighted
-          ? 'bg-primary text-primary-foreground hover:bg-primaryho'
-          : 'border border-stroke text-black hover:border-black dark:border-strokedark dark:text-white dark:hover:border-white'
-      }`}
-    >
-      Acheter
-    </a>
   );
 }

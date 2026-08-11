@@ -72,46 +72,81 @@ export class PaymentsService {
   ) {}
 
   async initPayment(user: RequestUser, dto: InitPaymentDto): Promise<PaymentInitResult> {
-    const ticket = await this.prisma.ticket.findUnique({
-      where: { id: dto.ticketId },
-      include: { event: { select: { id: true, status: true, slug: true } } },
+    // Fusionne les lignes en double (même ticketId envoyé plusieurs fois) —
+    // évite deux décréments atomiques concurrents sur le même ticket dans
+    // une seule transaction.
+    const mergedQuantities = new Map<string, number>();
+    for (const item of dto.items) {
+      mergedQuantities.set(item.ticketId, (mergedQuantities.get(item.ticketId) ?? 0) + item.quantity);
+    }
+    const ticketIds = [...mergedQuantities.keys()];
+
+    const tickets = await this.prisma.ticket.findMany({
+      where: { id: { in: ticketIds } },
+      include: { event: { select: { id: true, status: true, slug: true, title: true } } },
     });
-    if (!ticket || !ticket.isActive) {
+    if (tickets.length !== ticketIds.length) {
       throw new NotFoundException({
         code: ErrorCodes.TICKET_NOT_FOUND,
         message: 'Billet introuvable.',
       });
     }
-    if (ticket.event.status !== 'PUBLISHED') {
+    if (tickets.some((t) => !t.isActive)) {
+      throw new NotFoundException({
+        code: ErrorCodes.TICKET_NOT_FOUND,
+        message: 'Billet introuvable.',
+      });
+    }
+    // Un seul provider de paiement actif par ÉVÉNEMENT (RULES.md §1) — un
+    // panier ne peut donc porter que sur un seul événement à la fois.
+    const eventIds = new Set(tickets.map((t) => t.eventId));
+    if (eventIds.size > 1) {
+      throw new BadRequestException({
+        code: ErrorCodes.CART_MULTIPLE_EVENTS,
+        message: 'Tous les billets du panier doivent appartenir au même événement.',
+      });
+    }
+    const event = tickets[0].event;
+    if (event.status !== 'PUBLISHED') {
       throw new BadRequestException({
         code: ErrorCodes.EVENT_NOT_ACTIVE,
         message: "L'événement n'est pas actif.",
       });
     }
+
     const now = new Date();
-    if (ticket.saleStartDate && now < ticket.saleStartDate) {
-      throw new BadRequestException({
-        code: ErrorCodes.TICKET_SALE_NOT_STARTED,
-        message: 'La vente de ce billet n\'a pas encore commencé.',
-      });
-    }
-    if (ticket.saleEndDate && now > ticket.saleEndDate) {
-      throw new BadRequestException({
-        code: ErrorCodes.TICKET_SALE_ENDED,
-        message: 'La vente de ce billet est terminée.',
-      });
-    }
-    if (!this.stockService.checkStockAvailable(ticket)) {
-      throw new BadRequestException({
-        code: ErrorCodes.TICKET_SOLD_OUT,
-        message: 'Ce billet est épuisé.',
-      });
+    for (const ticket of tickets) {
+      const quantity = mergedQuantities.get(ticket.id)!;
+      if (ticket.saleStartDate && now < ticket.saleStartDate) {
+        throw new BadRequestException({
+          code: ErrorCodes.TICKET_SALE_NOT_STARTED,
+          message: `La vente de "${ticket.name}" n'a pas encore commencé.`,
+        });
+      }
+      if (ticket.saleEndDate && now > ticket.saleEndDate) {
+        throw new BadRequestException({
+          code: ErrorCodes.TICKET_SALE_ENDED,
+          message: `La vente de "${ticket.name}" est terminée.`,
+        });
+      }
+      if (quantity > ticket.maxPerOrder) {
+        throw new BadRequestException({
+          code: ErrorCodes.TICKET_MAX_PER_ORDER_EXCEEDED,
+          message: `Maximum ${ticket.maxPerOrder} billet(s) "${ticket.name}" par commande.`,
+        });
+      }
+      if (ticket.stock - ticket.stockSold < quantity) {
+        throw new BadRequestException({
+          code: ErrorCodes.TICKET_SOLD_OUT,
+          message: `Stock insuffisant pour "${ticket.name}".`,
+        });
+      }
     }
 
     // Au plus un provider `isActive` par événement (AdminService) — le client
     // ne choisit jamais le fournisseur, il est déterminé ici (RULES.md §1).
     const providerConfig = await this.prisma.paymentProviderConfig.findFirst({
-      where: { eventId: ticket.event.id, isActive: true },
+      where: { eventId: event.id, isActive: true },
     });
     if (!providerConfig || !SUPPORTED_PAYMENT_PROVIDERS.includes(providerConfig.provider)) {
       throw new ServiceUnavailableException({
@@ -120,45 +155,62 @@ export class PaymentsService {
       });
     }
 
+    const totalAmount = tickets.reduce(
+      (sum, t) => sum + Number(t.price) * mergedQuantities.get(t.id)!,
+      0,
+    );
+    const currency = tickets[0].currency;
+
     const order = await this.prisma.$transaction(async (tx) => {
-      const decremented = await this.stockService.decrementStockAtomic(
-        tx,
-        ticket.id,
-        ticket.stock,
-        1,
-      );
-      if (!decremented) {
-        throw new BadRequestException({
-          code: ErrorCodes.STOCK_RACE_CONDITION,
-          message: 'Ce billet vient d\'être épuisé.',
-        });
+      for (const ticket of tickets) {
+        const quantity = mergedQuantities.get(ticket.id)!;
+        const decremented = await this.stockService.decrementStockAtomic(
+          tx,
+          ticket.id,
+          ticket.stock,
+          quantity,
+        );
+        if (!decremented) {
+          // Un throw dans le callback $transaction annule TOUT ce qui a été
+          // décrémenté pour les tickets précédents de ce même panier
+          // (rollback automatique Prisma) — pas de compensation manuelle.
+          throw new BadRequestException({
+            code: ErrorCodes.STOCK_RACE_CONDITION,
+            message: `"${ticket.name}" vient d'être épuisé.`,
+          });
+        }
       }
 
       const createdOrder = await tx.order.create({
         data: {
-          eventId: ticket.eventId,
+          eventId: event.id,
           clientId: user.id,
           status: 'PENDING',
-          totalAmount: ticket.price,
-          currency: ticket.currency,
+          totalAmount,
+          currency,
           paymentProvider: providerConfig.provider,
         },
       });
 
-      await tx.orderItem.create({
-        data: {
-          orderId: createdOrder.id,
-          ticketId: ticket.id,
-          quantity: 1,
-          unitPrice: ticket.price,
-        },
-      });
+      // 1 OrderItem = 1 QR = 1 personne (invariant préservé, cf. génération
+      // PDF/scanner) — une ligne de panier en quantité N devient N OrderItem.
+      for (const ticket of tickets) {
+        const quantity = mergedQuantities.get(ticket.id)!;
+        await tx.orderItem.createMany({
+          data: Array.from({ length: quantity }, () => ({
+            orderId: createdOrder.id,
+            ticketId: ticket.id,
+            quantity: 1,
+            unitPrice: ticket.price,
+          })),
+        });
+      }
 
       return createdOrder;
     });
 
     await this.audit.log('payment.init', 'Order', order.id, {
-      ticketId: ticket.id,
+      items: tickets.map((t) => ({ ticketId: t.id, quantity: mergedQuantities.get(t.id) })),
       clientId: user.id,
       provider: providerConfig.provider,
     });
@@ -174,8 +226,8 @@ export class PaymentsService {
         provider: PaymentProviderType.KKIAPAY,
         orderId: order.id,
         partnerId: order.id,
-        amount: Number(ticket.price),
-        currency: ticket.currency,
+        amount: totalAmount,
+        currency,
         publicKey: providerConfig.publicKey,
         sandbox: isSandboxMode(),
       };
@@ -192,20 +244,20 @@ export class PaymentsService {
           },
           {
             transactionId: order.id,
-            amount: Number(ticket.price),
-            currency: ticket.currency,
-            description: `Billet ${ticket.name}`,
+            amount: totalAmount,
+            currency,
+            description: `Billets ${event.title}`,
             notifyUrl: `${API_URL}/api/payments/webhook/cinetpay`,
             // Retombe sur la même page publique que le flux Kkiapay (widget) —
             // ResumeCheckout y détecte `orderId` et reprend directement le
             // polling GET /api/payments/orders/:id (le webhook reste la seule
             // source de vérité, cette page ne fait qu'afficher l'attente).
-            returnUrl: `${FRONTEND_URL}/e/${ticket.event.slug}?resume=1&orderId=${order.id}`,
+            returnUrl: `${FRONTEND_URL}/e/${event.slug}?resume=1&orderId=${order.id}`,
           },
         );
         return { provider: PaymentProviderType.CINETPAY, orderId: order.id, checkoutUrl: paymentUrl };
       } catch (err) {
-        return this.abortFailedInit(order.id, ticket.id, PaymentProviderType.CINETPAY, err as Error);
+        return this.abortFailedInit(order.id, tickets, mergedQuantities, PaymentProviderType.CINETPAY, err as Error);
       }
     }
 
@@ -218,10 +270,10 @@ export class PaymentsService {
           environment: config.environment ?? 'sandbox',
         },
         {
-          description: `Billet ${ticket.name}`,
-          amount: Number(ticket.price),
-          currency: ticket.currency,
-          callbackUrl: `${FRONTEND_URL}/e/${ticket.event.slug}?resume=1&orderId=${order.id}`,
+          description: `Billets ${event.title}`,
+          amount: totalAmount,
+          currency,
+          callbackUrl: `${FRONTEND_URL}/e/${event.slug}?resume=1&orderId=${order.id}`,
         },
       );
       // FedaPay assigne son propre id de transaction — on le stocke immédiatement
@@ -230,7 +282,7 @@ export class PaymentsService {
       await this.prisma.order.update({ where: { id: order.id }, data: { paymentRef: transactionId } });
       return { provider: PaymentProviderType.FEDAPAY, orderId: order.id, checkoutUrl };
     } catch (err) {
-      return this.abortFailedInit(order.id, ticket.id, PaymentProviderType.FEDAPAY, err as Error);
+      return this.abortFailedInit(order.id, tickets, mergedQuantities, PaymentProviderType.FEDAPAY, err as Error);
     }
   }
 
@@ -242,14 +294,17 @@ export class PaymentsService {
    */
   private async abortFailedInit(
     orderId: string,
-    ticketId: string,
+    tickets: { id: string }[],
+    quantities: Map<string, number>,
     provider: PaymentProviderType,
     err: Error,
   ): Promise<never> {
     this.logger.warn(`Échec init ${provider} (order ${orderId}) : ${err.message}`);
     await this.prisma.$transaction(async (tx) => {
       await tx.order.update({ where: { id: orderId }, data: { status: 'FAILED' } });
-      await this.stockService.releaseStockAtomic(tx, ticketId, 1);
+      for (const ticket of tickets) {
+        await this.stockService.releaseStockAtomic(tx, ticket.id, quantities.get(ticket.id)!);
+      }
     });
     await this.audit.log('payment.init.failed', 'Order', orderId, { provider, reason: err.message });
     throw new ServiceUnavailableException({

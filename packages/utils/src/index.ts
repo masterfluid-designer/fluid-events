@@ -126,24 +126,31 @@ export function normalizeCountryCode(raw: string | null | undefined): string | n
 
 export const INTENT_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
-export interface BuyIntent {
+export interface BuyIntentItem {
   ticketId: string;
+  quantity: number;
+}
+
+export interface BuyIntent {
+  items: BuyIntentItem[];
   timestamp: number;
 }
 
 /**
  * Stocke un intent d'achat en sessionStorage (clé spécifique à l'événement).
+ * `items` : panier de billets (plusieurs types/quantités possibles en un seul
+ * paiement — décision produit "panier multi-billets").
  * Utilisable côté navigateur uniquement — testé via une Storage injectée.
  * Le paramètre `now` (injectable) permet de tester l'expiration de façon déterministe.
  */
 export function saveIntent(
   eventSlug: string,
-  ticketId: string,
+  items: BuyIntentItem[],
   storage: Storage = typeof sessionStorage !== 'undefined' ? sessionStorage : (null as any),
   now: () => number = Date.now,
 ): void {
   if (!storage) return;
-  const intent: BuyIntent = { ticketId, timestamp: now() };
+  const intent: BuyIntent = { items, timestamp: now() };
   storage.setItem(`buy_intent_${eventSlug}`, JSON.stringify(intent));
 }
 
@@ -156,7 +163,7 @@ export function consumeIntent(
   eventSlug: string,
   storage: Storage = typeof sessionStorage !== 'undefined' ? sessionStorage : (null as any),
   now: () => number = Date.now,
-): { ticketId: string } | null {
+): { items: BuyIntentItem[] } | null {
   if (!storage) return null;
   const key = `buy_intent_${eventSlug}`;
   try {
@@ -165,7 +172,8 @@ export function consumeIntent(
     const intent = JSON.parse(raw) as BuyIntent;
     storage.removeItem(key); // Toujours consommer = supprimer
     if (now() - intent.timestamp > INTENT_TTL_MS) return null; // expiré
-    return { ticketId: intent.ticketId };
+    if (!Array.isArray(intent.items) || intent.items.length === 0) return null;
+    return { items: intent.items };
   } catch {
     storage.removeItem(key);
     return null;

@@ -57,10 +57,10 @@ export function ResumeCheckout({
   const [state, setState] = useState<FlowState>({ step: 'idle' });
   const startedRef = useRef(false);
 
-  async function startCheckout(ticketId: string) {
+  async function startCheckout(items: { ticketId: string; quantity: number }[]) {
     setState({ step: 'initializing' });
     try {
-      const init = await apiPost<PaymentInitResult>('/api/payments/init', { ticketId });
+      const init = await apiPost<PaymentInitResult>('/api/payments/init', { items });
 
       if (init.provider === 'KKIAPAY') {
         setState({ step: 'awaiting-payment' });
@@ -108,7 +108,7 @@ export function ResumeCheckout({
       });
       return;
     }
-    void startCheckout(intent.ticketId);
+    void startCheckout(intent.items);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resume, slug, orderId]);
 

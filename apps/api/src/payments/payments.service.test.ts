@@ -18,6 +18,8 @@ import { PaymentProviderType } from '@saas-events/types';
 
 const REQUEST_USER = { id: 'user-1', email: 'client@x.com', role: 'CLIENT' } as any;
 
+const ACTIVE_EVENT = { id: 'ev-1', status: 'PUBLISHED', slug: 'concert-2026', title: 'Concert FESTA 2026' };
+
 const ACTIVE_TICKET = {
   id: 'tk-1',
   eventId: 'ev-1',
@@ -27,10 +29,31 @@ const ACTIVE_TICKET = {
   currency: 'XOF',
   stock: 100,
   stockSold: 0,
+  maxPerOrder: 10,
   saleStartDate: null as Date | null,
   saleEndDate: null as Date | null,
-  event: { id: 'ev-1', status: 'PUBLISHED', slug: 'concert-2026' },
+  event: ACTIVE_EVENT,
 };
+
+const OTHER_TICKET = {
+  id: 'tk-2',
+  eventId: 'ev-1',
+  isActive: true,
+  name: 'Standard',
+  price: 3000,
+  currency: 'XOF',
+  stock: 50,
+  stockSold: 0,
+  maxPerOrder: 10,
+  saleStartDate: null as Date | null,
+  saleEndDate: null as Date | null,
+  event: ACTIVE_EVENT,
+};
+
+/** Body de POST /api/payments/init pour un panier à une seule ligne — raccourci utilisé par la plupart des tests. */
+function singleItem(ticketId: string, quantity = 1) {
+  return { items: [{ ticketId, quantity }] };
+}
 
 const PROVIDER_CONFIG = {
   eventId: 'ev-1',
@@ -64,7 +87,7 @@ function makeDeps() {
 }
 
 function makePrisma(
-  overrides: { ticket?: any; providerConfig?: any; order?: any; orders?: any[] } = {},
+  overrides: { ticket?: any; tickets?: any[]; providerConfig?: any; order?: any; orders?: any[] } = {},
 ) {
   const tx = {
     ticket: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
@@ -74,12 +97,17 @@ function makePrisma(
     },
     orderItem: {
       create: vi.fn().mockResolvedValue({}),
+      createMany: vi.fn().mockResolvedValue({ count: 1 }),
       update: vi.fn().mockResolvedValue({}),
     },
   };
 
+  // `tickets` (pluriel, panier multi-lignes) prime sur `ticket` (singulier,
+  // raccourci pour les tests à une seule ligne) si les deux sont fournis.
+  const foundTickets = overrides.tickets ?? (overrides.ticket ? [overrides.ticket] : []);
+
   return {
-    ticket: { findUnique: vi.fn().mockResolvedValue(overrides.ticket ?? null) },
+    ticket: { findMany: vi.fn().mockResolvedValue(foundTickets) },
     paymentProviderConfig: {
       findUnique: vi.fn().mockResolvedValue(overrides.providerConfig ?? null),
       findFirst: vi.fn().mockResolvedValue(overrides.providerConfig ?? null),
@@ -117,7 +145,7 @@ describe('PaymentsService.initPayment()', () => {
     const prisma = makePrisma({ ticket: ACTIVE_TICKET, providerConfig: PROVIDER_CONFIG });
     const service = makeService(deps, prisma);
 
-    const result = await service.initPayment(REQUEST_USER, { ticketId: 'tk-1' });
+    const result = await service.initPayment(REQUEST_USER, singleItem('tk-1'));
 
     expect(result).toEqual({
       provider: 'KKIAPAY',
@@ -130,7 +158,9 @@ describe('PaymentsService.initPayment()', () => {
     });
     expect(deps.stockService.decrementStockAtomic).toHaveBeenCalledWith(prisma._tx, 'tk-1', 100, 1);
     expect(prisma._tx.order.create).toHaveBeenCalled();
-    expect(prisma._tx.orderItem.create).toHaveBeenCalled();
+    expect(prisma._tx.orderItem.createMany).toHaveBeenCalledWith({
+      data: [{ orderId: 'order-1', ticketId: 'tk-1', quantity: 1, unitPrice: 5000 }],
+    });
   });
 
   it('CINETPAY : appelle CinetPayService.initPayment et retourne checkoutUrl', async () => {
@@ -151,7 +181,7 @@ describe('PaymentsService.initPayment()', () => {
     const prisma = makePrisma({ ticket: ACTIVE_TICKET, providerConfig: cinetPayConfig });
     const service = makeService(deps, prisma);
 
-    const result = await service.initPayment(REQUEST_USER, { ticketId: 'tk-1' });
+    const result = await service.initPayment(REQUEST_USER, singleItem('tk-1'));
 
     expect(result).toEqual({
       provider: 'CINETPAY',
@@ -182,7 +212,7 @@ describe('PaymentsService.initPayment()', () => {
     const prisma = makePrisma({ ticket: ACTIVE_TICKET, providerConfig: fedaPayConfig });
     const service = makeService(deps, prisma);
 
-    const result = await service.initPayment(REQUEST_USER, { ticketId: 'tk-1' });
+    const result = await service.initPayment(REQUEST_USER, singleItem('tk-1'));
 
     expect(result).toEqual({ provider: 'FEDAPAY', orderId: 'order-1', checkoutUrl: 'https://checkout.fedapay.com/pay/xyz' });
     expect(deps.fedaPayService.initPayment).toHaveBeenCalledWith(
@@ -207,7 +237,7 @@ describe('PaymentsService.initPayment()', () => {
     const prisma = makePrisma({ ticket: ACTIVE_TICKET, providerConfig: cinetPayConfig });
     const service = makeService(deps, prisma);
 
-    await expect(service.initPayment(REQUEST_USER, { ticketId: 'tk-1' })).rejects.toThrow(ServiceUnavailableException);
+    await expect(service.initPayment(REQUEST_USER, singleItem('tk-1'))).rejects.toThrow(ServiceUnavailableException);
 
     expect(prisma._tx.order.update).toHaveBeenCalledWith({ where: { id: 'order-1' }, data: { status: 'FAILED' } });
     expect(deps.stockService.releaseStockAtomic).toHaveBeenCalledWith(prisma._tx, 'tk-1', 1);
@@ -234,7 +264,7 @@ describe('PaymentsService.initPayment()', () => {
     const prisma = makePrisma({ ticket: ACTIVE_TICKET, providerConfig: fedaPayConfig });
     const service = makeService(deps, prisma);
 
-    await expect(service.initPayment(REQUEST_USER, { ticketId: 'tk-1' })).rejects.toThrow(ServiceUnavailableException);
+    await expect(service.initPayment(REQUEST_USER, singleItem('tk-1'))).rejects.toThrow(ServiceUnavailableException);
 
     expect(prisma._tx.order.update).toHaveBeenCalledWith({ where: { id: 'order-1' }, data: { status: 'FAILED' } });
     expect(deps.stockService.releaseStockAtomic).toHaveBeenCalledWith(prisma._tx, 'tk-1', 1);
@@ -246,7 +276,7 @@ describe('PaymentsService.initPayment()', () => {
     const service = makeService(deps, prisma);
 
     await expect(
-      service.initPayment(REQUEST_USER, { ticketId: 'tk-1' }),
+      service.initPayment(REQUEST_USER, singleItem('tk-1')),
     ).rejects.toThrow(ServiceUnavailableException);
     expect(deps.cinetPayService.initPayment).not.toHaveBeenCalled();
   });
@@ -257,7 +287,7 @@ describe('PaymentsService.initPayment()', () => {
     const service = makeService(deps, prisma);
 
     await expect(
-      service.initPayment(REQUEST_USER, { ticketId: 'unknown' }),
+      service.initPayment(REQUEST_USER, singleItem('unknown')),
     ).rejects.toThrow(NotFoundException);
   });
 
@@ -270,7 +300,7 @@ describe('PaymentsService.initPayment()', () => {
     const service = makeService(deps, prisma);
 
     await expect(
-      service.initPayment(REQUEST_USER, { ticketId: 'tk-1' }),
+      service.initPayment(REQUEST_USER, singleItem('tk-1')),
     ).rejects.toThrow(BadRequestException);
   });
 
@@ -283,7 +313,7 @@ describe('PaymentsService.initPayment()', () => {
     const service = makeService(deps, prisma);
 
     await expect(
-      service.initPayment(REQUEST_USER, { ticketId: 'tk-1' }),
+      service.initPayment(REQUEST_USER, singleItem('tk-1')),
     ).rejects.toThrow(BadRequestException);
   });
 
@@ -296,19 +326,136 @@ describe('PaymentsService.initPayment()', () => {
     const service = makeService(deps, prisma);
 
     await expect(
-      service.initPayment(REQUEST_USER, { ticketId: 'tk-1' }),
+      service.initPayment(REQUEST_USER, singleItem('tk-1')),
     ).rejects.toThrow(BadRequestException);
   });
 
   it('refuse si le stock est épuisé (pré-check)', async () => {
     const deps = makeDeps();
-    deps.stockService.checkStockAvailable.mockReturnValue(false);
-    const prisma = makePrisma({ ticket: ACTIVE_TICKET, providerConfig: PROVIDER_CONFIG });
+    const prisma = makePrisma({
+      ticket: { ...ACTIVE_TICKET, stock: 10, stockSold: 10 },
+      providerConfig: PROVIDER_CONFIG,
+    });
     const service = makeService(deps, prisma);
 
     await expect(
-      service.initPayment(REQUEST_USER, { ticketId: 'tk-1' }),
+      service.initPayment(REQUEST_USER, singleItem('tk-1')),
     ).rejects.toThrow(BadRequestException);
+  });
+
+  it('refuse si la quantité demandée dépasse maxPerOrder', async () => {
+    const deps = makeDeps();
+    const prisma = makePrisma({ ticket: { ...ACTIVE_TICKET, maxPerOrder: 2 }, providerConfig: PROVIDER_CONFIG });
+    const service = makeService(deps, prisma);
+
+    await expect(
+      service.initPayment(REQUEST_USER, singleItem('tk-1', 3)),
+    ).rejects.toThrow(BadRequestException);
+    expect(prisma._tx.order.create).not.toHaveBeenCalled();
+  });
+
+  it('refuse si le stock restant est insuffisant pour la quantité demandée (quantité > 1)', async () => {
+    const deps = makeDeps();
+    const prisma = makePrisma({
+      ticket: { ...ACTIVE_TICKET, stock: 10, stockSold: 8 },
+      providerConfig: PROVIDER_CONFIG,
+    });
+    const service = makeService(deps, prisma);
+
+    await expect(
+      service.initPayment(REQUEST_USER, singleItem('tk-1', 3)),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('panier multi-billets : deux types de billets → une seule Order, total sommé, N OrderItem (1 par personne)', async () => {
+    const deps = makeDeps();
+    const prisma = makePrisma({ tickets: [ACTIVE_TICKET, OTHER_TICKET], providerConfig: PROVIDER_CONFIG });
+    const service = makeService(deps, prisma);
+
+    const result = await service.initPayment(REQUEST_USER, {
+      items: [
+        { ticketId: 'tk-1', quantity: 2 },
+        { ticketId: 'tk-2', quantity: 1 },
+      ],
+    });
+
+    // 2×5000 (VIP) + 1×3000 (Standard) = 13000
+    expect((result as any).amount).toBe(13000);
+    expect(deps.stockService.decrementStockAtomic).toHaveBeenCalledWith(prisma._tx, 'tk-1', 100, 2);
+    expect(deps.stockService.decrementStockAtomic).toHaveBeenCalledWith(prisma._tx, 'tk-2', 50, 1);
+    expect(prisma._tx.order.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ totalAmount: 13000 }) }),
+    );
+    // 2 OrderItem pour tk-1 (quantity 2 → 2 lignes de quantity:1 chacune) + 1 pour tk-2.
+    expect(prisma._tx.orderItem.createMany).toHaveBeenCalledWith({
+      data: [
+        { orderId: 'order-1', ticketId: 'tk-1', quantity: 1, unitPrice: 5000 },
+        { orderId: 'order-1', ticketId: 'tk-1', quantity: 1, unitPrice: 5000 },
+      ],
+    });
+    expect(prisma._tx.orderItem.createMany).toHaveBeenCalledWith({
+      data: [{ orderId: 'order-1', ticketId: 'tk-2', quantity: 1, unitPrice: 3000 }],
+    });
+  });
+
+  it('fusionne les lignes de panier en double (même ticketId envoyé deux fois)', async () => {
+    const deps = makeDeps();
+    const prisma = makePrisma({ ticket: ACTIVE_TICKET, providerConfig: PROVIDER_CONFIG });
+    const service = makeService(deps, prisma);
+
+    await service.initPayment(REQUEST_USER, {
+      items: [
+        { ticketId: 'tk-1', quantity: 1 },
+        { ticketId: 'tk-1', quantity: 2 },
+      ],
+    });
+
+    // Fusionné en une seule quantité de 3 avant tout décrément — pas deux appels séparés.
+    expect(deps.stockService.decrementStockAtomic).toHaveBeenCalledTimes(1);
+    expect(deps.stockService.decrementStockAtomic).toHaveBeenCalledWith(prisma._tx, 'tk-1', 100, 3);
+  });
+
+  it('refuse un panier mélangeant des billets de deux événements différents', async () => {
+    const deps = makeDeps();
+    const otherEventTicket = {
+      ...OTHER_TICKET,
+      id: 'tk-3',
+      eventId: 'ev-2',
+      event: { id: 'ev-2', status: 'PUBLISHED', slug: 'autre-event', title: 'Autre Event' },
+    };
+    const prisma = makePrisma({ tickets: [ACTIVE_TICKET, otherEventTicket], providerConfig: PROVIDER_CONFIG });
+    const service = makeService(deps, prisma);
+
+    await expect(
+      service.initPayment(REQUEST_USER, {
+        items: [
+          { ticketId: 'tk-1', quantity: 1 },
+          { ticketId: 'tk-3', quantity: 1 },
+        ],
+      }),
+    ).rejects.toThrow(BadRequestException);
+    expect(prisma._tx.order.create).not.toHaveBeenCalled();
+  });
+
+  it('panier multi-billets : si un ticket du panier est épuisé en cours de transaction, tout le panier est annulé (rollback)', async () => {
+    const deps = makeDeps();
+    deps.stockService.decrementStockAtomic
+      .mockResolvedValueOnce(true) // tk-1 décrémenté avec succès...
+      .mockResolvedValueOnce(false); // ...puis tk-2 échoue (race condition)
+    const prisma = makePrisma({ tickets: [ACTIVE_TICKET, OTHER_TICKET], providerConfig: PROVIDER_CONFIG });
+    const service = makeService(deps, prisma);
+
+    await expect(
+      service.initPayment(REQUEST_USER, {
+        items: [
+          { ticketId: 'tk-1', quantity: 1 },
+          { ticketId: 'tk-2', quantity: 1 },
+        ],
+      }),
+    ).rejects.toThrow(BadRequestException);
+    // Le throw dans le callback $transaction empêche la création de l'Order —
+    // pas de compensation manuelle nécessaire (rollback Prisma automatique).
+    expect(prisma._tx.order.create).not.toHaveBeenCalled();
   });
 
   it("refuse si aucun provider n'est actif pour l'événement (findFirst({isActive:true}) ne renvoie rien)", async () => {
@@ -319,7 +466,7 @@ describe('PaymentsService.initPayment()', () => {
     const service = makeService(deps, prisma);
 
     await expect(
-      service.initPayment(REQUEST_USER, { ticketId: 'tk-1' }),
+      service.initPayment(REQUEST_USER, singleItem('tk-1')),
     ).rejects.toThrow(ServiceUnavailableException);
   });
 
@@ -330,7 +477,7 @@ describe('PaymentsService.initPayment()', () => {
     const service = makeService(deps, prisma);
 
     await expect(
-      service.initPayment(REQUEST_USER, { ticketId: 'tk-1' }),
+      service.initPayment(REQUEST_USER, singleItem('tk-1')),
     ).rejects.toThrow(BadRequestException);
     expect(prisma._tx.order.create).not.toHaveBeenCalled();
   });
