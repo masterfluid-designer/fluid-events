@@ -1,17 +1,21 @@
 import { notFound } from 'next/navigation';
-import Link from 'next/link';
-import { CalendarDays, MapPin, ArrowLeft, Ticket } from 'lucide-react';
 import type { Metadata } from 'next';
 import type { Block, FaqEntry, MediaEntry, ScheduleEntry, SpeakerEntry } from '@saas-events/types';
 import { ResumeCheckout } from './resume-checkout';
-import { BlockRenderer, getVisibleNavItems, type EventConfigData } from './block-renderer';
+import { BlockRenderer, getVisibleNavItems, type EventConfigData, type NavItem } from './block-renderer';
 import { TicketSelector } from './ticket-selector';
+import { EventHeader } from './event-header';
+import { EventHero } from './event-hero';
+import { CtaBand } from './cta-band';
 import { EventFooter } from './event-footer';
-import { ThemeToggle } from '@/components/ui/theme-toggle';
 
 /**
  * Page événement publique (SSR) — CDC §6.2 route GET /api/events/public/:slug.
  * Accessible sans authentification. CTA "Acheter" déclenche l'OAuth avec intent.
+ *
+ * Mise en page : sections pleine largeur empilées (header sticky → hero
+ * immersif → blocs → bande CTA → footer), pensée pour du desktop/tablette/
+ * mobile — et non plus une carte étroite centrée.
  */
 
 interface EventDetail {
@@ -37,6 +41,7 @@ interface EventDetail {
     stock: number;
     stockSold: number;
     maxPerOrder: number;
+    description: string | null;
     compareAtPrice: number | null;
     promoEndsAt: string | null;
     dayLabel: string | null;
@@ -91,7 +96,7 @@ export default async function EventPage({
   const event = await fetchEvent(slug);
   if (!event) notFound();
 
-  const formattedDate = new Intl.DateTimeFormat('fr-FR', {
+  const dateLabel = new Intl.DateTimeFormat('fr-FR', {
     dateStyle: 'full',
     timeStyle: 'short',
   }).format(new Date(event.startDate));
@@ -100,6 +105,11 @@ export default async function EventPage({
   const blocks = event.eventPage?.blocks ?? [];
   const hasBuiltPage = blocks.length > 0;
   const eventConfig: EventConfigData = {
+    title: event.title,
+    description: event.description,
+    location: event.location,
+    coverImageUrl: event.coverImageUrl,
+    dateLabel,
     startDate: event.startDate,
     faqs: event.faqs,
     schedule: event.schedule,
@@ -107,128 +117,64 @@ export default async function EventPage({
     galleryImages: event.galleryImages,
     sponsorImages: event.sponsorImages,
   };
+
   // Équivalent condensé de la nav multi-pages d'orncity (Accueil/Programme/
-  // Line-up/Billetterie/.../Infos&FAQ) sur notre modèle une-seule-page —
-  // vide sur le rendu fallback (pas de blocs Builder posés).
-  const navItems = hasBuiltPage ? getVisibleNavItems(blocks, event.tickets, eventConfig) : [];
+  // Line-up/Billetterie/.../Infos&FAQ) sur notre modèle une-seule-page. Sur le
+  // rendu de repli (aucun bloc posé), seule la billetterie existe réellement.
+  const navItems: NavItem[] = hasBuiltPage
+    ? getVisibleNavItems(blocks, event.tickets, eventConfig)
+    : event.tickets.length > 0
+      ? [{ id: 'block-tickets', label: 'Billetterie' }]
+      : [];
+  const ticketsAnchor = navItems.find((item) => item.id === 'block-tickets');
+  const scheduleAnchor = navItems.find((item) => item.id === 'block-schedule');
 
   return (
-    <main className="min-h-svh bg-alabaster dark:bg-blackho">
-      {/* Header obligatoire (décision produit 2026-07-13) : logo à gauche,
-          "Mon ticket" à droite — jamais un bloc du Builder, toujours présent
-          quel que soit le contenu de la page. Regroupé avec la nav en ancre
-          (si présente) sous un seul conteneur sticky, pour éviter deux
-          éléments sticky empilés qui se chevaucheraient au scroll. */}
-      <div className="sticky top-0 z-20">
-        <header className="flex items-center justify-between border-b border-stroke bg-white/90 px-4 py-3 backdrop-blur-sm dark:border-strokedark dark:bg-blacksection/90 md:px-8">
-          <div className="flex items-center gap-2.5">
-            {event.logoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={event.logoUrl} alt={event.title} className="size-8 rounded-lg object-cover" />
-            ) : null}
-            <span className="font-serif text-base font-semibold md:text-lg">{event.title}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <ThemeToggle />
-            <a
-              href={`/client?event=${encodeURIComponent(slug)}`}
-              className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:bg-primaryho"
-            >
-              <Ticket className="size-3.5" /> Mon ticket
-            </a>
-          </div>
-        </header>
+    <main className="min-h-svh bg-white dark:bg-blackho">
+      <EventHeader
+        eventTitle={event.title}
+        logoUrl={event.logoUrl}
+        slug={slug}
+        navItems={navItems}
+      />
 
-        {navItems.length > 0 && (
-          <nav className="flex gap-5 overflow-x-auto border-b border-stroke bg-white/90 px-4 py-2.5 backdrop-blur-sm dark:border-strokedark dark:bg-blacksection/90 md:px-8">
-            {navItems.map((item) => (
-              <a
-                key={item.id}
-                href={`#${item.id}`}
-                className="whitespace-nowrap text-xs font-semibold text-manatee transition-colors hover:text-black dark:text-waterloo dark:hover:text-white"
-              >
-                {item.label}
-              </a>
-            ))}
-          </nav>
-        )}
-      </div>
+      {hasBuiltPage ? (
+        <BlockRenderer
+          blocks={blocks}
+          tickets={event.tickets}
+          isPublished={isPublished}
+          slug={slug}
+          eventConfig={eventConfig}
+          navItems={navItems}
+        />
+      ) : (
+        <>
+          <EventHero
+            title={event.title}
+            description={event.description}
+            imageUrl={event.coverImageUrl}
+            dateLabel={dateLabel}
+            location={event.location}
+            isPublished={isPublished}
+            ticketsAnchorId={ticketsAnchor?.id}
+            stat={
+              event.tickets.length > 0
+                ? { value: String(event.tickets.length), label: 'formules de billets' }
+                : null
+            }
+          />
+          <TicketSelector tickets={event.tickets} slug={slug} isPublished={isPublished} />
+        </>
+      )}
 
-      <div className="mx-auto max-w-190 px-4 py-8 md:px-8">
-        <div className="relative overflow-hidden rounded-2xl border border-stroke bg-white shadow-solid-2 dark:border-strokedark dark:bg-blacksection">
-          <Link
-            href="/"
-            className="absolute left-4 top-4 z-10 inline-flex items-center gap-1.5 rounded-full bg-white/90 px-3.5 py-1.5 text-xs font-semibold text-black backdrop-blur"
-          >
-            <ArrowLeft className="size-3.5" /> Retour
-          </Link>
+      {ticketsAnchor && <CtaBand eventTitle={event.title} ticketsAnchorId={ticketsAnchor.id} />}
 
-          {hasBuiltPage ? (
-            <BlockRenderer
-              blocks={blocks}
-              tickets={event.tickets}
-              isPublished={isPublished}
-              slug={slug}
-              eventConfig={eventConfig}
-            />
-          ) : (
-            <>
-              {/* Cover */}
-              <div className="relative h-64 w-full bg-[repeating-linear-gradient(135deg,#EFEDE7_0_14px,#E7E4DE_14px_28px)] dark:bg-[repeating-linear-gradient(135deg,#24221F_0_14px,#1B1A18_14px_28px)] md:h-85">
-                {event.coverImageUrl && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={event.coverImageUrl}
-                    alt={event.title}
-                    className="size-full object-cover"
-                  />
-                )}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent" />
-                <div className="absolute inset-x-6 bottom-5 text-white md:inset-x-9 md:bottom-6">
-                  <div className="text-xs font-semibold uppercase tracking-[0.08em] opacity-85">
-                    {formattedDate}
-                    {event.location ? ` · ${event.location}` : ''}
-                  </div>
-                  <h1 className="mt-1.5 font-serif text-3xl leading-[1.05] md:text-4xl">
-                    {event.title}
-                  </h1>
-                </div>
-              </div>
-
-              <div className="px-6 pb-2 pt-8 md:px-9">
-                <div className="flex flex-wrap gap-2">
-                  <span className="rounded-full border border-stroke bg-alabaster px-2.5 py-1 text-xs font-semibold text-black dark:border-strokedark dark:bg-blackho dark:text-white">
-                    {isPublished ? 'Billets ouverts' : 'Bientôt disponible'}
-                  </span>
-                  {event.location && (
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-stroke bg-alabaster px-2.5 py-1 text-xs font-semibold text-black dark:border-strokedark dark:bg-blackho dark:text-white">
-                      <MapPin className="size-3" /> {event.location}
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {event.description && (
-                <p className="max-w-150 whitespace-pre-line px-6 pb-2 pt-4 text-[15px] leading-relaxed text-waterloo dark:text-manatee md:px-9">
-                  {event.description}
-                </p>
-              )}
-
-              <div className="flex flex-wrap gap-5 px-6 py-4 text-sm md:px-9">
-                <div className="flex items-center gap-2">
-                  <CalendarDays className="text-accent-terracotta dark:text-accent-terracotta-dark size-4" />
-                  <span>{formattedDate}</span>
-                </div>
-              </div>
-
-              <div className="mx-6 border-t border-stroke dark:border-strokedark md:mx-9" />
-
-              <TicketSelector tickets={event.tickets} slug={slug} isPublished={isPublished} />
-            </>
-          )}
-        </div>
-      </div>
-      <EventFooter eventTitle={event.title} location={event.location} navItems={navItems} />
+      <EventFooter
+        eventTitle={event.title}
+        location={event.location}
+        dateLabel={dateLabel}
+        navItems={navItems}
+      />
       <ResumeCheckout slug={slug} resume={resume === '1'} orderId={orderId} />
     </main>
   );

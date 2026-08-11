@@ -5,7 +5,8 @@ import { SponsorsCarousel } from './sponsors-carousel';
 import { TicketSelector, type PublicTicket } from './ticket-selector';
 import { SpeakersGrid } from './speakers-grid';
 import { TimelineStrip } from './timeline-strip';
-import { SectionEyebrow } from './section-eyebrow';
+import { SectionShell, SectionHeading } from './section-shell';
+import { EventHero } from './event-hero';
 
 /**
  * BlockRenderer — Rend les blocs Builder (CDC §11) sur la page publique.
@@ -20,6 +21,9 @@ import { SectionEyebrow } from './section-eyebrow';
  * automatiquement jusqu'à `eventConfig.startDate`. Les types restants
  * (image/vidéo/testimonials) gardent un rendu générique titre + contenu.
  *
+ * Mise en page : chaque bloc est une SECTION pleine largeur (SectionShell),
+ * pas un élément d'une carte étroite — voir section-shell.tsx.
+ *
  * `styles.customClassName` (décision produit 2026-07-13) : classes Tailwind
  * libres appliquées au conteneur de chaque bloc, validées côté backend par une
  * regex restreinte à la syntaxe Tailwind (`blocks.schema.ts`). Limite connue :
@@ -29,6 +33,12 @@ import { SectionEyebrow } from './section-eyebrow';
  */
 
 export interface EventConfigData {
+  title: string;
+  description: string | null;
+  location: string | null;
+  coverImageUrl: string | null;
+  /** Date de début déjà formatée en français (calculée une fois côté page). */
+  dateLabel: string;
   startDate: string;
   faqs: FaqEntry[];
   schedule: ScheduleEntry[];
@@ -94,25 +104,32 @@ export function BlockRenderer({
   isPublished,
   slug,
   eventConfig,
+  navItems,
 }: {
   blocks: Block[];
   tickets: PublicTicket[];
   isPublished: boolean;
   slug: string;
   eventConfig: EventConfigData;
+  navItems: NavItem[];
 }) {
   const sorted = [...blocks].sort((a, b) => a.order - b.order);
 
   return (
     <>
       {sorted.map((block) => (
-        <div key={block.id} id={`block-${block.type}`} className={block.styles?.customClassName}>
+        <div
+          key={block.id}
+          id={`block-${block.type}`}
+          className={`scroll-mt-16 md:scroll-mt-18 ${block.styles?.customClassName ?? ''}`}
+        >
           <BlockItem
             block={block}
             tickets={tickets}
             isPublished={isPublished}
             slug={slug}
             eventConfig={eventConfig}
+            navItems={navItems}
           />
         </div>
       ))}
@@ -126,45 +143,49 @@ function BlockItem({
   isPublished,
   slug,
   eventConfig,
+  navItems,
 }: {
   block: Block;
   tickets: PublicTicket[];
   isPublished: boolean;
   slug: string;
   eventConfig: EventConfigData;
+  navItems: NavItem[];
 }) {
   const textAlign = block.styles?.textAlign;
 
   if (block.type === 'hero') {
-    const imageUrl = block.props.imageUrl as string | undefined;
     return (
-      <div
-        className="relative h-64 w-full bg-[repeating-linear-gradient(135deg,#EFEDE7_0_14px,#E7E4DE_14px_28px)] dark:bg-[repeating-linear-gradient(135deg,#24221F_0_14px,#1B1A18_14px_28px)] md:h-85"
-        style={{
-          backgroundColor: block.styles?.backgroundColor || undefined,
-          backgroundImage: imageUrl ? `url(${imageUrl})` : undefined,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-        }}
-      >
-        <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent" />
-        <div className="absolute inset-x-6 bottom-5 text-white md:inset-x-9 md:bottom-6" style={{ textAlign }}>
-          <h1 className="font-serif text-3xl leading-[1.05] md:text-4xl">
-            {(block.props.title as string) || ''}
-          </h1>
-        </div>
-      </div>
+      <EventHero
+        title={(block.props.title as string) || eventConfig.title}
+        description={eventConfig.description}
+        imageUrl={(block.props.imageUrl as string) || eventConfig.coverImageUrl}
+        dateLabel={eventConfig.dateLabel}
+        location={eventConfig.location}
+        isPublished={isPublished}
+        ticketsAnchorId={navItems.find((i) => i.id === 'block-tickets')?.id}
+        scheduleAnchorId={navItems.find((i) => i.id === 'block-schedule')?.id}
+        stat={
+          eventConfig.speakers.length > 0
+            ? { value: String(eventConfig.speakers.length), label: "à l'affiche" }
+            : tickets.length > 0
+              ? { value: String(tickets.length), label: 'formules de billets' }
+              : null
+        }
+      />
     );
   }
 
   if (block.type === 'text') {
     return (
-      <p
-        className="max-w-150 whitespace-pre-line px-6 py-4 text-[15px] leading-relaxed text-waterloo dark:text-manatee md:px-9"
-        style={{ textAlign }}
-      >
-        {(block.props.content as string) || ''}
-      </p>
+      <SectionShell>
+        <p
+          className="max-w-3xl whitespace-pre-line text-base leading-relaxed text-waterloo dark:text-manatee md:text-lg"
+          style={{ textAlign }}
+        >
+          {(block.props.content as string) || ''}
+        </p>
+      </SectionShell>
     );
   }
 
@@ -174,11 +195,13 @@ function BlockItem({
     // passe de nettoyage ici, la BDD fait foi (même principe que la
     // whitelist d'URL image).
     return (
-      <div
-        className="px-6 py-4 md:px-9 [&_a]:underline [&_img]:max-w-full [&_img]:rounded-lg"
-        style={{ textAlign }}
-        dangerouslySetInnerHTML={{ __html: (block.props.htmlContent as string) || '' }}
-      />
+      <SectionShell>
+        <div
+          className="[&_a]:underline [&_img]:max-w-full [&_img]:rounded-xl"
+          style={{ textAlign }}
+          dangerouslySetInnerHTML={{ __html: (block.props.htmlContent as string) || '' }}
+        />
+      </SectionShell>
     );
   }
 
@@ -187,25 +210,29 @@ function BlockItem({
   }
 
   if (block.type === 'countdown') {
-    return <Countdown targetDate={eventConfig.startDate} />;
+    return <Countdown targetDate={eventConfig.startDate} dateLabel={eventConfig.dateLabel} />;
   }
 
   if (block.type === 'faq') {
     if (eventConfig.faqs.length === 0) return null;
     return (
-      <div className="px-6 py-8 md:px-9">
-        <div className="mb-3">
-          <SectionEyebrow>Questions fréquentes</SectionEyebrow>
+      <SectionShell tone="muted">
+        <SectionHeading
+          eyebrow="Bon à savoir"
+          title="Infos pratiques & FAQ"
+          description="Les réponses aux questions les plus fréquentes avant votre venue."
+        />
+        <div className="max-w-3xl">
+          <Accordion type="single" collapsible>
+            {eventConfig.faqs.map((faq) => (
+              <AccordionItem key={faq.id} value={faq.id}>
+                <AccordionTrigger className="text-left text-base">{faq.question}</AccordionTrigger>
+                <AccordionContent className="text-sm leading-relaxed">{faq.answer}</AccordionContent>
+              </AccordionItem>
+            ))}
+          </Accordion>
         </div>
-        <Accordion type="single" collapsible>
-          {eventConfig.faqs.map((faq) => (
-            <AccordionItem key={faq.id} value={faq.id}>
-              <AccordionTrigger>{faq.question}</AccordionTrigger>
-              <AccordionContent>{faq.answer}</AccordionContent>
-            </AccordionItem>
-          ))}
-        </Accordion>
-      </div>
+      </SectionShell>
     );
   }
 
@@ -215,28 +242,33 @@ function BlockItem({
       (a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime(),
     );
     return (
-      <div className="px-6 py-8 md:px-9">
-        <div className="mb-3">
-          <SectionEyebrow>Programme</SectionEyebrow>
-        </div>
+      <SectionShell>
+        <SectionHeading
+          eyebrow="Deux jours, deux scènes"
+          title="Le programme"
+          description="Le déroulé heure par heure de l'événement."
+        />
         <div className="flex flex-col gap-3">
           {sortedSchedule.map((entry) => (
-            <div key={entry.id} className="flex gap-4 rounded-xl border border-stroke p-4 dark:border-strokedark">
-              <div className="w-28 shrink-0 text-xs font-semibold text-accent-terracotta dark:text-accent-terracotta-dark">
+            <div
+              key={entry.id}
+              className="flex flex-col gap-2 rounded-2xl border border-stroke p-5 dark:border-strokedark sm:flex-row sm:gap-6"
+            >
+              <div className="shrink-0 text-xs font-bold uppercase tracking-wide text-accent-terracotta dark:text-accent-terracotta-dark sm:w-40">
                 {new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium', timeStyle: 'short' }).format(
                   new Date(entry.startsAt),
                 )}
               </div>
               <div>
-                <div className="font-semibold">{entry.title}</div>
+                <div className="font-semibold md:text-lg">{entry.title}</div>
                 {entry.description && (
-                  <div className="mt-0.5 text-sm text-waterloo dark:text-manatee">{entry.description}</div>
+                  <div className="mt-1 text-sm text-waterloo dark:text-manatee">{entry.description}</div>
                 )}
               </div>
             </div>
           ))}
         </div>
-      </div>
+      </SectionShell>
     );
   }
 
@@ -253,36 +285,59 @@ function BlockItem({
   if (block.type === 'gallery') {
     if (eventConfig.galleryImages.length === 0) return null;
     return (
-      <div className="grid grid-cols-2 gap-2 px-6 py-8 md:grid-cols-3 md:px-9">
-        {eventConfig.galleryImages.map((img) => (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img key={img.id} src={img.url} alt="" className="aspect-square w-full rounded-xl object-cover" />
-        ))}
-      </div>
+      <SectionShell tone="muted">
+        <SectionHeading eyebrow="Ambiance" title="La galerie" />
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
+          {eventConfig.galleryImages.map((img) => (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              key={img.id}
+              src={img.url}
+              alt=""
+              className="aspect-square w-full rounded-2xl object-cover transition-transform hover:scale-[1.02]"
+            />
+          ))}
+        </div>
+      </SectionShell>
     );
   }
 
   if (block.type === 'sponsors') {
     if (eventConfig.sponsorImages.length === 0) return null;
-    return <SponsorsCarousel images={eventConfig.sponsorImages} />;
+    return (
+      <SectionShell>
+        <SectionHeading
+          eyebrow="Ensemble"
+          title="Nos partenaires"
+          description="Ils soutiennent l'événement et rendent la fête possible."
+        />
+        <SponsorsCarousel images={eventConfig.sponsorImages} />
+      </SectionShell>
+    );
   }
 
   // Rendu générique (image/video/testimonials) — seuls titre + contenu sont
   // éditables sur ces types dans le Builder.
   return (
-    <div className="px-6 py-4 md:px-9" style={{ textAlign }}>
-      {(block.props.title as string) && (
-        <div className="text-lg font-semibold">{block.props.title as string}</div>
-      )}
-      {(block.props.content as string) && (
-        <div className="mt-1 text-sm text-waterloo dark:text-manatee">
-          {block.props.content as string}
-        </div>
-      )}
-      {block.type === 'image' && (block.props.imageUrl as string) && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={block.props.imageUrl as string} alt="" className="mt-3 max-h-96 w-full rounded-xl object-cover" />
-      )}
-    </div>
+    <SectionShell>
+      <div style={{ textAlign }}>
+        {(block.props.title as string) && (
+          <h2 className="font-serif text-2xl md:text-3xl">{block.props.title as string}</h2>
+        )}
+        {(block.props.content as string) && (
+          <p className="mt-2 max-w-3xl text-sm leading-relaxed text-waterloo dark:text-manatee md:text-base">
+            {block.props.content as string}
+          </p>
+        )}
+        {block.type === 'image' && (block.props.imageUrl as string) && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={block.props.imageUrl as string}
+            alt=""
+            className="mt-5 max-h-[32rem] w-full rounded-2xl object-cover"
+          />
+        )}
+      </div>
+    </SectionShell>
   );
 }

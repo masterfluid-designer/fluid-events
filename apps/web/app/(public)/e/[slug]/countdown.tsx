@@ -1,11 +1,16 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { SectionShell } from './section-shell';
+import { SectionEyebrow } from './section-eyebrow';
 
 /**
  * Countdown — Bloc "compte à rebours" (décision produit 2026-07-13) :
  * prend uniquement la date de début de l'événement en entrée et décompte
  * automatiquement, jamais de date configurée manuellement par bloc.
+ *
+ * Présentation en gros chiffres encadrés (pattern orncity "AVANT LE COUP
+ * D'ENVOI").
  */
 
 function remaining(targetDate: string) {
@@ -18,7 +23,18 @@ function remaining(targetDate: string) {
   return { days, hours, minutes, seconds };
 }
 
-export function Countdown({ targetDate }: { targetDate: string }) {
+function Digits({ value, label }: { value: string; label: string }) {
+  return (
+    <div className="flex flex-col items-center gap-2 rounded-2xl border border-stroke bg-white py-5 dark:border-strokedark dark:bg-blacksection md:py-7">
+      <span className="font-serif text-3xl leading-none tabular-nums md:text-5xl lg:text-6xl">{value}</span>
+      <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-manatee dark:text-waterloo md:text-xs">
+        {label}
+      </span>
+    </div>
+  );
+}
+
+export function Countdown({ targetDate, dateLabel }: { targetDate: string; dateLabel?: string }) {
   // `Date.now()` diffère entre le rendu serveur et l'hydratation client (même
   // de quelques centaines de ms) — initialiser l'état avec `remaining()` ferait
   // systématiquement diverger le HTML serveur du premier rendu client (erreur
@@ -33,52 +49,36 @@ export function Countdown({ targetDate }: { targetDate: string }) {
     return () => clearInterval(interval);
   }, [targetDate]);
 
-  if (time === 'pending') {
-    return (
-      <div className="grid grid-cols-4 gap-2.5 px-6 py-6 md:px-9">
-        {['Jours', 'Heures', 'Min', 'Sec'].map((label) => (
-          <div
-            key={label}
-            className="flex flex-col items-center gap-1 rounded-xl border border-stroke bg-alabaster py-3 dark:border-strokedark dark:bg-blackho"
-          >
-            <span className="font-serif text-2xl tabular-nums md:text-3xl">--</span>
-            <span className="text-[11px] uppercase tracking-[0.06em] text-manatee dark:text-waterloo">
-              {label}
-            </span>
-          </div>
-        ))}
-      </div>
-    );
-  }
+  const labels = ['Jours', 'Heures', 'Min', 'Sec'];
 
   if (!time) {
     return (
-      <div className="px-6 py-6 text-center text-sm font-semibold md:px-9">L&apos;événement a commencé !</div>
+      <SectionShell tone="muted">
+        <div className="text-center font-serif text-2xl md:text-3xl">L&apos;événement a commencé !</div>
+      </SectionShell>
     );
   }
 
-  const units: Array<{ label: string; value: number }> = [
-    { label: 'Jours', value: time.days },
-    { label: 'Heures', value: time.hours },
-    { label: 'Min', value: time.minutes },
-    { label: 'Sec', value: time.seconds },
-  ];
+  const values =
+    time === 'pending'
+      ? ['--', '--', '--', '--']
+      : [time.days, time.hours, time.minutes, time.seconds].map((v) => String(v).padStart(2, '0'));
 
   return (
-    <div className="grid grid-cols-4 gap-2.5 px-6 py-6 md:px-9">
-      {units.map((unit) => (
-        <div
-          key={unit.label}
-          className="flex flex-col items-center gap-1 rounded-xl border border-stroke bg-alabaster py-3 dark:border-strokedark dark:bg-blackho"
-        >
-          <span className="font-serif text-2xl tabular-nums md:text-3xl">
-            {String(unit.value).padStart(2, '0')}
-          </span>
-          <span className="text-[11px] uppercase tracking-[0.06em] text-manatee dark:text-waterloo">
-            {unit.label}
-          </span>
-        </div>
-      ))}
-    </div>
+    <SectionShell tone="muted">
+      <div className="mb-6 flex flex-col items-center text-center">
+        <SectionEyebrow>Avant le coup d&apos;envoi</SectionEyebrow>
+        {dateLabel && (
+          <p className="mt-2 text-sm text-waterloo dark:text-manatee md:text-base">
+            Rendez-vous le {dateLabel}
+          </p>
+        )}
+      </div>
+      <div className="mx-auto grid max-w-3xl grid-cols-4 gap-2.5 md:gap-4">
+        {values.map((value, i) => (
+          <Digits key={labels[i]} value={value} label={labels[i]} />
+        ))}
+      </div>
+    </SectionShell>
   );
 }

@@ -1,51 +1,87 @@
 import Link from 'next/link';
+import { CalendarDays, MapPin } from 'lucide-react';
 import type { NavItem } from './block-renderer';
 
 /**
  * EventFooter — Footer contextuel à l'ÉVÉNEMENT (pas le footer marketing du
- * SaaS, `components/Footer/index.tsx`, qui reste utilisé sur les pages
- * `/`, `/contact`, etc.). Équivalent condensé du footer d'orncity : marque de
- * l'événement + liens rapides vers les mêmes sections que la nav en ancre.
+ * SaaS, `components/Footer/index.tsx`, qui reste utilisé sur `/`, `/contact`,
+ * etc.). Structure multi-colonnes reprise d'orncity : identité de l'événement
+ * à gauche, informations pratiques et liens rapides en colonnes.
  */
 export function EventFooter({
   eventTitle,
   location,
+  dateLabel,
   navItems,
 }: {
   eventTitle: string;
   location: string | null;
+  dateLabel: string;
   navItems: NavItem[];
 }) {
   return (
-    <footer className="mx-auto max-w-190 border-t border-stroke px-6 py-8 dark:border-strokedark md:px-9">
-      <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <div className="font-serif text-lg font-semibold">{eventTitle}</div>
-          {location && <div className="mt-1 text-sm text-manatee dark:text-waterloo">{location}</div>}
+    <footer className="border-t border-stroke bg-alabaster px-5 py-12 dark:border-strokedark dark:bg-blackho md:px-8 md:py-16">
+      <div className="mx-auto max-w-6xl">
+        <div className="grid gap-10 md:grid-cols-3 lg:grid-cols-4">
+          <div className="lg:col-span-2">
+            <div className="font-serif text-2xl md:text-3xl">{eventTitle}</div>
+            <p className="mt-3 max-w-sm text-sm text-waterloo dark:text-manatee">
+              Billetterie officielle — réservation en ligne, billet numérique à présenter à
+              l&apos;entrée.
+            </p>
+          </div>
+
+          <div>
+            <div className="text-xs font-bold uppercase tracking-[0.12em] text-manatee dark:text-waterloo">
+              Informations
+            </div>
+            <ul className="mt-4 flex flex-col gap-3 text-sm">
+              <li className="flex items-start gap-2.5">
+                <CalendarDays className="mt-0.5 size-4 shrink-0 text-accent-terracotta dark:text-accent-terracotta-dark" />
+                <span>{dateLabel}</span>
+              </li>
+              {location && (
+                <li className="flex items-start gap-2.5">
+                  <MapPin className="mt-0.5 size-4 shrink-0 text-accent-terracotta dark:text-accent-terracotta-dark" />
+                  <span>{location}</span>
+                </li>
+              )}
+            </ul>
+          </div>
+
+          <div>
+            <div className="text-xs font-bold uppercase tracking-[0.12em] text-manatee dark:text-waterloo">
+              Navigation
+            </div>
+            <ul className="mt-4 flex flex-col gap-2.5 text-sm">
+              {navItems.map((item) => (
+                <li key={item.id}>
+                  <a
+                    href={`#${item.id}`}
+                    className="text-waterloo transition-colors hover:text-black dark:text-manatee dark:hover:text-white"
+                  >
+                    {item.label}
+                  </a>
+                </li>
+              ))}
+              <li>
+                <Link
+                  href="/billets-perdus"
+                  className="text-waterloo transition-colors hover:text-black dark:text-manatee dark:hover:text-white"
+                >
+                  J&apos;ai perdu mes billets
+                </Link>
+              </li>
+            </ul>
+          </div>
         </div>
-        <nav className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
-          {navItems.map((item) => (
-            <a
-              key={item.id}
-              href={`#${item.id}`}
-              className="text-manatee transition-colors hover:text-black dark:text-waterloo dark:hover:text-white"
-            >
-              {item.label}
-            </a>
-          ))}
-          <Link
-            href="/billets-perdus"
-            className="text-manatee transition-colors hover:text-black dark:text-waterloo dark:hover:text-white"
-          >
-            J'ai perdu mes billets
+
+        <div className="mt-10 flex flex-wrap items-center justify-between gap-3 border-t border-stroke pt-6 text-xs text-manatee dark:border-strokedark dark:text-waterloo">
+          <span>Billetterie propulsée par Fluid Events.</span>
+          <Link href="/" className="transition-colors hover:text-black dark:hover:text-white">
+            fluidevents.africa
           </Link>
-        </nav>
-      </div>
-      <div className="mt-6 flex flex-wrap items-center justify-between gap-2 border-t border-stroke pt-4 text-xs text-manatee dark:border-strokedark dark:text-waterloo">
-        <span>Billetterie propulsée par Fluid Events.</span>
-        <Link href="/" className="hover:text-black dark:hover:text-white">
-          fluidevents.africa
-        </Link>
+        </div>
       </div>
     </footer>
   );

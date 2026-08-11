@@ -2,12 +2,12 @@
 
 import { useMemo, useState } from 'react';
 import type { SpeakerEntry } from '@saas-events/types';
-import { SectionEyebrow } from './section-eyebrow';
+import { SectionShell, SectionHeading } from './section-shell';
 
 /**
- * SpeakersGrid — grille "Line-up" avec filtre par catégorie (si au moins une
- * entrée en a une, ex: "DJ" / "Artiste" / "Speaker") — sinon grille simple,
- * comme avant.
+ * SpeakersGrid — grille "Line-up" en cartes portrait (pattern orncity), avec
+ * filtre par catégorie si au moins une entrée en porte une (ex: "DJ" /
+ * "Artiste" / "Speaker") — sinon grille simple.
  */
 export function SpeakersGrid({ speakers }: { speakers: SpeakerEntry[] }) {
   const categories = useMemo(
@@ -21,15 +21,19 @@ export function SpeakersGrid({ speakers }: { speakers: SpeakerEntry[] }) {
       : speakers.filter((s) => s.category === activeCategory);
 
   return (
-    <div className="px-6 py-8 md:px-9">
-      <SectionEyebrow>Speakers</SectionEyebrow>
+    <SectionShell>
+      <SectionHeading
+        eyebrow="Sur scène"
+        title="Le line-up"
+        description="Une programmation qui mêle têtes d'affiche et pépites locales."
+      />
 
       {categories.length > 0 && (
-        <div className="mb-4 flex flex-wrap gap-2">
+        <div className="mb-7 flex flex-wrap gap-2.5">
           <button
             type="button"
             onClick={() => setActiveCategory(null)}
-            className={`rounded-full px-4 py-1.5 text-xs font-semibold transition-colors ${
+            className={`rounded-full px-5 py-2 text-sm font-semibold transition-colors ${
               activeCategory === null
                 ? 'bg-primary text-primary-foreground'
                 : 'border border-stroke text-manatee hover:border-black dark:border-strokedark dark:text-waterloo dark:hover:border-white'
@@ -42,7 +46,7 @@ export function SpeakersGrid({ speakers }: { speakers: SpeakerEntry[] }) {
               key={category}
               type="button"
               onClick={() => setActiveCategory(category)}
-              className={`rounded-full px-4 py-1.5 text-xs font-semibold transition-colors ${
+              className={`rounded-full px-5 py-2 text-sm font-semibold transition-colors ${
                 activeCategory === category
                   ? 'bg-primary text-primary-foreground'
                   : 'border border-stroke text-manatee hover:border-black dark:border-strokedark dark:text-waterloo dark:hover:border-white'
@@ -54,20 +58,38 @@ export function SpeakersGrid({ speakers }: { speakers: SpeakerEntry[] }) {
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
         {visible.map((speaker) => (
-          <div key={speaker.id} className="flex flex-col items-center text-center">
+          <article
+            key={speaker.id}
+            className="group relative aspect-[3/4] overflow-hidden rounded-2xl border border-stroke bg-alabaster dark:border-strokedark dark:bg-blacksection"
+          >
             {speaker.photoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={speaker.photoUrl} alt={speaker.name} className="size-20 rounded-full object-cover" />
+              <img
+                src={speaker.photoUrl}
+                alt={speaker.name}
+                className="size-full object-cover transition-transform duration-500 group-hover:scale-105"
+              />
             ) : (
-              <div className="size-20 rounded-full bg-secondary" />
+              <div className="size-full bg-[repeating-linear-gradient(135deg,#EFEDE7_0_12px,#E7E4DE_12px_24px)] dark:bg-[repeating-linear-gradient(135deg,#24221F_0_12px,#1B1A18_12px_24px)]" />
             )}
-            <div className="mt-2 text-sm font-semibold">{speaker.name}</div>
-            <div className="text-xs text-waterloo dark:text-manatee">{speaker.role}</div>
-          </div>
+
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
+
+            {speaker.category && (
+              <span className="absolute left-3 top-3 rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-black backdrop-blur">
+                {speaker.category}
+              </span>
+            )}
+
+            <div className="absolute inset-x-3 bottom-3 text-white">
+              <div className="font-serif text-base leading-tight md:text-lg">{speaker.name}</div>
+              <div className="mt-0.5 text-xs text-white/75">{speaker.role}</div>
+            </div>
+          </article>
         ))}
       </div>
-    </div>
+    </SectionShell>
   );
 }

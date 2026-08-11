@@ -1,15 +1,15 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Minus, Plus } from 'lucide-react';
-import { SectionEyebrow } from './section-eyebrow';
+import { Minus, Plus, Ticket } from 'lucide-react';
+import { SectionShell, SectionHeading } from './section-shell';
 
 /**
  * TicketSelector — Panier multi-billets (décision produit "panier
  * multi-billets", cf. plan). Remplace l'ancien BuyButton unitaire : plusieurs
  * types de billets et quantités peuvent être sélectionnés avant un unique
  * paiement. Utilisé à la fois par le rendu Builder (bloc `tickets`, voir
- * block-renderer.tsx) et le rendu fallback (page.tsx) — c'était auparavant
+ * block-renderer.tsx) et le rendu de repli (page.tsx) — c'était auparavant
  * deux implémentations quasi identiques, maintenant unifiées ici.
  *
  * La sélection ne fait AUCUN appel serveur — le panier n'est validé (stock,
@@ -31,6 +31,7 @@ export interface PublicTicket {
   stock: number;
   stockSold: number;
   maxPerOrder: number;
+  description?: string | null;
   compareAtPrice?: number | null;
   promoEndsAt?: string | null;
   dayLabel?: string | null;
@@ -91,24 +92,28 @@ export function TicketSelector({
   }
 
   return (
-    <div className="flex flex-col gap-3 px-6 py-8 md:px-9">
-      <SectionEyebrow>Billets</SectionEyebrow>
+    <SectionShell>
+      <SectionHeading
+        eyebrow="Billetterie"
+        title="Choisissez votre expérience"
+        description="Réservation 100% en ligne, billet numérique à présenter à l'entrée."
+      />
 
       {activePromo && (
-        <div className="mb-1 rounded-lg border border-accent-terracotta/40 bg-accent-terracotta/10 px-4 py-2.5 text-center text-xs font-semibold text-accent-terracotta dark:border-accent-terracotta-dark/40 dark:text-accent-terracotta-dark">
-          Promo jusqu'au{' '}
+        <div className="mb-6 rounded-2xl border border-accent-terracotta/40 bg-accent-terracotta/10 px-5 py-3.5 text-center text-xs font-bold uppercase tracking-wide text-accent-terracotta dark:border-accent-terracotta-dark/40 dark:text-accent-terracotta-dark md:text-sm">
+          Prévente : réductions jusqu&apos;au{' '}
           {new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long' }).format(new Date(activePromo.promoEndsAt!))}
         </div>
       )}
 
       {days.length > 0 && (
-        <div className="mb-1 flex gap-2">
+        <div className="mb-6 flex flex-wrap gap-2.5">
           {days.map((day) => (
             <button
               key={day}
               type="button"
               onClick={() => setSelectedDay(day)}
-              className={`rounded-full px-4 py-2 text-xs font-semibold transition-colors ${
+              className={`rounded-full px-5 py-2.5 text-sm font-semibold transition-colors ${
                 day === activeDay
                   ? 'bg-primary text-primary-foreground'
                   : 'border border-stroke text-manatee hover:border-black dark:border-strokedark dark:text-waterloo dark:hover:border-white'
@@ -121,104 +126,126 @@ export function TicketSelector({
       )}
 
       {tickets.length === 0 ? (
-        <div className="rounded-xl border border-stroke p-6 text-center text-sm text-muted-foreground dark:border-strokedark">
+        <div className="rounded-2xl border border-stroke p-10 text-center text-sm text-muted-foreground dark:border-strokedark">
           Aucun billet en vente pour le moment.
         </div>
       ) : (
-        visibleTickets.map((ticket, index) => {
-          const available = ticket.stock - ticket.stockSold;
-          const soldOut = available <= 0;
-          const highlighted = index === 0 && !soldOut;
-          const quantity = quantities[ticket.id] ?? 0;
-          const maxSelectable = Math.min(available, ticket.maxPerOrder || available);
-          const hasPromo = ticket.compareAtPrice != null && Number(ticket.compareAtPrice) > Number(ticket.price);
+        <div className="flex flex-col gap-4">
+          {visibleTickets.map((ticket, index) => {
+            const available = ticket.stock - ticket.stockSold;
+            const soldOut = available <= 0;
+            const highlighted = index === 0 && !soldOut;
+            const quantity = quantities[ticket.id] ?? 0;
+            const maxSelectable = Math.min(available, ticket.maxPerOrder || available);
+            const hasPromo =
+              ticket.compareAtPrice != null && Number(ticket.compareAtPrice) > Number(ticket.price);
 
-          return (
-            <div
-              key={ticket.id}
-              className={`relative flex items-center justify-between gap-4 overflow-hidden rounded-xl border p-5 ${
-                soldOut ? 'opacity-60' : ''
-              } ${highlighted ? 'border-black dark:border-white' : 'border-stroke dark:border-strokedark'}`}
-            >
-              {soldOut && (
-                <div className="pointer-events-none absolute -right-11 top-3.5 w-40 rotate-45 bg-destructive py-1 text-center text-[10px] font-bold uppercase tracking-wider text-white">
-                  Épuisé
-                </div>
-              )}
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold">{ticket.name}</span>
-                  {hasPromo && !soldOut && (
-                    <span className="rounded-full bg-accent-terracotta px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white dark:bg-accent-terracotta-dark">
-                      Promo
-                    </span>
-                  )}
-                </div>
-                <div className="mt-0.5 text-xs text-manatee dark:text-waterloo">
-                  {soldOut
-                    ? 'Épuisé'
-                    : `${available} place${available > 1 ? 's' : ''} restante${available > 1 ? 's' : ''}`}
-                </div>
-              </div>
-              <div className="flex items-center gap-4">
-                <div className="text-right">
-                  {hasPromo && (
-                    <div className="text-xs font-medium text-manatee line-through dark:text-waterloo">
-                      {formatCurrency(Number(ticket.compareAtPrice), ticket.currency)}
-                    </div>
-                  )}
-                  <div className="font-bold">{formatCurrency(Number(ticket.price), ticket.currency)}</div>
-                </div>
-                {soldOut || !isPublished ? (
-                  <span className="rounded-lg border border-stroke px-4 py-2.5 text-sm font-semibold text-manatee dark:border-strokedark">
-                    Indisponible
-                  </span>
-                ) : (
-                  <div className="flex items-center gap-1 rounded-full border border-stroke dark:border-strokedark">
-                    <button
-                      type="button"
-                      aria-label={`Retirer un billet ${ticket.name}`}
-                      onClick={() => updateQuantity(ticket.id, -1, maxSelectable)}
-                      disabled={quantity === 0}
-                      className="flex size-8 items-center justify-center rounded-full text-manatee transition-colors hover:text-black disabled:opacity-30 dark:text-waterloo dark:hover:text-white"
-                    >
-                      <Minus className="size-3.5" />
-                    </button>
-                    <span className="w-5 text-center text-sm font-semibold tabular-nums">{quantity}</span>
-                    <button
-                      type="button"
-                      aria-label={`Ajouter un billet ${ticket.name}`}
-                      onClick={() => updateQuantity(ticket.id, 1, maxSelectable)}
-                      disabled={quantity >= maxSelectable}
-                      className="flex size-8 items-center justify-center rounded-full text-manatee transition-colors hover:text-black disabled:opacity-30 dark:text-waterloo dark:hover:text-white"
-                    >
-                      <Plus className="size-3.5" />
-                    </button>
+            return (
+              <div
+                key={ticket.id}
+                className={`relative flex flex-col gap-5 overflow-hidden rounded-3xl border p-6 transition-colors md:flex-row md:items-center md:justify-between md:gap-8 md:p-8 ${
+                  soldOut ? 'opacity-60' : ''
+                } ${highlighted ? 'border-black dark:border-white' : 'border-stroke dark:border-strokedark'}`}
+              >
+                {soldOut && (
+                  <div className="pointer-events-none absolute -right-14 top-6 w-48 rotate-45 bg-destructive py-1.5 text-center text-xs font-bold uppercase tracking-[0.15em] text-white">
+                    Sold out
                   </div>
                 )}
+
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    <h3 className="font-serif text-xl md:text-2xl">{ticket.name}</h3>
+                    {hasPromo && !soldOut && (
+                      <span className="rounded-full bg-accent-terracotta px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white dark:bg-accent-terracotta-dark">
+                        Promo
+                      </span>
+                    )}
+                    {highlighted && !hasPromo && (
+                      <span className="rounded-full border border-stroke px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-manatee dark:border-strokedark dark:text-waterloo">
+                        Le plus choisi
+                      </span>
+                    )}
+                  </div>
+                  {ticket.description && (
+                    <p className="mt-1.5 max-w-md text-sm text-waterloo dark:text-manatee">
+                      {ticket.description}
+                    </p>
+                  )}
+                  <div className="mt-2 text-xs font-medium text-manatee dark:text-waterloo">
+                    {soldOut
+                      ? 'Épuisé — la vente est terminée'
+                      : `${available} place${available > 1 ? 's' : ''} restante${available > 1 ? 's' : ''}`}
+                  </div>
+                </div>
+
+                <div className="flex shrink-0 items-center justify-between gap-5 md:justify-end md:gap-7">
+                  <div className="text-left md:text-right">
+                    {hasPromo && (
+                      <div className="text-sm font-medium text-manatee line-through dark:text-waterloo">
+                        {formatCurrency(Number(ticket.compareAtPrice), ticket.currency)}
+                      </div>
+                    )}
+                    <div className="font-serif text-2xl leading-none md:text-3xl">
+                      {formatCurrency(Number(ticket.price), ticket.currency)}
+                    </div>
+                    <div className="mt-1 text-[11px] text-manatee dark:text-waterloo">/ personne</div>
+                  </div>
+
+                  {soldOut || !isPublished ? (
+                    <span className="rounded-full border border-stroke px-5 py-2.5 text-sm font-semibold text-manatee dark:border-strokedark">
+                      Indisponible
+                    </span>
+                  ) : (
+                    <div className="flex items-center gap-1 rounded-full border border-stroke dark:border-strokedark">
+                      <button
+                        type="button"
+                        aria-label={`Retirer un billet ${ticket.name}`}
+                        onClick={() => updateQuantity(ticket.id, -1, maxSelectable)}
+                        disabled={quantity === 0}
+                        className="flex size-10 items-center justify-center rounded-full text-manatee transition-colors hover:text-black disabled:opacity-30 dark:text-waterloo dark:hover:text-white"
+                      >
+                        <Minus className="size-4" />
+                      </button>
+                      <span className="w-6 text-center font-semibold tabular-nums">{quantity}</span>
+                      <button
+                        type="button"
+                        aria-label={`Ajouter un billet ${ticket.name}`}
+                        onClick={() => updateQuantity(ticket.id, 1, maxSelectable)}
+                        disabled={quantity >= maxSelectable}
+                        className="flex size-10 items-center justify-center rounded-full bg-primary text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-30"
+                      >
+                        <Plus className="size-4" />
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          );
-        })
+            );
+          })}
+        </div>
       )}
 
       {totalQuantity > 0 && (
-        <div className="sticky bottom-4 z-10 mt-2 flex items-center justify-between gap-4 rounded-full border border-stroke bg-white/95 px-5 py-3 shadow-solid-2 backdrop-blur dark:border-strokedark dark:bg-blacksection/95">
-          <div className="text-sm">
-            <span className="font-bold">{formatCurrency(totalAmount, currency)}</span>
-            <span className="ml-1.5 text-manatee dark:text-waterloo">
-              · {totalQuantity} billet{totalQuantity > 1 ? 's' : ''}
-            </span>
+        <div className="sticky bottom-4 z-30 mt-6 flex items-center justify-between gap-4 rounded-full border border-stroke bg-white/95 px-5 py-3 shadow-solid-2 backdrop-blur dark:border-strokedark dark:bg-blacksection/95 md:px-7 md:py-4">
+          <div className="min-w-0">
+            <div className="font-serif text-lg leading-none md:text-2xl">
+              {formatCurrency(totalAmount, currency)}
+            </div>
+            <div className="mt-1 text-[11px] text-manatee dark:text-waterloo md:text-xs">
+              {totalQuantity} billet{totalQuantity > 1 ? 's' : ''} sélectionné
+              {totalQuantity > 1 ? 's' : ''}
+            </div>
           </div>
           <button
             type="button"
             onClick={handleContinue}
-            className="rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primaryho"
+            className="inline-flex shrink-0 items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primaryho md:px-8"
           >
-            Continuer
+            Continuer <Ticket className="size-4" />
           </button>
         </div>
       )}
-    </div>
+    </SectionShell>
   );
 }
