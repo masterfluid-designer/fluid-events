@@ -43,6 +43,7 @@ const BlockSchema = z.object({
     'hero', 'text', 'image', 'video', 'gallery',
     'countdown', 'tickets', 'faq', 'schedule',
     'testimonials', 'sponsors', 'speakers', 'html',
+    'timeline',
   ]),
   order: z.number().int().min(0),
   // props est un record libre (validé plus finement par bloc au rendu si besoin)

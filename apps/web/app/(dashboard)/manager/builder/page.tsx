@@ -26,8 +26,10 @@ import {
   Mic2,
   Settings2,
   LayoutGrid,
+  History,
+  Plus,
 } from 'lucide-react';
-import type { Block, BlockType } from '@saas-events/types';
+import type { Block, BlockType, TimelineEntry } from '@saas-events/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
@@ -79,6 +81,7 @@ const BLOCK_LIBRARY: { type: BlockType; icon: typeof ImageIcon; label: string }[
   { type: 'testimonials', icon: Users, label: 'Témoignages' },
   { type: 'speakers', icon: Mic2, label: 'Speakers' },
   { type: 'sponsors', icon: Building2, label: 'Sponsors' },
+  { type: 'timeline', icon: History, label: 'Frise / Héritage' },
   { type: 'html', icon: Code2, label: 'HTML personnalisé' },
 ];
 
@@ -96,6 +99,7 @@ const BLOCK_LABELS: Record<BlockType, string> = {
   sponsors: 'Sponsors',
   image: 'Image',
   html: 'HTML personnalisé',
+  timeline: 'Frise / Héritage',
 };
 
 /**
@@ -639,6 +643,24 @@ export default function EventBuilderPage() {
                     </div>
                   </button>
                 );
+              } else if (block.type === 'timeline') {
+                const entries = (block.props.entries as TimelineEntry[] | undefined) ?? [];
+                content = (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedId(block.id)}
+                    className={`block w-full border-b border-dashed border-border p-4 text-left outline-2 -outline-offset-2 ${outline}`}
+                  >
+                    <div className="text-xs font-bold uppercase tracking-[0.05em] text-muted-foreground">
+                      {(block.props.title as string) || 'Frise / Héritage'}
+                    </div>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      {entries.length > 0
+                        ? `${entries.length} jalon${entries.length > 1 ? 's' : ''} — ${entries.map((e) => e.label).join(' → ')}`
+                        : 'Aucun jalon — ajoutez-en un dans le panneau de droite'}
+                    </div>
+                  </button>
+                );
               } else {
                 content = (
                   <button
@@ -818,11 +840,21 @@ export default function EventBuilderPage() {
                 </p>
               )}
 
+              {selected.type === 'timeline' && (
+                <TimelineEditor
+                  title={(selected.props.title as string) ?? ''}
+                  entries={(selected.props.entries as TimelineEntry[] | undefined) ?? []}
+                  onChangeTitle={(title) => updateSelectedProps({ title })}
+                  onChangeEntries={(entries) => updateSelectedProps({ entries })}
+                />
+              )}
+
               {selected.type !== 'hero' &&
                 selected.type !== 'text' &&
                 selected.type !== 'tickets' &&
                 selected.type !== 'html' &&
                 selected.type !== 'countdown' &&
+                selected.type !== 'timeline' &&
                 !SINGLETON_BLOCK_TYPES.has(selected.type) && (
                   <>
                     <div>
@@ -863,6 +895,94 @@ export default function EventBuilderPage() {
           </aside>
         )}
       </div>
+    </div>
+  );
+}
+
+const TIMELINE_ENTRIES_MAX = 12;
+
+function TimelineEditor({
+  title,
+  entries,
+  onChangeTitle,
+  onChangeEntries,
+}: {
+  title: string;
+  entries: TimelineEntry[];
+  onChangeTitle: (title: string) => void;
+  onChangeEntries: (entries: TimelineEntry[]) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-3">
+      <div>
+        <label className="mb-1.5 block text-xs font-semibold">Titre de la section</label>
+        <Input
+          placeholder="Notre histoire"
+          value={title}
+          onChange={(e) => onChangeTitle(e.target.value)}
+        />
+      </div>
+
+      <div className="flex flex-col gap-2.5">
+        {entries.map((entry) => (
+          <div key={entry.id} className="flex flex-col gap-1.5 rounded-lg border border-border p-3">
+            <div className="flex items-start gap-2">
+              <div className="flex-1 space-y-1.5">
+                <Input
+                  placeholder="Jalon (ex : L'indépendance du Togo)"
+                  value={entry.label}
+                  onChange={(e) =>
+                    onChangeEntries(
+                      entries.map((en) => (en.id === entry.id ? { ...en, label: e.target.value } : en)),
+                    )
+                  }
+                />
+                <Input
+                  placeholder="Date (optionnel, texte libre — ex : 27 avril 1960)"
+                  value={entry.date ?? ''}
+                  onChange={(e) =>
+                    onChangeEntries(
+                      entries.map((en) => (en.id === entry.id ? { ...en, date: e.target.value } : en)),
+                    )
+                  }
+                />
+                <textarea
+                  placeholder="Description (optionnel)"
+                  value={entry.description ?? ''}
+                  onChange={(e) =>
+                    onChangeEntries(
+                      entries.map((en) =>
+                        en.id === entry.id ? { ...en, description: e.target.value } : en,
+                      ),
+                    )
+                  }
+                  rows={2}
+                  className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+              </div>
+              <button
+                type="button"
+                aria-label="Supprimer le jalon"
+                onClick={() => onChangeEntries(entries.filter((en) => en.id !== entry.id))}
+              >
+                <Trash2 className="size-3.5 text-muted-foreground hover:text-destructive" />
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        disabled={entries.length >= TIMELINE_ENTRIES_MAX}
+        onClick={() =>
+          onChangeEntries([...entries, { id: crypto.randomUUID(), label: '', date: '', description: '' }])
+        }
+      >
+        <Plus className="size-3.5" /> Ajouter un jalon
+      </Button>
     </div>
   );
 }

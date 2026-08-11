@@ -244,6 +244,17 @@ export function ConfigPanel({
                     })
                   }
                 />
+                <Input
+                  placeholder="Catégorie (optionnel — ex : DJ, Artiste, Speaker)"
+                  value={speaker.category ?? ''}
+                  onChange={(e) =>
+                    onChange({
+                      speakers: config.speakers.map((s) =>
+                        s.id === speaker.id ? { ...s, category: e.target.value } : s,
+                      ),
+                    })
+                  }
+                />
               </div>
               <button
                 type="button"
@@ -284,6 +295,7 @@ export function ConfigPanel({
         max={MEDIA_MAX}
         onChange={(sponsorImages) => onChange({ sponsorImages })}
         addLabel="Ajouter un logo sponsor"
+        showRole
       />
     </div>
   );
@@ -295,27 +307,42 @@ function MediaListSection({
   max,
   onChange,
   addLabel,
+  showRole,
 }: {
   title: string;
   items: MediaEntry[];
   max: number;
   onChange: (items: MediaEntry[]) => void;
   addLabel: string;
+  /** Sponsors uniquement (ex: "Partenaire hébergement officiel") — pas pertinent pour la galerie. */
+  showRole?: boolean;
 }) {
   return (
     <Section title={title}>
       <div className="grid grid-cols-2 gap-2">
         {items.map((item) => (
-          <div key={item.id} className="relative">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={item.url} alt="" className="h-17.5 w-full rounded-lg object-cover" />
-            <button
-              type="button"
-              onClick={() => onChange(items.filter((i) => i.id !== item.id))}
-              className="absolute right-1 top-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-white hover:bg-black/80"
-            >
-              Retirer
-            </button>
+          <div key={item.id} className="relative flex flex-col gap-1">
+            <div className="relative">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={item.url} alt="" className="h-17.5 w-full rounded-lg object-cover" />
+              <button
+                type="button"
+                onClick={() => onChange(items.filter((i) => i.id !== item.id))}
+                className="absolute right-1 top-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-white hover:bg-black/80"
+              >
+                Retirer
+              </button>
+            </div>
+            {showRole && (
+              <Input
+                placeholder="Rôle (ex : Partenaire hébergement officiel)"
+                value={item.role ?? ''}
+                onChange={(e) =>
+                  onChange(items.map((i) => (i.id === item.id ? { ...i, role: e.target.value } : i)))
+                }
+                className="text-xs"
+              />
+            )}
           </div>
         ))}
       </div>

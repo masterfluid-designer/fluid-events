@@ -211,7 +211,8 @@ export type BlockType =
   | 'testimonials'
   | 'sponsors'
   | 'speakers'
-  | 'html';
+  | 'html'
+  | 'timeline';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Contenu centralisé de l'événement (décision produit 2026-07-13)
@@ -242,12 +243,26 @@ export interface SpeakerEntry {
   name: string;
   role: string;
   photoUrl?: string;
+  /** Catégorie libre (ex: "DJ" / "Artiste" / "Speaker") — si au moins une
+   * entrée en a une, la page publique affiche des onglets de filtre. */
+  category?: string;
 }
 
 /** Entrée générique image (galerie, sponsors) — juste une URL whitelistée. */
 export interface MediaEntry {
   id: string;
   url: string;
+  /** Rôle du partenaire (ex: "Partenaire hébergement officiel") — sponsors uniquement. */
+  role?: string;
+}
+
+/** Jalon de la frise "Notre histoire" (bloc `timeline`, props du bloc — pas
+ * un contenu centralisé comme faq/schedule/speakers, un seul bloc par page). */
+export interface TimelineEntry {
+  id: string;
+  label: string;
+  date?: string;
+  description?: string;
 }
 
 export interface BlockStyles {

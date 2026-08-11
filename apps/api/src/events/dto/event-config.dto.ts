@@ -57,6 +57,11 @@ export class SpeakerEntryDto {
   @IsOptional()
   @IsUrl({ require_tld: false })
   photoUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  category?: string;
 }
 
 export class MediaEntryDto {
@@ -65,4 +70,9 @@ export class MediaEntryDto {
 
   @IsUrl({ require_tld: false })
   url!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(150)
+  role?: string;
 }

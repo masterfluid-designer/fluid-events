@@ -1,8 +1,10 @@
-import type { Block, FaqEntry, MediaEntry, ScheduleEntry, SpeakerEntry } from '@saas-events/types';
+import type { Block, FaqEntry, MediaEntry, ScheduleEntry, SpeakerEntry, TimelineEntry } from '@saas-events/types';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Countdown } from './countdown';
 import { SponsorsCarousel } from './sponsors-carousel';
 import { TicketSelector, type PublicTicket } from './ticket-selector';
+import { SpeakersGrid } from './speakers-grid';
+import { TimelineStrip } from './timeline-strip';
 
 /**
  * BlockRenderer — Rend les blocs Builder (CDC §11) sur la page publique.
@@ -47,6 +49,7 @@ export const BLOCK_NAV_LABELS: Partial<Record<Block['type'], string>> = {
   sponsors: 'Partenaires',
   faq: 'Infos & FAQ',
   gallery: 'Galerie',
+  timeline: 'Notre histoire',
 };
 
 export interface NavItem {
@@ -75,7 +78,8 @@ export function getVisibleNavItems(
       (block.type === 'speakers' && eventConfig.speakers.length > 0) ||
       (block.type === 'sponsors' && eventConfig.sponsorImages.length > 0) ||
       (block.type === 'faq' && eventConfig.faqs.length > 0) ||
-      (block.type === 'gallery' && eventConfig.galleryImages.length > 0);
+      (block.type === 'gallery' && eventConfig.galleryImages.length > 0) ||
+      (block.type === 'timeline' && ((block.props.entries as unknown[] | undefined)?.length ?? 0) > 0);
     if (!hasContent) continue;
     seen.add(block.type);
     items.push({ id: `block-${block.type}`, label });
@@ -237,27 +241,12 @@ function BlockItem({
 
   if (block.type === 'speakers') {
     if (eventConfig.speakers.length === 0) return null;
-    return (
-      <div className="px-6 py-8 md:px-9">
-        <div className="mb-3 text-xs font-bold uppercase tracking-[0.04em] text-manatee dark:text-waterloo">
-          Speakers
-        </div>
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
-          {eventConfig.speakers.map((speaker) => (
-            <div key={speaker.id} className="flex flex-col items-center text-center">
-              {speaker.photoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={speaker.photoUrl} alt={speaker.name} className="size-20 rounded-full object-cover" />
-              ) : (
-                <div className="size-20 rounded-full bg-secondary" />
-              )}
-              <div className="mt-2 text-sm font-semibold">{speaker.name}</div>
-              <div className="text-xs text-waterloo dark:text-manatee">{speaker.role}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
+    return <SpeakersGrid speakers={eventConfig.speakers} />;
+  }
+
+  if (block.type === 'timeline') {
+    const entries = (block.props.entries as TimelineEntry[] | undefined) ?? [];
+    return <TimelineStrip entries={entries} title={block.props.title as string | undefined} />;
   }
 
   if (block.type === 'gallery') {

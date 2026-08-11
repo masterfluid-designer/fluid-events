@@ -17,7 +17,11 @@ export function SponsorsCarousel({ images }: { images: MediaEntry[] }) {
           <img
             key={`${img.id}-${i}`}
             src={img.url}
-            alt=""
+            // Le carrousel reste compact/infini (décision produit 2026-07-13) —
+            // le rôle du partenaire ("Partenaire hébergement officiel", etc.)
+            // s'affiche au survol plutôt que redesigner en cartes statiques.
+            title={img.role}
+            alt={img.role ?? ''}
             className="h-12 w-auto shrink-0 object-contain opacity-80 grayscale transition hover:opacity-100 hover:grayscale-0"
           />
         ))}
