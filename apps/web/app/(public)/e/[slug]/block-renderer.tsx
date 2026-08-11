@@ -34,6 +34,55 @@ export interface EventConfigData {
   sponsorImages: MediaEntry[];
 }
 
+/**
+ * Sections de la page publique qui méritent une entrée dans la nav en ancre /
+ * le footer événement (équivalent condensé sur une seule page du menu
+ * multi-pages Accueil/Programme/Line-up/Billetterie/.../Infos&FAQ d'orncity —
+ * décision produit "condenser en une seule landing page").
+ */
+export const BLOCK_NAV_LABELS: Partial<Record<Block['type'], string>> = {
+  tickets: 'Billetterie',
+  schedule: 'Programme',
+  speakers: 'Line-up',
+  sponsors: 'Partenaires',
+  faq: 'Infos & FAQ',
+  gallery: 'Galerie',
+};
+
+export interface NavItem {
+  id: string;
+  label: string;
+}
+
+/**
+ * Calcule les entrées de nav à afficher — uniquement les blocs qui vont
+ * RÉELLEMENT rendre du contenu (mêmes conditions de "vide" que BlockItem
+ * ci-dessous), pour ne jamais pointer vers une section fantôme.
+ */
+export function getVisibleNavItems(
+  blocks: Block[],
+  tickets: PublicTicket[],
+  eventConfig: EventConfigData,
+): NavItem[] {
+  const seen = new Set<string>();
+  const items: NavItem[] = [];
+  for (const block of [...blocks].sort((a, b) => a.order - b.order)) {
+    const label = BLOCK_NAV_LABELS[block.type];
+    if (!label || seen.has(block.type)) continue;
+    const hasContent =
+      (block.type === 'tickets' && tickets.length > 0) ||
+      (block.type === 'schedule' && eventConfig.schedule.length > 0) ||
+      (block.type === 'speakers' && eventConfig.speakers.length > 0) ||
+      (block.type === 'sponsors' && eventConfig.sponsorImages.length > 0) ||
+      (block.type === 'faq' && eventConfig.faqs.length > 0) ||
+      (block.type === 'gallery' && eventConfig.galleryImages.length > 0);
+    if (!hasContent) continue;
+    seen.add(block.type);
+    items.push({ id: `block-${block.type}`, label });
+  }
+  return items;
+}
+
 export function BlockRenderer({
   blocks,
   tickets,
@@ -52,7 +101,7 @@ export function BlockRenderer({
   return (
     <>
       {sorted.map((block) => (
-        <div key={block.id} className={block.styles?.customClassName}>
+        <div key={block.id} id={`block-${block.type}`} className={block.styles?.customClassName}>
           <BlockItem
             block={block}
             tickets={tickets}

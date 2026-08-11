@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Minus, Plus } from 'lucide-react';
 
 /**
@@ -15,6 +15,11 @@ import { Minus, Plus } from 'lucide-react';
  * fenêtre de vente, maxPerOrder) que côté API à `POST /api/payments/init`
  * (RULES.md §1 : la sécurité/les décisions vivent dans NestJS). Le cap
  * `maxPerOrder` côté client n'est qu'un confort UX, jamais une garantie.
+ *
+ * `dayLabel` (regroupement multi-jours) : si au moins un billet en porte un,
+ * des onglets par jour apparaissent — la sélection reste cumulée sur TOUS les
+ * jours (changer d'onglet ne vide pas le panier), un seul paiement couvre
+ * l'ensemble.
  */
 
 export interface PublicTicket {
@@ -25,6 +30,13 @@ export interface PublicTicket {
   stock: number;
   stockSold: number;
   maxPerOrder: number;
+  compareAtPrice?: number | null;
+  promoEndsAt?: string | null;
+  dayLabel?: string | null;
+}
+
+function formatCurrency(amount: number, currency: string): string {
+  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency }).format(amount);
 }
 
 export function TicketSelector({
@@ -37,6 +49,23 @@ export function TicketSelector({
   isPublished: boolean;
 }) {
   const [quantities, setQuantities] = useState<Record<string, number>>({});
+
+  const days = useMemo(
+    () => Array.from(new Set(tickets.map((t) => t.dayLabel).filter((d): d is string => Boolean(d)))),
+    [tickets],
+  );
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const activeDay = selectedDay ?? days[0] ?? null;
+  const visibleTickets = days.length > 0 ? tickets.filter((t) => t.dayLabel === activeDay) : tickets;
+
+  const now = Date.now();
+  const activePromo = tickets.find(
+    (t) =>
+      t.promoEndsAt &&
+      new Date(t.promoEndsAt).getTime() > now &&
+      t.compareAtPrice != null &&
+      Number(t.compareAtPrice) > Number(t.price),
+  );
 
   function updateQuantity(ticketId: string, delta: number, max: number) {
     setQuantities((prev) => {
@@ -65,17 +94,45 @@ export function TicketSelector({
       <div className="mb-1 text-xs font-bold uppercase tracking-[0.04em] text-manatee dark:text-waterloo">
         Billets
       </div>
+
+      {activePromo && (
+        <div className="mb-1 rounded-lg border border-accent-terracotta/40 bg-accent-terracotta/10 px-4 py-2.5 text-center text-xs font-semibold text-accent-terracotta dark:border-accent-terracotta-dark/40 dark:text-accent-terracotta-dark">
+          Promo jusqu'au{' '}
+          {new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long' }).format(new Date(activePromo.promoEndsAt!))}
+        </div>
+      )}
+
+      {days.length > 0 && (
+        <div className="mb-1 flex gap-2">
+          {days.map((day) => (
+            <button
+              key={day}
+              type="button"
+              onClick={() => setSelectedDay(day)}
+              className={`rounded-full px-4 py-2 text-xs font-semibold transition-colors ${
+                day === activeDay
+                  ? 'bg-primary text-primary-foreground'
+                  : 'border border-stroke text-manatee hover:border-black dark:border-strokedark dark:text-waterloo dark:hover:border-white'
+              }`}
+            >
+              {day}
+            </button>
+          ))}
+        </div>
+      )}
+
       {tickets.length === 0 ? (
         <div className="rounded-xl border border-stroke p-6 text-center text-sm text-muted-foreground dark:border-strokedark">
           Aucun billet en vente pour le moment.
         </div>
       ) : (
-        tickets.map((ticket, index) => {
+        visibleTickets.map((ticket, index) => {
           const available = ticket.stock - ticket.stockSold;
           const soldOut = available <= 0;
           const highlighted = index === 0 && !soldOut;
           const quantity = quantities[ticket.id] ?? 0;
           const maxSelectable = Math.min(available, ticket.maxPerOrder || available);
+          const hasPromo = ticket.compareAtPrice != null && Number(ticket.compareAtPrice) > Number(ticket.price);
 
           return (
             <div
@@ -90,7 +147,14 @@ export function TicketSelector({
                 </div>
               )}
               <div>
-                <div className="font-semibold">{ticket.name}</div>
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold">{ticket.name}</span>
+                  {hasPromo && !soldOut && (
+                    <span className="rounded-full bg-accent-terracotta px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white dark:bg-accent-terracotta-dark">
+                      Promo
+                    </span>
+                  )}
+                </div>
                 <div className="mt-0.5 text-xs text-manatee dark:text-waterloo">
                   {soldOut
                     ? 'Épuisé'
@@ -98,11 +162,13 @@ export function TicketSelector({
                 </div>
               </div>
               <div className="flex items-center gap-4">
-                <div className="font-bold">
-                  {new Intl.NumberFormat('fr-FR', {
-                    style: 'currency',
-                    currency: ticket.currency,
-                  }).format(Number(ticket.price))}
+                <div className="text-right">
+                  {hasPromo && (
+                    <div className="text-xs font-medium text-manatee line-through dark:text-waterloo">
+                      {formatCurrency(Number(ticket.compareAtPrice), ticket.currency)}
+                    </div>
+                  )}
+                  <div className="font-bold">{formatCurrency(Number(ticket.price), ticket.currency)}</div>
                 </div>
                 {soldOut || !isPublished ? (
                   <span className="rounded-lg border border-stroke px-4 py-2.5 text-sm font-semibold text-manatee dark:border-strokedark">
@@ -140,9 +206,7 @@ export function TicketSelector({
       {totalQuantity > 0 && (
         <div className="sticky bottom-4 z-10 mt-2 flex items-center justify-between gap-4 rounded-full border border-stroke bg-white/95 px-5 py-3 shadow-solid-2 backdrop-blur dark:border-strokedark dark:bg-blacksection/95">
           <div className="text-sm">
-            <span className="font-bold">
-              {new Intl.NumberFormat('fr-FR', { style: 'currency', currency }).format(totalAmount)}
-            </span>
+            <span className="font-bold">{formatCurrency(totalAmount, currency)}</span>
             <span className="ml-1.5 text-manatee dark:text-waterloo">
               · {totalQuantity} billet{totalQuantity > 1 ? 's' : ''}
             </span>

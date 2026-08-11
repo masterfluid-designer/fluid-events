@@ -40,6 +40,9 @@ export default function ManagerTicketsPage() {
   const [price, setPrice] = useState('');
   const [stock, setStock] = useState('');
   const [description, setDescription] = useState('');
+  const [compareAtPrice, setCompareAtPrice] = useState('');
+  const [promoEndsAt, setPromoEndsAt] = useState('');
+  const [dayLabel, setDayLabel] = useState('');
   const [designImageUrl, setDesignImageUrl] = useState<string | undefined>(undefined);
   const [designBgColor, setDesignBgColor] = useState<string | undefined>(undefined);
 
@@ -55,6 +58,9 @@ export default function ManagerTicketsPage() {
         price: Number(price),
         stock: Number(stock),
         description: description || undefined,
+        compareAtPrice: compareAtPrice ? Number(compareAtPrice) : undefined,
+        promoEndsAt: promoEndsAt ? new Date(promoEndsAt).toISOString() : undefined,
+        dayLabel: dayLabel || undefined,
         designImageUrl,
         designBgColor,
       }),
@@ -65,6 +71,9 @@ export default function ManagerTicketsPage() {
       setPrice('');
       setStock('');
       setDescription('');
+      setCompareAtPrice('');
+      setPromoEndsAt('');
+      setDayLabel('');
       setDesignImageUrl(undefined);
       setDesignBgColor(undefined);
       queryClient.invalidateQueries({ queryKey: ['manager-event'] });
@@ -145,6 +154,29 @@ export default function ManagerTicketsPage() {
               placeholder="Description (optionnel)"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
+              className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+            />
+            <input
+              type="number"
+              min="0"
+              placeholder="Prix barré avant promo (optionnel)"
+              value={compareAtPrice}
+              onChange={(e) => setCompareAtPrice(e.target.value)}
+              className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+            />
+            <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+              Fin de la promo (optionnel)
+              <input
+                type="datetime-local"
+                value={promoEndsAt}
+                onChange={(e) => setPromoEndsAt(e.target.value)}
+                className="rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
+              />
+            </label>
+            <input
+              placeholder="Jour (ex: Jour 1 — Samedi 8 Août, optionnel)"
+              value={dayLabel}
+              onChange={(e) => setDayLabel(e.target.value)}
               className="rounded-md border border-input bg-background px-3 py-2 text-sm"
             />
             <div className="md:col-span-4 grid gap-3 md:grid-cols-2">

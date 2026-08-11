@@ -33,6 +33,19 @@ export class UpdateTicketDto {
   price?: number;
 
   @IsOptional()
+  @IsNumber()
+  @Min(0)
+  compareAtPrice?: number;
+
+  @IsOptional()
+  @IsDateString()
+  promoEndsAt?: string;
+
+  @IsOptional()
+  @IsString()
+  dayLabel?: string;
+
+  @IsOptional()
   @IsString()
   currency?: string;
 

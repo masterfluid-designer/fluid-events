@@ -86,6 +86,9 @@ export class TicketsService {
         name: dto.name,
         description: dto.description,
         price: dto.price,
+        compareAtPrice: dto.compareAtPrice,
+        promoEndsAt: dto.promoEndsAt ? new Date(dto.promoEndsAt) : undefined,
+        dayLabel: dto.dayLabel,
         currency: dto.currency,
         stock: dto.stock,
         maxPerOrder: dto.maxPerOrder,
@@ -122,6 +125,7 @@ export class TicketsService {
         ...dto,
         saleStartDate: dto.saleStartDate ? new Date(dto.saleStartDate) : undefined,
         saleEndDate: dto.saleEndDate ? new Date(dto.saleEndDate) : undefined,
+        promoEndsAt: dto.promoEndsAt ? new Date(dto.promoEndsAt) : undefined,
       },
     });
   }

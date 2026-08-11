@@ -164,6 +164,15 @@ model Ticket {
   name            String
   description     String?
   price           Decimal  @db.Decimal(10, 2)
+  // Prix barré affiché au-dessus de `price` quand > price (promo) — purement
+  // d'affichage, ne change jamais le montant réellement facturé.
+  compareAtPrice  Decimal? @db.Decimal(10, 2)
+  // Fin de la réduction affichée (bandeau d'urgence) — distinct de
+  // `saleEndDate` qui arrête la vente elle-même.
+  promoEndsAt     DateTime?
+  // Regroupement visuel par jour pour un événement multi-jours (ex: "Jour 1
+  // — Samedi 8 Août"). Optionnel — laissé vide, comportement mono-jour inchangé.
+  dayLabel        String?
   currency        String   @default("XOF")
   stock           Int // Capacité totale
   stockSold       Int      @default(0) // Décrémenté via updateMany atomique avec guard

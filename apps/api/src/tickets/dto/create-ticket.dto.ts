@@ -29,6 +29,20 @@ export class CreateTicketDto {
   @Min(0)
   price!: number;
 
+  // Prix barré (avant promo) — purement d'affichage, n'a d'effet que si > price.
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  compareAtPrice?: number;
+
+  @IsOptional()
+  @IsDateString()
+  promoEndsAt?: string;
+
+  @IsOptional()
+  @IsString()
+  dayLabel?: string;
+
   @IsOptional()
   @IsString()
   currency?: string;

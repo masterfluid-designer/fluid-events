@@ -4,8 +4,9 @@ import { CalendarDays, MapPin, ArrowLeft, Ticket } from 'lucide-react';
 import type { Metadata } from 'next';
 import type { Block, FaqEntry, MediaEntry, ScheduleEntry, SpeakerEntry } from '@saas-events/types';
 import { ResumeCheckout } from './resume-checkout';
-import { BlockRenderer } from './block-renderer';
+import { BlockRenderer, getVisibleNavItems, type EventConfigData } from './block-renderer';
 import { TicketSelector } from './ticket-selector';
+import { EventFooter } from './event-footer';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 
 /**
@@ -36,6 +37,9 @@ interface EventDetail {
     stock: number;
     stockSold: number;
     maxPerOrder: number;
+    compareAtPrice: number | null;
+    promoEndsAt: string | null;
+    dayLabel: string | null;
   }>;
   eventPage: { blocks: Block[] } | null;
 }
@@ -95,30 +99,60 @@ export default async function EventPage({
   const isPublished = event.status === 'PUBLISHED';
   const blocks = event.eventPage?.blocks ?? [];
   const hasBuiltPage = blocks.length > 0;
+  const eventConfig: EventConfigData = {
+    startDate: event.startDate,
+    faqs: event.faqs,
+    schedule: event.schedule,
+    speakers: event.speakers,
+    galleryImages: event.galleryImages,
+    sponsorImages: event.sponsorImages,
+  };
+  // Équivalent condensé de la nav multi-pages d'orncity (Accueil/Programme/
+  // Line-up/Billetterie/.../Infos&FAQ) sur notre modèle une-seule-page —
+  // vide sur le rendu fallback (pas de blocs Builder posés).
+  const navItems = hasBuiltPage ? getVisibleNavItems(blocks, event.tickets, eventConfig) : [];
 
   return (
     <main className="min-h-svh bg-alabaster dark:bg-blackho">
       {/* Header obligatoire (décision produit 2026-07-13) : logo à gauche,
           "Mon ticket" à droite — jamais un bloc du Builder, toujours présent
-          quel que soit le contenu de la page. */}
-      <header className="sticky top-0 z-20 flex items-center justify-between border-b border-stroke bg-white/90 px-4 py-3 backdrop-blur-sm dark:border-strokedark dark:bg-blacksection/90 md:px-8">
-        <div className="flex items-center gap-2.5">
-          {event.logoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={event.logoUrl} alt={event.title} className="size-8 rounded-lg object-cover" />
-          ) : null}
-          <span className="font-serif text-base font-semibold md:text-lg">{event.title}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <ThemeToggle />
-          <a
-            href={`/client?event=${encodeURIComponent(slug)}`}
-            className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:bg-primaryho"
-          >
-            <Ticket className="size-3.5" /> Mon ticket
-          </a>
-        </div>
-      </header>
+          quel que soit le contenu de la page. Regroupé avec la nav en ancre
+          (si présente) sous un seul conteneur sticky, pour éviter deux
+          éléments sticky empilés qui se chevaucheraient au scroll. */}
+      <div className="sticky top-0 z-20">
+        <header className="flex items-center justify-between border-b border-stroke bg-white/90 px-4 py-3 backdrop-blur-sm dark:border-strokedark dark:bg-blacksection/90 md:px-8">
+          <div className="flex items-center gap-2.5">
+            {event.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={event.logoUrl} alt={event.title} className="size-8 rounded-lg object-cover" />
+            ) : null}
+            <span className="font-serif text-base font-semibold md:text-lg">{event.title}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <a
+              href={`/client?event=${encodeURIComponent(slug)}`}
+              className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:bg-primaryho"
+            >
+              <Ticket className="size-3.5" /> Mon ticket
+            </a>
+          </div>
+        </header>
+
+        {navItems.length > 0 && (
+          <nav className="flex gap-5 overflow-x-auto border-b border-stroke bg-white/90 px-4 py-2.5 backdrop-blur-sm dark:border-strokedark dark:bg-blacksection/90 md:px-8">
+            {navItems.map((item) => (
+              <a
+                key={item.id}
+                href={`#${item.id}`}
+                className="whitespace-nowrap text-xs font-semibold text-manatee transition-colors hover:text-black dark:text-waterloo dark:hover:text-white"
+              >
+                {item.label}
+              </a>
+            ))}
+          </nav>
+        )}
+      </div>
 
       <div className="mx-auto max-w-190 px-4 py-8 md:px-8">
         <div className="relative overflow-hidden rounded-2xl border border-stroke bg-white shadow-solid-2 dark:border-strokedark dark:bg-blacksection">
@@ -135,14 +169,7 @@ export default async function EventPage({
               tickets={event.tickets}
               isPublished={isPublished}
               slug={slug}
-              eventConfig={{
-                startDate: event.startDate,
-                faqs: event.faqs,
-                schedule: event.schedule,
-                speakers: event.speakers,
-                galleryImages: event.galleryImages,
-                sponsorImages: event.sponsorImages,
-              }}
+              eventConfig={eventConfig}
             />
           ) : (
             <>
@@ -201,6 +228,7 @@ export default async function EventPage({
           )}
         </div>
       </div>
+      <EventFooter eventTitle={event.title} location={event.location} navItems={navItems} />
       <ResumeCheckout slug={slug} resume={resume === '1'} orderId={orderId} />
     </main>
   );

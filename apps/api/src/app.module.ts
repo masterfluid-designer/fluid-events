@@ -18,6 +18,7 @@ import { StorageModule } from './storage/storage.module';
 import { RetentionModule } from './retention/retention.module';
 import { PlatformSettingsModule } from './platform-settings/platform-settings.module';
 import { ContactModule } from './contact/contact.module';
+import { TicketRecoveryModule } from './ticket-recovery/ticket-recovery.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { HttpExceptionFilter } from './common/filters/http-exception-filter';
@@ -60,6 +61,7 @@ import { ResponseInterceptor } from './common/interceptors/response.interceptor'
     RetentionModule,
     PlatformSettingsModule,
     ContactModule,
+    TicketRecoveryModule,
   ],
   providers: [
     // Sécurité transverse globale
