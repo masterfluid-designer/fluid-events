@@ -43,7 +43,7 @@ export function EventHeader({
               // eslint-disable-next-line @next/next/no-img-element
               <img src={logoUrl} alt="" className="size-9 shrink-0 rounded-lg object-cover" />
             ) : null}
-            <span className="truncate font-serif text-base font-semibold md:text-lg">{eventTitle}</span>
+            <span className="truncate font-event text-base font-semibold md:text-lg">{eventTitle}</span>
           </a>
 
           <nav className="hidden items-center gap-7 lg:flex">
@@ -91,7 +91,7 @@ export function EventHeader({
       {menuOpen && (
         <div className="fixed inset-0 z-[60] bg-white dark:bg-blackho lg:hidden">
           <div className="flex h-16 items-center justify-between px-5">
-            <span className="truncate font-serif text-base font-semibold">{eventTitle}</span>
+            <span className="truncate font-event text-base font-semibold">{eventTitle}</span>
             <button
               type="button"
               onClick={() => setMenuOpen(false)}
@@ -107,7 +107,7 @@ export function EventHeader({
                 key={item.id}
                 href={`#${item.id}`}
                 onClick={() => setMenuOpen(false)}
-                className="border-b border-stroke py-4 font-serif text-2xl dark:border-strokedark"
+                className="border-b border-stroke py-4 font-event text-2xl dark:border-strokedark"
               >
                 {item.label}
               </a>

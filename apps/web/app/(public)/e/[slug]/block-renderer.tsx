@@ -322,7 +322,7 @@ function BlockItem({
     <SectionShell>
       <div style={{ textAlign }}>
         {(block.props.title as string) && (
-          <h2 className="font-serif text-2xl md:text-3xl">{block.props.title as string}</h2>
+          <h2 className="font-event text-2xl md:text-3xl">{block.props.title as string}</h2>
         )}
         {(block.props.content as string) && (
           <p className="mt-2 max-w-3xl text-sm leading-relaxed text-waterloo dark:text-manatee md:text-base">

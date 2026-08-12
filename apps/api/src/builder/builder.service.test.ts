@@ -82,11 +82,60 @@ describe('BuilderService', () => {
       });
 
       expect(result).toEqual({ eventId: 'ev-1', blocks: VALID_BLOCKS });
+      // `theme` absent du corps → `undefined` en update (Prisma l'ignore, le
+      // thème existant survit) et `{}` à la création.
       expect(prisma.eventPage.upsert).toHaveBeenCalledWith({
         where: { eventId: 'ev-1' },
-        create: { eventId: 'ev-1', blocks: VALID_BLOCKS },
-        update: { blocks: VALID_BLOCKS },
+        create: { eventId: 'ev-1', blocks: VALID_BLOCKS, theme: {} },
+        update: { blocks: VALID_BLOCKS, theme: undefined },
       });
+    });
+
+    it('persiste le thème quand il est fourni (police + couleurs de l’organisateur)', async () => {
+      prisma.event.findUnique.mockResolvedValue(OWNED_EVENT);
+      prisma.eventPage.findUnique.mockResolvedValue(null);
+      prisma.eventPage.upsert.mockResolvedValue({ eventId: 'ev-1' });
+
+      const theme = { accentColor: '#1a7f4b', backgroundColor: '#0b1f14', fontFamily: 'anton' };
+      await service.saveBlocks('ev-1', 'mgr-1', {
+        blocks: VALID_BLOCKS,
+        theme,
+        lastKnownUpdatedAt: null,
+      });
+
+      expect(prisma.eventPage.upsert).toHaveBeenCalledWith({
+        where: { eventId: 'ev-1' },
+        create: { eventId: 'ev-1', blocks: VALID_BLOCKS, theme },
+        update: { blocks: VALID_BLOCKS, theme },
+      });
+    });
+
+    it('rejette une couleur de thème qui n’est pas un HEX strict (anti-injection CSS)', async () => {
+      prisma.event.findUnique.mockResolvedValue(OWNED_EVENT);
+      prisma.eventPage.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.saveBlocks('ev-1', 'mgr-1', {
+          blocks: VALID_BLOCKS,
+          theme: { accentColor: 'red; background: url(evil)' },
+          lastKnownUpdatedAt: null,
+        }),
+      ).rejects.toThrow(BadRequestException);
+      expect(prisma.eventPage.upsert).not.toHaveBeenCalled();
+    });
+
+    it('rejette une police hors de la liste autorisée', async () => {
+      prisma.event.findUnique.mockResolvedValue(OWNED_EVENT);
+      prisma.eventPage.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.saveBlocks('ev-1', 'mgr-1', {
+          blocks: VALID_BLOCKS,
+          theme: { fontFamily: 'Comic Sans MS' },
+          lastKnownUpdatedAt: null,
+        }),
+      ).rejects.toThrow(BadRequestException);
+      expect(prisma.eventPage.upsert).not.toHaveBeenCalled();
     });
 
     it("refuse (403) si le manager ne possède pas l'événement", async () => {
@@ -256,8 +305,8 @@ describe('BuilderService', () => {
 
         expect(prisma.eventPage.upsert).toHaveBeenCalledWith({
           where: { eventId: 'ev-1' },
-          create: { eventId: 'ev-1', blocks: VALID_BLOCKS },
-          update: { blocks: VALID_BLOCKS },
+          create: { eventId: 'ev-1', blocks: VALID_BLOCKS, theme: {} },
+          update: { blocks: VALID_BLOCKS, theme: undefined },
         });
       });
     });

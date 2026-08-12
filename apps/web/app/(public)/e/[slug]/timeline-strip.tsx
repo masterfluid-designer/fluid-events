@@ -35,7 +35,7 @@ export function TimelineStrip({ entries, title }: { entries: TimelineEntry[]; ti
                   {entry.date}
                 </div>
               )}
-              <div className="mt-1.5 font-serif text-lg leading-tight">{entry.label}</div>
+              <div className="mt-1.5 font-event text-lg leading-tight">{entry.label}</div>
               {entry.description && (
                 <p className="mt-2 text-xs leading-relaxed text-waterloo dark:text-manatee">
                   {entry.description}

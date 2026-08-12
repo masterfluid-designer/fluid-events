@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
-import type { Block, FaqEntry, MediaEntry, ScheduleEntry, SpeakerEntry } from '@saas-events/types';
+import type { Block, EventTheme, FaqEntry, MediaEntry, ScheduleEntry, SpeakerEntry } from '@saas-events/types';
+import { resolveEventTheme } from './event-theme';
 import { ResumeCheckout } from './resume-checkout';
 import { BlockRenderer, getVisibleNavItems, type EventConfigData, type NavItem } from './block-renderer';
 import { TicketSelector } from './ticket-selector';
@@ -46,7 +47,7 @@ interface EventDetail {
     promoEndsAt: string | null;
     dayLabel: string | null;
   }>;
-  eventPage: { blocks: Block[] } | null;
+  eventPage: { blocks: Block[]; theme: EventTheme | null } | null;
 }
 
 async function fetchEvent(slug: string): Promise<EventDetail | null> {
@@ -127,10 +128,13 @@ export default async function EventPage({
       ? [{ id: 'block-tickets', label: 'Billetterie' }]
       : [];
   const ticketsAnchor = navItems.find((item) => item.id === 'block-tickets');
-  const scheduleAnchor = navItems.find((item) => item.id === 'block-schedule');
+  const theme = resolveEventTheme(event.eventPage?.theme);
 
   return (
-    <main className="min-h-svh bg-white dark:bg-blackho">
+    <main
+      className={`min-h-svh ${theme.hasCustomBackground ? '' : 'bg-white dark:bg-blackho'} ${theme.fontClassName}`}
+      style={theme.style}
+    >
       <EventHeader
         eventTitle={event.title}
         logoUrl={event.logoUrl}

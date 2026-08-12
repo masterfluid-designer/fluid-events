@@ -109,11 +109,18 @@ export class BuilderService {
     }
 
     const blocksJson = parsed.data.blocks as unknown as InputJsonValue;
+    // `theme` absent du corps = sauvegarde de blocs seule : on laisse le thème
+    // existant intact plutôt que de le réinitialiser (`undefined` est ignoré
+    // par Prisma, contrairement à `null` qui écraserait).
+    const themeJson =
+      parsed.data.theme === undefined
+        ? undefined
+        : (parsed.data.theme as unknown as InputJsonValue);
 
     return this.prisma.eventPage.upsert({
       where: { eventId },
-      create: { eventId, blocks: blocksJson },
-      update: { blocks: blocksJson },
+      create: { eventId, blocks: blocksJson, theme: themeJson ?? {} },
+      update: { blocks: blocksJson, theme: themeJson },
     });
   }
 }

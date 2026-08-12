@@ -16,6 +16,12 @@
   --font-inter: var(--font-sans), ui-sans-serif, sans-serif;
   /* Titres de la landing (Hero, sections, etc.), pas le sans-serif par défaut du site. */
   --font-space-grotesk: var(--font-space-grotesk), ui-sans-serif, sans-serif;
+  /* Titres de la page publique d'un événement — la famille réelle est
+     injectée à l'exécution via --font-event-display (thème choisi par
+     l'organisateur, voir lib/event-fonts.ts). Variable DÉDIÉE : réutiliser
+     --font-serif entrerait en collision avec celle que next/font pose déjà
+     sur <html>. Repli sur la serif du site si aucun thème n'est défini. */
+  --font-event: var(--font-event-display, var(--font-serif)), ui-serif, serif;
 
   /* ── Colors ── */
   --color-current: currentColor;

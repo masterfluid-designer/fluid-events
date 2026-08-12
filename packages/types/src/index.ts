@@ -215,6 +215,38 @@ export type BlockType =
   | 'timeline';
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Thème de la page publique (décision produit — personnalisation par
+// organisateur : chaque événement choisit sa police et ses couleurs, plutôt
+// qu'une identité unique imposée à tous les clients du SaaS).
+//
+// Stocké dans `EventPage.theme` (colonne Json déjà présente en base). Les clés
+// de police sont partagées : le backend valide contre cette liste, le frontend
+// mappe chaque clé vers une police next/font (apps/web/lib/event-fonts.ts).
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const EVENT_FONT_KEYS = [
+  'newsreader',
+  'space-grotesk',
+  'archivo-black',
+  'anton',
+  'bebas-neue',
+  'poppins',
+  'dm-sans',
+  'playfair-display',
+] as const;
+
+export type EventFontKey = (typeof EVENT_FONT_KEYS)[number];
+
+export interface EventTheme {
+  /** HEX strict — couleur d'accent (CTA, badges, points de frise). */
+  accentColor?: string;
+  /** HEX strict — fond de page. */
+  backgroundColor?: string;
+  /** Police des titres de la page publique. */
+  fontFamily?: EventFontKey;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Contenu centralisé de l'événement (décision produit 2026-07-13)
 //
 // Un seul jeu de contenu par événement (FAQ, Programme, Speakers, Galerie,

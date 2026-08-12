@@ -20,11 +20,11 @@ export function EventFooter({
   navItems: NavItem[];
 }) {
   return (
-    <footer className="border-t border-stroke bg-alabaster px-5 py-12 dark:border-strokedark dark:bg-blackho md:px-8 md:py-16">
+    <footer className="border-t border-stroke bg-black/[0.035] px-5 py-12 dark:border-strokedark dark:bg-white/[0.035] md:px-8 md:py-16">
       <div className="mx-auto max-w-6xl">
         <div className="grid gap-10 md:grid-cols-3 lg:grid-cols-4">
           <div className="lg:col-span-2">
-            <div className="font-serif text-2xl md:text-3xl">{eventTitle}</div>
+            <div className="font-event text-2xl md:text-3xl">{eventTitle}</div>
             <p className="mt-3 max-w-sm text-sm text-waterloo dark:text-manatee">
               Billetterie officielle — réservation en ligne, billet numérique à présenter à
               l&apos;entrée.

@@ -374,7 +374,9 @@ describe('EventsService.getPublicEventBySlug()', () => {
     expect(result.eventPage?.blocks).toEqual([{ id: 'b-1', type: 'hero', order: 0, props: {} }]);
     expect(prisma.event.findUnique).toHaveBeenCalledWith(
       expect.objectContaining({
-        include: expect.objectContaining({ eventPage: { select: { blocks: true } } }),
+        include: expect.objectContaining({
+          eventPage: { select: { blocks: true, theme: true } },
+        }),
       }),
     );
   });

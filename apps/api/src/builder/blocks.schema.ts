@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { EVENT_FONT_KEYS } from '@saas-events/types';
 
 /**
  * Schéma Zod — Validation des blocs Event Builder côté backend (CDC §11.2).
@@ -55,11 +56,27 @@ const BlockSchema = z.object({
 export const BlocksArraySchema = z.array(BlockSchema).max(50);
 
 /**
+ * Thème de la page publique (personnalisation par organisateur) — persisté
+ * dans `EventPage.theme`. Couleurs en HEX strict, même garde que
+ * `BlockStylesSchema.backgroundColor` : aucune valeur libre ne doit pouvoir
+ * atterrir dans une propriété CSS (RULES.md — jamais de texte libre non
+ * contraint). La police est restreinte à la liste partagée `EVENT_FONT_KEYS`,
+ * que le frontend sait mapper vers une police réellement embarquée.
+ */
+export const ThemeSchema = z.object({
+  accentColor: HexColor.optional(),
+  backgroundColor: HexColor.optional(),
+  fontFamily: z.enum(EVENT_FONT_KEYS).optional(),
+});
+
+/**
  * DTO de sauvegarde — inclut le contrôle de concurrence optimiste.
  * lastKnownUpdatedAt : ISO datetime (ou null pour la première sauvegarde).
+ * `theme` est optionnel : une sauvegarde de blocs seule ne l'écrase jamais.
  */
 export const SaveBlocksDto = z.object({
   blocks: BlocksArraySchema,
+  theme: ThemeSchema.optional(),
   lastKnownUpdatedAt: z.string().datetime().nullable(),
 });
 

@@ -119,8 +119,9 @@ export class EventsService {
           orderBy: { price: 'asc' },
         },
         // Blocs Builder (CDC §11) — le frontend retombe sur le template
-        // statique si `blocks` est vide (page jamais construite).
-        eventPage: { select: { blocks: true } },
+        // statique si `blocks` est vide (page jamais construite). `theme`
+        // porte la personnalisation (police/couleurs) de l'organisateur.
+        eventPage: { select: { blocks: true, theme: true } },
       },
     });
 

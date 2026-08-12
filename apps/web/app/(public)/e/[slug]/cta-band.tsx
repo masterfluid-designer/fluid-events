@@ -8,11 +8,11 @@ import { Ticket } from 'lucide-react';
 export function CtaBand({ eventTitle, ticketsAnchorId }: { eventTitle: string; ticketsAnchorId: string }) {
   return (
     <section className="px-5 pb-14 md:px-8 md:pb-20">
-      <div className="mx-auto flex max-w-6xl flex-col items-center gap-5 rounded-3xl bg-primary px-6 py-12 text-center text-primary-foreground md:py-16">
-        <h2 className="max-w-2xl font-serif text-3xl leading-[1.05] md:text-4xl lg:text-5xl">
+      <div className="mx-auto flex max-w-6xl flex-col items-center gap-5 rounded-3xl bg-primary px-6 py-16 text-center text-primary-foreground md:py-20">
+        <h2 className="max-w-3xl font-event text-4xl leading-[0.95] tracking-tight md:text-5xl lg:text-6xl">
           Prêt à vivre {eventTitle} ?
         </h2>
-        <p className="max-w-md text-sm opacity-90 md:text-base">
+        <p className="max-w-md text-base opacity-90 md:text-lg">
           Les billets sont en quantité limitée. Réservez le vôtre dès maintenant.
         </p>
         <a

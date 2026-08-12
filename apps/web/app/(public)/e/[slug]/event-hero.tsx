@@ -47,7 +47,7 @@ export function EventHero({
             {isPublished ? 'Billets ouverts' : 'Bientôt disponible'}
           </span>
 
-          <h1 className="mt-5 font-serif text-4xl leading-[0.98] tracking-tight sm:text-5xl md:text-6xl lg:text-7xl">
+          <h1 className="mt-6 font-event text-5xl leading-[0.9] tracking-[-0.02em] sm:text-6xl md:text-7xl lg:text-8xl">
             {title}
           </h1>
 
@@ -90,7 +90,7 @@ export function EventHero({
 
         {stat && (
           <div className="mt-10 w-fit rounded-2xl border border-white/20 bg-white/10 px-5 py-3.5 backdrop-blur-md md:mt-12">
-            <div className="font-serif text-2xl leading-none md:text-3xl">{stat.value}</div>
+            <div className="font-event text-2xl leading-none md:text-3xl">{stat.value}</div>
             <div className="mt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/70">
               {stat.label}
             </div>

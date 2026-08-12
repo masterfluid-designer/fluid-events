@@ -22,9 +22,13 @@ export function SectionShell({
   tone?: 'default' | 'muted' | 'accent';
   className?: string;
 }) {
+  // `muted` en voile translucide plutôt qu'en couleur fixe : l'organisateur
+  // peut choisir son fond de page (thème), un `bg-alabaster` en dur jurerait
+  // avec. Un voile se contente d'assombrir/éclaircir ce qui est dessous,
+  // quelle que soit la couleur choisie.
   const toneClass =
     tone === 'muted'
-      ? 'bg-alabaster dark:bg-blackho'
+      ? 'bg-black/[0.035] dark:bg-white/[0.035]'
       : tone === 'accent'
         ? 'bg-primary text-primary-foreground'
         : '';
@@ -34,7 +38,7 @@ export function SectionShell({
       id={id}
       // scroll-mt : compense le header sticky pour que le titre de section ne
       // se retrouve pas masqué quand on arrive par un lien d'ancre.
-      className={`scroll-mt-20 px-5 py-14 md:px-8 md:py-20 ${toneClass} ${className}`}
+      className={`scroll-mt-20 px-5 py-16 md:px-8 md:py-24 lg:py-28 ${toneClass} ${className}`}
     >
       <div className="mx-auto w-full max-w-6xl">{children}</div>
     </section>
@@ -57,12 +61,18 @@ export function SectionHeading({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="mb-8 flex flex-col gap-4 md:mb-10 md:flex-row md:items-end md:justify-between">
+    <div className="mb-10 flex flex-col gap-4 md:mb-14 md:flex-row md:items-end md:justify-between">
       <div className="max-w-2xl">
         <SectionEyebrow>{eyebrow}</SectionEyebrow>
-        <h2 className="mt-2 font-serif text-3xl leading-[1.05] md:text-4xl lg:text-5xl">{title}</h2>
+        {/* Échelle display : les titres de section portent l'identité de la
+            page (cf. fidélité orncity) — grande taille, interlignage très
+            serré et interlettrage resserré, ce que réclament les display
+            condensées proposées dans le thème (Anton, Bebas, Archivo Black). */}
+        <h2 className="mt-2.5 font-event text-4xl leading-[0.95] tracking-tight md:text-5xl lg:text-6xl">
+          {title}
+        </h2>
         {description && (
-          <p className="mt-3 text-sm leading-relaxed text-waterloo dark:text-manatee md:text-base">
+          <p className="mt-4 text-base leading-relaxed text-waterloo dark:text-manatee md:text-lg">
             {description}
           </p>
         )}

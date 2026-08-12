@@ -28,8 +28,9 @@ import {
   LayoutGrid,
   History,
   Plus,
+  Palette,
 } from 'lucide-react';
-import type { Block, BlockType, TimelineEntry } from '@saas-events/types';
+import type { Block, BlockType, EventTheme, TimelineEntry } from '@saas-events/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
@@ -37,6 +38,7 @@ import { ColorField } from '@/components/ui/color-field';
 import { ImageUploadField } from '@/components/ui/image-upload-field';
 import { api, apiPatch, apiPut, ApiError } from '@/lib/api';
 import { ConfigPanel, type EventConfig } from './config-panel';
+import { ThemePanel } from './theme-panel';
 
 /**
  * Event Builder no-code (CDC §11 — blocs). Branché sur les vrais endpoints
@@ -131,7 +133,8 @@ export default function EventBuilderPage() {
   const queryClient = useQueryClient();
   const [device, setDevice] = useState<'desktop' | 'mobile'>('desktop');
   const [mode, setMode] = useState<'edit' | 'preview'>('edit');
-  const [sidebarTab, setSidebarTab] = useState<'blocs' | 'config'>('blocs');
+  const [sidebarTab, setSidebarTab] = useState<'blocs' | 'config' | 'theme'>('blocs');
+  const [theme, setTheme] = useState<EventTheme>({});
   const [previewNonce, setPreviewNonce] = useState(0);
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [config, setConfig] = useState<EventConfig>(EMPTY_CONFIG);
@@ -155,6 +158,7 @@ export default function EventBuilderPage() {
   useEffect(() => {
     if (!data) return;
     setBlocks(data.blocks);
+    setTheme((data.theme ?? {}) as EventTheme);
     setLastKnownUpdatedAt(data.updatedAt);
   }, [data]);
 
@@ -189,6 +193,7 @@ export default function EventBuilderPage() {
       const [savedBuilder] = await Promise.all([
         apiPut<BuilderData>(`/api/builder/${data!.eventId}/blocks`, {
           blocks,
+          theme,
           lastKnownUpdatedAt,
         }),
         apiPatch('/api/events/mine', {
@@ -426,6 +431,15 @@ export default function EventBuilderPage() {
               >
                 <Settings2 className="size-3.5" /> Config
               </button>
+              <button
+                type="button"
+                onClick={() => setSidebarTab('theme')}
+                className={`flex flex-1 items-center justify-center gap-1.5 py-2.5 text-xs font-semibold ${
+                  sidebarTab === 'theme' ? 'border-b-2 border-primary text-foreground' : 'text-muted-foreground'
+                }`}
+              >
+                <Palette className="size-3.5" /> Thème
+              </button>
             </div>
 
             {sidebarTab === 'blocs' ? (
@@ -462,8 +476,15 @@ export default function EventBuilderPage() {
                   })}
                 </div>
               </div>
-            ) : (
+            ) : sidebarTab === 'config' ? (
               <ConfigPanel config={config} onChange={updateConfig} />
+            ) : (
+              <div className="p-4">
+                <ThemePanel
+                  theme={theme}
+                  onChange={(patch) => setTheme((prev) => ({ ...prev, ...patch }))}
+                />
+              </div>
             )}
           </aside>
         )}

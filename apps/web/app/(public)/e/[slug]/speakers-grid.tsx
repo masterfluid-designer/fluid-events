@@ -84,7 +84,7 @@ export function SpeakersGrid({ speakers }: { speakers: SpeakerEntry[] }) {
             )}
 
             <div className="absolute inset-x-3 bottom-3 text-white">
-              <div className="font-serif text-base leading-tight md:text-lg">{speaker.name}</div>
+              <div className="font-event text-base leading-tight md:text-lg">{speaker.name}</div>
               <div className="mt-0.5 text-xs text-white/75">{speaker.role}</div>
             </div>
           </article>
