@@ -1,9 +1,21 @@
-# Production override - à appliquer avec: docker compose -f docker-compose.yml -f docker-compose.prod.yml up
+# Override production — à appliquer avec :
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# Architecture retenue (décision 2026-08-12) : TOUT est auto-hébergé sur le VPS
+# — PostgreSQL, Redis et MinIO tournent en conteneurs à côté de l'API et du
+# front, exactement comme la stack de développement déjà éprouvée. Pas de
+# Supabase ni d'Upstash : moins de comptes tiers, moins de latence réseau, et
+# une configuration identique entre dev et prod.
+#
+# Contrepartie assumée : les sauvegardes de la base sont à la charge de
+# l'exploitant (voir AI/DEPLOYMENT.md §7).
 
 services:
-  # ============ Nginx Reverse Proxy (Prod Only) ============
+  # ============ Nginx Reverse Proxy (prod uniquement) ============
   nginx:
-    image: nginx:latest-alpine
+    # ⚠️ `nginx:alpine` — le tag `nginx:latest-alpine` utilisé auparavant
+    # n'existe pas sur Docker Hub, le conteneur ne démarrait pas du tout.
+    image: nginx:alpine
     container_name: fluid-events-nginx
     volumes:
       - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
@@ -14,29 +26,42 @@ services:
     depends_on:
       - api
       - web
+    restart: always
     networks:
       - fluid-network
 
-  # ============ PostgreSQL Production Override ============
+  # ============ PostgreSQL (auto-hébergé) ============
   postgres:
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
-    # Dans production, utiliser Supabase PostgreSQL au lieu de ce container
-    # Supprimer/commenter le volume pour éviter persistance locale
-    volumes: []
-    # Ne pas exposer le port en prod
-    ports: []
+      POSTGRES_USER: ${POSTGRES_USER:-fluid_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD manquant}
+      POSTGRES_DB: ${POSTGRES_DB:-fluid_events}
+    # Le volume nommé du fichier de base est CONSERVÉ : c'est la vraie base de
+    # production, elle doit survivre aux redéploiements.
+    # Aucun port publié : seuls les conteneurs du réseau `fluid-network` y
+    # accèdent. Exposer 5432 sur l'IP publique du VPS reviendrait à offrir la
+    # base à Internet.
+    ports: !reset []
+    restart: always
 
-  # ============ Redis Production Override ============
+  # ============ Redis (auto-hébergé) ============
   redis:
-    # En production, utiliser Redis managé (Upstash, Railway, etc.)
-    environment:
-      # Peut être supprimé et remplacé par REDIS_URL externe
-      REDIS_URL: ${REDIS_URL}
+    ports: !reset []
+    restart: always
 
-  # ============ Backend Production Override ============
+  # ============ MinIO — stockage S3-compatible (auto-hébergé) ============
+  minio:
+    environment:
+      # Jamais les identifiants `minioadmin` de développement en production.
+      MINIO_ROOT_USER: ${STORAGE_ACCESS_KEY:?STORAGE_ACCESS_KEY manquant}
+      MINIO_ROOT_PASSWORD: ${STORAGE_SECRET_KEY:?STORAGE_SECRET_KEY manquant}
+    # Pas de port publié : l'API tape MinIO par le réseau Docker interne, et
+    # les navigateurs passent par Nginx (sous-domaine `storage.`), qui est le
+    # seul point d'entrée public.
+    ports: !reset []
+    restart: always
+
+  # ============ Backend NestJS ============
   api:
     build:
       context: .
@@ -44,35 +69,41 @@ services:
       target: production
     environment:
       NODE_ENV: production
-      DATABASE_URL: ${DATABASE_URL}  # Supabase PostgreSQL
-      REDIS_URL: ${REDIS_URL}        # Upstash Redis (rediss://, TLS)
-      STORAGE_ENDPOINT: ${STORAGE_ENDPOINT}  # Supabase Storage (S3-compatible)
+      DATABASE_URL: postgresql://${POSTGRES_USER:-fluid_user}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-fluid_events}?schema=public
+      REDIS_URL: redis://redis:6379
+      # STORAGE_ENDPOINT = accès interne (upload via le réseau Docker).
+      # STORAGE_PUBLIC_ENDPOINT = ce que voient les navigateurs dans les URLs
+      # d'images ; les deux DOIVENT être distincts ici, sinon les URLs
+      # stockées en base pointeraient vers un hôte injoignable depuis
+      # l'extérieur (`http://minio:9000`).
+      STORAGE_ENDPOINT: http://minio:9000
+      STORAGE_PUBLIC_ENDPOINT: ${STORAGE_PUBLIC_ENDPOINT}
       STORAGE_ACCESS_KEY: ${STORAGE_ACCESS_KEY}
       STORAGE_SECRET_KEY: ${STORAGE_SECRET_KEY}
-      STORAGE_BUCKET: ${STORAGE_BUCKET}
-      STORAGE_REGION: ${STORAGE_REGION}
+      STORAGE_BUCKET: ${STORAGE_BUCKET:-fluid-events}
+      STORAGE_REGION: ${STORAGE_REGION:-us-east-1}
       # Resend : RESEND_API_KEY prioritaire (API HTTP) si renseignée, sinon
-      # repli sur le relais SMTP Resend (voir EmailService, ROADMAP.md Phase 5).
+      # repli sur un relais SMTP (voir EmailService).
       RESEND_API_KEY: ${RESEND_API_KEY:-}
-      SMTP_HOST: ${SMTP_HOST}
-      SMTP_PORT: ${SMTP_PORT}
-      SMTP_USER: ${SMTP_USER}
-      SMTP_PASSWORD: ${SMTP_PASSWORD}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SMTP_FROM: ${SMTP_FROM}
       SMTP_SECURE: ${SMTP_SECURE:-true}
       APP_URL: ${APP_URL}
       API_URL: ${API_URL}
       FRONTEND_URL: ${APP_URL}
-      JWT_SECRET: ${JWT_SECRET}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET manquant}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
-      QR_SECRET: ${QR_SECRET}
-      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET manquant}
+      QR_SECRET: ${QR_SECRET:?QR_SECRET manquant}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?ENCRYPTION_KEY manquant}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
-      # ⚠️ Le fichier de base (docker-compose.yml) fixe cette valeur sur
-      # localhost:4000 (dev) — DOIT être écrasée ici avec le vrai domaine, sinon
-      # le callback OAuth production redirige silencieusement vers localhost.
+      # ⚠️ Le fichier de base fixe cette valeur sur localhost:4000 (dev) —
+      # DOIT être écrasée ici, sinon le callback OAuth de production redirige
+      # silencieusement vers localhost.
       GOOGLE_CALLBACK_URL: ${API_URL}/api/auth/google/callback
       TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
       TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
@@ -86,35 +117,40 @@ services:
       WHATSAPP_VERIFICATION_TEMPLATE_LANG: ${WHATSAPP_VERIFICATION_TEMPLATE_LANG:-fr}
       CORS_ORIGIN: ${APP_URL}
       LOG_LEVEL: info
-    # Pas de volumes en prod (image immutable)
-    volumes: []
-    ports: []
+    # Image immuable : aucun bind mount de code en production.
+    volumes: !reset []
+    ports: !reset []
     restart: always
 
-  # ============ Frontend Production Override ============
+  # ============ Frontend Next.js ============
   web:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
       target: production
+      args:
+        # Next.js fige les NEXT_PUBLIC_* au BUILD, pas au runtime : les passer
+        # uniquement en `environment` laisserait le bundle client pointer vers
+        # les valeurs de développement.
+        NEXT_PUBLIC_API_URL: ${API_URL}
+        NEXT_PUBLIC_APP_URL: ${APP_URL}
     environment:
       NODE_ENV: production
       NEXT_PUBLIC_API_URL: ${API_URL}
       NEXT_PUBLIC_APP_URL: ${APP_URL}
-      # Composants serveur (SSR, ex. /e/[slug]) : appellent l'API via le réseau
-      # Docker interne, pas via API_URL (qui pointe vers le domaine public, un
-      # aller-retour inutile et potentiellement bloqué par Nginx/DNS interne).
+      # Composants serveur (SSR, ex. /e/[slug]) : appellent l'API par le
+      # réseau Docker interne, pas via API_URL (aller-retour inutile par
+      # Nginx, et DNS public pas toujours résolvable depuis le conteneur).
       INTERNAL_API_URL: http://api:4000
-    volumes: []
-    ports: []
+    volumes: !reset []
+    ports: !reset []
     restart: always
 
-  # ============ Disable dev-only services ============
+  # ============ Services réservés au développement ============
+  # ⚠️ Le service s'appelle bien `mailpit` dans docker-compose.yml. Une version
+  # précédente désactivait ici un service `rustfs` qui n'existe pas (le
+  # stockage s'appelle `minio`) — le profil ne s'appliquait donc à rien.
   mailpit:
-    profiles:
-      - dev
-
-  rustfs:
     profiles:
       - dev
 

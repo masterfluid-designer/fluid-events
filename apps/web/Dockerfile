@@ -43,6 +43,16 @@ RUN pnpm install --frozen-lockfile
 
 RUN npx tsc -p packages/types/tsconfig.build.json && npx tsc -p packages/utils/tsconfig.build.json
 
+# ⚠️ Next.js inline les NEXT_PUBLIC_* dans le bundle client au moment du BUILD,
+# pas au démarrage : sans ces ARG, l'image de production embarquerait les
+# valeurs par défaut de développement (localhost:4000/localhost:3000) et le
+# navigateur appellerait localhost chez le visiteur. Les passer en `environment`
+# du compose ne suffit donc PAS — voir docker-compose.prod.yml (`build.args`).
+ARG NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_APP_URL
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
+
 RUN cd apps/web && pnpm run build
 
 EXPOSE 3000
