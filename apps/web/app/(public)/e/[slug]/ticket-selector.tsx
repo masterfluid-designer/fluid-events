@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { Minus, Plus, Ticket } from 'lucide-react';
+import { CHECKOUT_RESUME_EVENT, openGoogleAuthPopup } from '@/lib/auth';
 import { SectionShell, SectionHeading } from './section-shell';
 
 /**
@@ -51,6 +52,7 @@ export function TicketSelector({
   isPublished: boolean;
 }) {
   const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const [authPending, setAuthPending] = useState(false);
 
   const days = useMemo(
     () => Array.from(new Set(tickets.map((t) => t.dayLabel).filter((d): d is string => Boolean(d)))),
@@ -86,9 +88,20 @@ export function TicketSelector({
   }, 0);
   const currency = tickets[0]?.currency ?? 'XOF';
 
-  function handleContinue() {
-    const encoded = encodeURIComponent(JSON.stringify(cartItems));
-    window.location.href = `/api/buy-redirect?slug=${encodeURIComponent(slug)}&items=${encoded}`;
+  // L'achat exige une connexion (RULES.md — jamais de commande anonyme), mais
+  // elle se fait désormais dans une pop-up : cet onglet, et donc le panier
+  // sélectionné, ne bougent pas. En cas de succès, `ResumeCheckout` prend le
+  // relais via CHECKOUT_RESUME_EVENT.
+  async function handleContinue() {
+    setAuthPending(true);
+    try {
+      const authenticated = await openGoogleAuthPopup(slug, cartItems);
+      if (authenticated) {
+        window.dispatchEvent(new CustomEvent(CHECKOUT_RESUME_EVENT));
+      }
+    } finally {
+      setAuthPending(false);
+    }
   }
 
   return (
@@ -155,7 +168,7 @@ export function TicketSelector({
 
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2.5">
-                    <h3 className="font-serif text-xl md:text-2xl">{ticket.name}</h3>
+                    <h3 className="font-event text-xl md:text-2xl">{ticket.name}</h3>
                     {hasPromo && !soldOut && (
                       <span className="rounded-full bg-accent-terracotta px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white dark:bg-accent-terracotta-dark">
                         Promo
@@ -186,7 +199,7 @@ export function TicketSelector({
                         {formatCurrency(Number(ticket.compareAtPrice), ticket.currency)}
                       </div>
                     )}
-                    <div className="font-serif text-2xl leading-none md:text-3xl">
+                    <div className="font-event text-2xl leading-none md:text-3xl">
                       {formatCurrency(Number(ticket.price), ticket.currency)}
                     </div>
                     <div className="mt-1 text-[11px] text-manatee dark:text-waterloo">/ personne</div>
@@ -229,7 +242,7 @@ export function TicketSelector({
       {totalQuantity > 0 && (
         <div className="sticky bottom-4 z-30 mt-6 flex items-center justify-between gap-4 rounded-full border border-stroke bg-white/95 px-5 py-3 shadow-solid-2 backdrop-blur dark:border-strokedark dark:bg-blacksection/95 md:px-7 md:py-4">
           <div className="min-w-0">
-            <div className="font-serif text-lg leading-none md:text-2xl">
+            <div className="font-event text-lg leading-none md:text-2xl">
               {formatCurrency(totalAmount, currency)}
             </div>
             <div className="mt-1 text-[11px] text-manatee dark:text-waterloo md:text-xs">
@@ -240,9 +253,10 @@ export function TicketSelector({
           <button
             type="button"
             onClick={handleContinue}
-            className="inline-flex shrink-0 items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primaryho md:px-8"
+            disabled={authPending}
+            className="inline-flex shrink-0 items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primaryho disabled:opacity-60 md:px-8"
           >
-            Continuer <Ticket className="size-4" />
+            {authPending ? 'Connexion...' : 'Continuer'} <Ticket className="size-4" />
           </button>
         </div>
       )}

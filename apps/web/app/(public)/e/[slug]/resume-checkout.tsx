@@ -5,7 +5,7 @@ import { useKKiaPay } from 'kkiapay-react';
 import toast from 'react-hot-toast';
 import { CheckCircle2, XCircle } from 'lucide-react';
 import type { PaymentInitResult } from '@saas-events/types';
-import { consumeIntent } from '@/lib/auth';
+import { CHECKOUT_RESUME_EVENT, consumeIntent } from '@/lib/auth';
 import { api, apiPost, ApiError } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
@@ -112,6 +112,28 @@ export function ResumeCheckout({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resume, slug, orderId]);
 
+  // Reprise après une authentification en POP-UP (le cas courant désormais) :
+  // l'onglet n'a pas été rechargé, donc aucun `?resume=1` ne passera — c'est
+  // le sélecteur de billets qui émet l'événement une fois la pop-up refermée
+  // avec succès. `startedRef` n'est volontairement PAS utilisé ici : le
+  // visiteur doit pouvoir relancer un achat sans recharger la page.
+  useEffect(() => {
+    function onResume() {
+      const intent = consumeIntent(slug);
+      if (!intent) {
+        setState({
+          step: 'error',
+          message: "Votre session d'achat a expiré, veuillez réessayer.",
+        });
+        return;
+      }
+      void startCheckout(intent.items);
+    }
+    window.addEventListener(CHECKOUT_RESUME_EVENT, onResume);
+    return () => window.removeEventListener(CHECKOUT_RESUME_EVENT, onResume);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug]);
+
   // Écoute des callbacks du widget Kkiapay — enregistrés une seule fois.
   useEffect(() => {
     const onSuccess = (data: { partnerId?: string }) => {
@@ -187,7 +209,7 @@ export function ResumeCheckout({
         {state.step === 'success' && (
           <>
             <CheckCircle2 className="mx-auto size-10 text-green-600" />
-            <h2 className="mt-3 font-serif text-lg">Paiement confirmé !</h2>
+            <h2 className="mt-3 font-event text-lg">Paiement confirmé !</h2>
             <p className="mt-2 text-sm text-manatee dark:text-waterloo">
               Vos billets sont en cours de génération. Vous les recevrez par email.
             </p>
@@ -199,7 +221,7 @@ export function ResumeCheckout({
         {state.step === 'error' && (
           <>
             <XCircle className="mx-auto size-10 text-destructive" />
-            <h2 className="mt-3 font-serif text-lg">Un problème est survenu</h2>
+            <h2 className="mt-3 font-event text-lg">Un problème est survenu</h2>
             <p className="mt-2 text-sm text-manatee dark:text-waterloo">{state.message}</p>
             <Button
               variant="outline"

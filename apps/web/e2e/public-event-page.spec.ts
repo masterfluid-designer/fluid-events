@@ -35,7 +35,7 @@ test.describe('Page événement publique', () => {
     expect(response?.status()).toBe(404);
   });
 
-  test('sélectionner un billet puis "Continuer" redirige vers le OAuth Google avec le bon intent (jamais un paiement direct sans auth)', async ({
+  test('sélectionner un billet puis "Continuer" ouvre le OAuth Google en pop-up avec le bon intent (jamais un paiement direct sans auth)', async ({
     page,
   }) => {
     await page.goto(`/e/${SEEDED_EVENT_SLUG}`);
@@ -48,20 +48,16 @@ test.describe('Page événement publique', () => {
     const continueButton = page.getByRole('button', { name: 'Continuer' });
     await expect(continueButton).toBeVisible();
 
-    // Intercepte la requête vers l'API (localhost:4000/api/auth/google) —
-    // avant qu'elle ne redirige elle-même vers le vrai écran Google, qu'on
-    // ne peut pas piloter sans compte OAuth réel en E2E. On valide juste que
-    // /api/buy-redirect (CDC §7.1) construit la bonne URL, jamais un accès
-    // direct au paiement sans passer par l'authentification.
-    let capturedUrl: string | null = null;
-    await page.route('**/api/auth/google**', async (route) => {
-      capturedUrl = route.request().url();
-      await route.abort();
-    });
-
-    await continueButton.click();
-    await expect.poll(() => capturedUrl, { timeout: 10_000 }).not.toBeNull();
-    const url = new URL(capturedUrl!);
+    // La connexion se fait maintenant dans une FENÊTRE POP-UP (l'onglet
+    // d'origine, et donc le panier, ne bougent plus) — c'est donc `popup`
+    // qu'il faut attendre, pas une navigation de `page`. On ne pilote jamais
+    // l'écran Google lui-même (pas de compte OAuth réel en E2E) : on valide
+    // seulement que l'URL ouverte est bien celle de l'authentification, donc
+    // qu'aucun paiement n'est atteignable sans passer par là.
+    const [popup] = await Promise.all([page.waitForEvent('popup'), continueButton.click()]);
+    const url = new URL(popup.url());
+    expect(url.pathname).toContain('/api/auth/google');
+    await popup.close();
     expect(url.searchParams.get('intent')).toBe('buy');
     expect(url.searchParams.get('eventSlug')).toBe(SEEDED_EVENT_SLUG);
   });
