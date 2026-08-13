@@ -133,20 +133,10 @@ const Footer = () => {
 
                   <ul>
                     <li>
-                      <a
-                        href="#"
-                        className="mb-3 inline-block hover:text-primary"
-                      >
-                        Documentation
-                      </a>
+                      <Link href="/docs" className="mb-3 inline-block hover:text-primary">Documentation</Link>
                     </li>
                     <li>
-                      <a
-                        href="#"
-                        className="mb-3 inline-block hover:text-primary"
-                      >
-                        API
-                      </a>
+                      <Link href="/a-propos" className="mb-3 inline-block hover:text-primary">À propos</Link>
                     </li>
                     <li>
                       <Link
@@ -273,19 +263,19 @@ const Footer = () => {
             >
               <ul className="flex items-center gap-8">
                 <li>
-                  <a href="#" className="hover:text-primary">
-                    Français
-                  </a>
+                  <Link href="/mentions-legales" className="hover:text-primary">
+                    Mentions légales
+                  </Link>
                 </li>
                 <li>
-                  <a href="#" className="hover:text-primary">
+                  <Link href="/confidentialite" className="hover:text-primary">
                     Confidentialité
-                  </a>
+                  </Link>
                 </li>
                 <li>
-                  <a href="#" className="hover:text-primary">
+                  <Link href="/conditions" className="hover:text-primary">
                     Conditions
-                  </a>
+                  </Link>
                 </li>
               </ul>
             </motion.div>
