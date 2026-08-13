@@ -1,234 +1,209 @@
-# DEPLOYMENT.md — Guide de déploiement production
+# DEPLOYMENT.md — Déploiement production
 
-> Cible retenue (voir `AI/ARCHITECTURE.md` et `.env.example`) : **Docker Compose** sur un VPS, avec trois services externes managés — **Supabase** (PostgreSQL + Storage S3-compatible), **Upstash** (Redis) et **Resend** (email). Pas de Vercel/Railway/Fly.io. Ce document décrit les étapes de bout en bout, de la création des comptes de services jusqu'au premier déploiement réel.
+> **Ce document décrit le déploiement réellement en service**, pas une cible théorique. Il a été rédigé après la mise en production du 13 août 2026 sur `fluidevent.online`, et chaque commande qu'il contient a été exécutée.
 >
-> Toutes les étapes de création de compte / achat ci-dessous sont à faire **vous-même** — un agent IA ne peut pas créer de compte tiers, saisir une carte bancaire ou gérer vos identifiants à votre place. Ce guide vous indique quoi faire et quelles valeurs récupérer.
+> Architecture retenue : **tout auto-hébergé** sur un VPS unique — PostgreSQL, Redis et MinIO tournent en conteneurs à côté de l'application, derrière Nginx. Aucun service managé, à l'exception de **Resend** pour l'email transactionnel.
+>
+> Les créations de compte et modifications DNS sont à faire **vous-même** : un agent ne peut ni créer de compte tiers, ni saisir vos identifiants.
 
 ---
 
-## 0. Ce que vous avez déjà
+## 1. Architecture en service
 
-- Un nom de domaine chez Hostinger.
-- Un VPS Hostinger à provisionner (pas encore acheté au moment de la rédaction de ce guide).
+```
+Internet
+   │
+   ├── :80  ──► Nginx ──► redirection 301 vers HTTPS
+   └── :443 ──► Nginx ──┬── fluidevent.online       ──► web   (Next.js, :3000)
+                        ├── api.fluidevent.online   ──► api   (NestJS,  :4000)
+                        └── storage.fluidevent.online ──► minio (S3,    :9000)
 
-## 1. Créer les comptes de services managés
+Réseau Docker interne (aucun port publié) :
+   postgres:5432   redis:6379   minio:9000
+```
 
-### 1.1 Supabase (PostgreSQL + Storage)
+**Seuls les ports 80 et 443 sont publiés.** La base, le cache et le stockage ne sont joignables que depuis le réseau Docker.
 
-1. Créez un compte sur [supabase.com](https://supabase.com) et un nouveau projet (région la plus proche de vos utilisateurs, ex. `eu-west` ou une région africaine si disponible).
-2. **Base de données** — `Project Settings → Database → Connection string` (mode **Session** ou **Transaction pooling**, pas `Direct connection` qui n'est pas conçu pour une charge applicative soutenue). Copiez la chaîne, remplacez `[YOUR-PASSWORD]` par le mot de passe défini à la création du projet → c'est votre `DATABASE_URL`.
-3. **Storage** — `Project Settings → Storage` (ou `Storage → Settings`) : notez l'URL S3-compatible du projet (`https://<project-ref>.supabase.co/storage/v1/s3`) → `STORAGE_ENDPOINT`. Créez une paire de clés d'accès S3 (`Storage → S3 access keys → New access key`) → `STORAGE_ACCESS_KEY` / `STORAGE_SECRET_KEY`. Créez un bucket **public** nommé `fluid-events` (`Storage → New bucket`, cocher "Public bucket") → `STORAGE_BUCKET=fluid-events`. `STORAGE_REGION` = la région du projet (visible dans l'URL, ex. `eu-west-1`).
-4. Une fois le premier déploiement fait (étape 6), appliquez les migrations Prisma contre cette base — voir §6.4.
+## 2. Prérequis
 
-### 1.2 Upstash (Redis managé)
+| Élément | Valeur en service |
+|---|---|
+| VPS | Hostinger, Ubuntu 24.04 LTS, 1 vCPU / 4 Go |
+| Domaine | `fluidevent.online` |
+| Enregistrements DNS | `@`, `api`, `storage` en `A` vers l'IP du VPS (`www` = CNAME vers `@`) |
+| Email | compte Resend avec le domaine vérifié |
+| Google OAuth | client avec l'URI de callback production déclarée |
 
-1. Créez un compte sur [upstash.com](https://upstash.com), créez une base Redis (région proche du VPS Hostinger).
-2. `Database → Details` : copiez l'URL **avec TLS** (commence par `rediss://`, pas `redis://`) → `REDIS_URL`. Le code (`ioredis`/BullMQ) accepte les deux, mais Upstash exige TLS sur son port public — utilisez bien la chaîne `rediss://` fournie par leur tableau de bord.
+> ⚠️ **`www` :** un CNAME `www → @` existe généralement déjà chez le registrar. Un nom ne peut pas porter à la fois un CNAME et un A — n'essayez pas d'ajouter un A sur `www`, le CNAME suffit et suit automatiquement `@`.
 
-### 1.3 Resend (email transactionnel)
-
-1. Créez un compte sur [resend.com](https://resend.com).
-2. **Domaine** — `Domains → Add Domain`, renseignez votre domaine Hostinger, ajoutez les enregistrements DNS demandés (SPF/DKIM, généralement 3 enregistrements `TXT`/`CNAME`) dans le panneau DNS Hostinger (`hPanel → Domaines → DNS / Nameservers`). Attendez la vérification (peut prendre jusqu'à 24h, généralement quelques minutes).
-3. **Clé API** — `API Keys → Create API Key` → `RESEND_API_KEY`. Avec cette clé configurée, `EmailService` utilise l'API HTTP Resend en priorité (voir `AI/ROADMAP.md` Phase 5) ; laissez `SMTP_*` vides si vous utilisez ce mode.
-4. `SMTP_FROM` doit être une adresse `@votredomaine.com` du domaine vérifié à l'étape précédente (ex. `noreply@votredomaine.com`) — Resend rejette l'envoi depuis un domaine non vérifié.
-
-### 1.4 (Optionnel V1) WhatsApp Business / Twilio SMS
-
-Ces deux canaux sont **complémentaires** à l'email (voir `AI/ROADMAP.md` Phase 5) — le déploiement fonctionne sans eux, ils dégradent silencieusement (skip) si absents.
-
-- **WhatsApp** (Meta Cloud API) : nécessite un compte Meta Business + un numéro WhatsApp Business + un template de message **approuvé manuellement** (catégorie UTILITY) avant tout envoi réel — voir `apps/api/.env.example` pour les 6 variables `WHATSAPP_*` et le détail dans `ROADMAP.md`. Non automatisable depuis ce guide.
-- **SMS** (Twilio) : compte Twilio, `TWILIO_ACCOUNT_SID`/`TWILIO_AUTH_TOKEN`/`TWILIO_SMS_FROM` (numéro Twilio acheté).
-
-## 2. Domaine Hostinger — pointer vers le VPS
-
-Une fois le VPS provisionné (§3) et son adresse IP publique connue :
-
-1. `hPanel → Domaines → [votredomaine.com] → DNS / Nameservers`.
-2. Ajoutez/éditez deux enregistrements **A** :
-   - `@` (racine) → IP du VPS
-   - `www` → IP du VPS (ou un `CNAME` vers `@`)
-3. Si l'API tourne sur un sous-domaine dédié (recommandé, ex. `api.votredomaine.com`) ajoutez un troisième enregistrement **A** `api` → même IP du VPS (Nginx route par `server_name`, voir §5.2).
-4. Propagation DNS : généralement quelques minutes à quelques heures.
-
-## 3. Provisionner le VPS Hostinger
-
-1. Achetez un plan VPS Hostinger (Ubuntu 22.04 LTS recommandé — image standard proposée à la commande).
-2. Connectez-vous en SSH avec l'IP fournie par Hostinger :
-   ```bash
-   ssh root@<IP_DU_VPS>
-   ```
-3. Installez Docker + Docker Compose plugin (script officiel) :
-   ```bash
-   curl -fsSL https://get.docker.com | sh
-   apt-get install -y docker-compose-plugin
-   ```
-4. Créez un utilisateur non-root pour l'exploitation courante (bonne pratique, pas strictement bloquant) :
-   ```bash
-   adduser deploy && usermod -aG docker deploy
-   ```
-
-## 4. Cloner le repo et préparer la configuration
+## 3. Préparation du serveur
 
 ```bash
-git clone https://github.com/<votre-org>/fluid-events.git
-cd fluid-events
+# Accès par clé uniquement — le mot de passe SSH ne doit jamais transiter.
+ssh-keygen -t ed25519 -f ~/.ssh/fluid_vps -N ""
+# puis ajouter ~/.ssh/fluid_vps.pub dans hPanel → VPS → Clés SSH
+
+ssh -i ~/.ssh/fluid_vps root@<IP>
 ```
 
-Créez le `.env` **à la racine du repo** (gitignored — jamais commité, voir `RULES.md`) avec toutes les valeurs récupérées aux étapes précédentes :
+Sur le serveur :
 
 ```bash
-# Base de données / cache (services managés, §1.1 / §1.2)
-DATABASE_URL="postgresql://postgres:<password>@<project-ref>.pooler.supabase.com:6543/postgres"
-REDIS_URL="rediss://default:<password>@<endpoint>.upstash.io:6379"
+# Swap — indispensable sur 1 vCPU : le build Next.js se fait tuer par l'OOM
+# killer sans lui.
+fallocate -l 4G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
+echo '/swapfile none swap sw 0 0' >> /etc/fstab
 
-# Storage (§1.1)
-STORAGE_ENDPOINT="https://<project-ref>.supabase.co/storage/v1/s3"
-STORAGE_ACCESS_KEY="..."
-STORAGE_SECRET_KEY="..."
-STORAGE_BUCKET="fluid-events"
-STORAGE_REGION="eu-west-1"
+# Docker est préinstallé sur l'image Hostinger ; sinon :
+curl -fsSL https://get.docker.com | sh
 
-# Email (§1.3)
-RESEND_API_KEY="re_..."
-SMTP_HOST=""
-SMTP_PORT=""
-SMTP_USER=""
-SMTP_PASSWORD=""
-SMTP_FROM="noreply@votredomaine.com"
-
-# URLs publiques — DOIVENT être en https:// (voir §5 pour le TLS)
-APP_URL="https://votredomaine.com"
-API_URL="https://api.votredomaine.com"
-
-# Secrets applicatifs — générez des valeurs aléatoires dédiées, JAMAIS les
-# mêmes que celles utilisées en dev (apps/api/.env) :
-#   openssl rand -hex 32   →  JWT_SECRET / JWT_REFRESH_SECRET / QR_SECRET
-#   openssl rand -hex 32   →  ENCRYPTION_KEY (32 bytes hex = 64 caractères)
-JWT_SECRET="..."
-JWT_REFRESH_SECRET="..."
-QR_SECRET="..."
-ENCRYPTION_KEY="..."
-
-# Google OAuth — voir §5.3 pour ajouter l'URI de callback production
-GOOGLE_CLIENT_ID="..."
-GOOGLE_CLIENT_SECRET="..."
-
-# Optionnel (§1.4) — laissez vide si non utilisé, dégrade silencieusement
-TWILIO_ACCOUNT_SID=""
-TWILIO_AUTH_TOKEN=""
-TWILIO_SMS_FROM=""
-WHATSAPP_ACCESS_TOKEN=""
-WHATSAPP_PHONE_NUMBER_ID=""
-
-# Requis par le service postgres local du compose (non utilisé pour les
-# données applicatives en prod — DATABASE_URL pointe vers Supabase — mais la
-# variable reste substituée par docker-compose.yml, voir §5.1)
-POSTGRES_USER="fluid_user"
-POSTGRES_PASSWORD="<mot de passe local, sans rapport avec Supabase>"
-POSTGRES_DB="fluid_events"
+apt-get update && apt-get install -y certbot
 ```
 
-⚠️ **Jamais de secret en clair dans un fichier tracké par git.** `docker-compose.yml`/`docker-compose.prod.yml` lisent tout via `${VAR}` depuis ce `.env` racine (gitignored) — ne recréez jamais le piège documenté dans `AI/ROADMAP.md` Phase 5 (une première version de ce projet avait commité des secrets en clair dans `docker-compose.yml`, bloqué avant push par le classificateur de sécurité de l'outil de dev, jamais reproduit depuis).
+## 4. Certificat TLS
 
-## 5. TLS et Nginx
-
-`docker/nginx/nginx.conf` route déjà `/api/*` vers le service `api` et le reste vers `web`, avec redirection HTTP→HTTPS automatique — mais deux choses doivent être adaptées à votre domaine avant le premier démarrage.
-
-### 5.1 Adapter `server_name`
-
-Éditez `docker/nginx/nginx.conf`, ligne du bloc `server { listen 443 ssl http2; ... }` :
-
-```nginx
-server_name fluid-events.com www.fluid-events.com;
-```
-
-→ remplacez par votre vrai domaine.
-
-### 5.2 Obtenir un certificat TLS (Let's Encrypt / certbot)
-
-Le plus simple : générer le certificat **avant** de démarrer la stack Docker (le port 80 doit être libre), avec `certbot` en mode standalone sur l'hôte :
+À faire **avant** de démarrer la stack : l'émission initiale utilise le mode `standalone`, qui exige le port 80 libre.
 
 ```bash
-apt-get install -y certbot
-certbot certonly --standalone -d votredomaine.com -d www.votredomaine.com -d api.votredomaine.com
+certbot certonly --standalone --non-interactive --agree-tos \
+  --register-unsafely-without-email \
+  -d fluidevent.online -d www.fluidevent.online \
+  -d api.fluidevent.online -d storage.fluidevent.online
 ```
 
-Copiez les certificats générés à l'emplacement attendu par `nginx.conf` (`ssl_certificate`/`ssl_certificate_key`) :
+> ⚠️ **Piège corrigé, à ne pas réintroduire.** Certbot enregistre `authenticator = standalone` dans sa configuration de renouvellement. Une fois Nginx démarré, le port 80 est occupé et **le renouvellement échoue silencieusement** — le site tombe en HTTPS au bout de 90 jours. Il faut basculer en `webroot` :
+>
+> ```bash
+> C=/etc/letsencrypt/renewal/fluidevent.online.conf
+> sed -i 's|^authenticator = standalone|authenticator = webroot|' $C
+> sed -i '/^authenticator = webroot/a webroot_path = /var/www/certbot,' $C
+> ```
+>
+> et ajouter un `renew_hook` qui recopie les certificats là où Nginx les lit puis le recharge. Vérifier avec `certbot renew --dry-run` — la sortie doit indiquer *« all simulated renewals succeeded »*.
+
+## 5. Code et configuration
 
 ```bash
-mkdir -p docker/nginx/ssl
-cp /etc/letsencrypt/live/votredomaine.com/fullchain.pem docker/nginx/ssl/cert.pem
-cp /etc/letsencrypt/live/votredomaine.com/privkey.pem docker/nginx/ssl/key.pem
+git clone --branch main https://github.com/<org>/fluid-events.git /opt/fluid-events
+cd /opt/fluid-events
+
+mkdir -p docker/nginx/ssl /var/www/certbot
+cp /etc/letsencrypt/live/<domaine>/fullchain.pem docker/nginx/ssl/cert.pem
+cp /etc/letsencrypt/live/<domaine>/privkey.pem  docker/nginx/ssl/key.pem
+chmod 600 docker/nginx/ssl/key.pem
 ```
 
-Renouvellement (certificats Let's Encrypt valides 90 jours) — ajoutez un cron qui renouvelle puis recopie les fichiers et recharge Nginx :
-
-```cron
-0 3 * * * certbot renew --quiet --deploy-hook "cp /etc/letsencrypt/live/votredomaine.com/fullchain.pem /path/to/fluid-events/docker/nginx/ssl/cert.pem && cp /etc/letsencrypt/live/votredomaine.com/privkey.pem /path/to/fluid-events/docker/nginx/ssl/key.pem && docker compose -f /path/to/fluid-events/docker-compose.yml -f /path/to/fluid-events/docker-compose.prod.yml restart nginx"
-```
-
-### 5.3 Mettre à jour le callback OAuth Google
-
-`docker-compose.prod.yml` calcule automatiquement `GOOGLE_CALLBACK_URL=${API_URL}/api/auth/google/callback` — mais Google refuse toute redirection vers une URI non déclarée. Dans la [Google Cloud Console](https://console.cloud.google.com) → `APIs & Services → Credentials` → votre OAuth Client ID → **Authorized redirect URIs**, ajoutez :
-
-```
-https://api.votredomaine.com/api/auth/google/callback
-```
-
-(en plus de l'URI de dev existante, à conserver si vous continuez à développer en local).
-
-## 6. Déployer
-
-### 6.1 Build et démarrage
+Le `.env` racine (gitignored, `chmod 600`). **Générez les secrets sur le serveur** plutôt que de les transporter :
 
 ```bash
+JWT_SECRET=$(openssl rand -hex 32)   # idem JWT_REFRESH_SECRET, QR_SECRET,
+                                     # ENCRYPTION_KEY, POSTGRES_PASSWORD,
+                                     # STORAGE_ACCESS_KEY, STORAGE_SECRET_KEY
+```
+
+Variables non générables, à renseigner à la main : `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `RESEND_API_KEY`.
+
+> L'API **refuse volontairement de démarrer** sans `GOOGLE_CLIENT_ID` — ce n'est pas une panne, c'est une garde.
+
+URLs à fixer :
+
+```bash
+APP_URL=https://fluidevent.online
+API_URL=https://api.fluidevent.online
+STORAGE_PUBLIC_ENDPOINT=https://storage.fluidevent.online
+SMTP_FROM=noreply@fluidevent.online   # doit être sur le domaine vérifié Resend
+```
+
+> `STORAGE_ENDPOINT` (interne, `http://minio:9000`) et `STORAGE_PUBLIC_ENDPOINT` (public) sont **distincts à dessein** : le premier sert aux dépôts via le réseau Docker, le second est ce que voient les navigateurs. Les confondre stocke en base des URLs pointant vers un hôte injoignable depuis l'extérieur.
+
+## 6. Google OAuth
+
+Google Cloud Console → *APIs & Services* → *Credentials* → votre client :
+
+- **Authorized redirect URIs** : `https://api.fluidevent.online/api/auth/google/callback`
+- **Authorized JavaScript origins** : `https://fluidevent.online`
+
+## 7. Démarrage
+
+```bash
+cd /opt/fluid-events
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 ```
 
-`docker-compose.prod.yml` désactive `mailpit`/`rustfs` (profil `dev` uniquement), construit `api`/`web` avec `target: production` des `Dockerfile` multi-stage existants, et retire les volumes/ports de dev. Les services `postgres`/`redis` locaux du compose de base restent définis (utilisés par défaut par `docker compose config` pour la validation) mais **ne sont pas la source de vérité applicative** en prod : `DATABASE_URL`/`REDIS_URL` pointent vers Supabase/Upstash, ces conteneurs locaux tournent en parallèle sans être réellement utilisés — vous pouvez les retirer complètement du fichier de base si vous préférez un compose de prod strictement minimal, non fait ici pour rester cohérent avec le mode hybride déjà utilisé tout au long du développement (voir `ROADMAP.md` Phase 5, §"Docker compose dev complet").
+Le build prend une quinzaine de minutes sur 1 vCPU.
 
-### 6.2 Vérifier que tout a démarré
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.prod.yml ps
-docker compose -f docker-compose.yml -f docker-compose.prod.yml logs -f api
-```
-
-Cherchez la ligne `Nest application successfully started` côté `api`, et l'absence d'erreur `EADDRINUSE`/`ECONNREFUSED`.
-
-### 6.3 Health check
+Migrations — noter le répertoire de travail, le schéma n'est pas à la racine de l'image :
 
 ```bash
-curl -I https://votredomaine.com/health   # doit répondre 200 "healthy" (bloc Nginx dédié)
-curl -I https://api.votredomaine.com/api/admin/overview   # doit répondre 401 (route protégée, mais joignable)
+docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+  exec -T -w /app/apps/api api npx prisma migrate deploy
 ```
 
-### 6.4 Appliquer les migrations Prisma sur Supabase
+### Premier compte administrateur
 
-Depuis le conteneur `api` déjà démarré (il contient déjà le client Prisma généré au build) :
+Aucune UI ne crée un `SUPER_ADMIN`. L'authentification étant Google, on ne peut pas préparer le compte à l'avance (le `googleId` n'est pas connu). La marche à suivre :
+
+1. Se connecter une fois via `https://api.fluidevent.online/api/auth/google?redirect=https://fluidevent.online` — cela crée un compte `CLIENT`.
+2. Le promouvoir :
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.prod.yml exec api npx prisma migrate deploy
+docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T postgres \
+  psql -U fluid_user -d fluid_events \
+  -c "update users set role='SUPER_ADMIN' where email='<votre-email>';"
 ```
 
-`migrate deploy` (contrairement à `migrate dev`) est non-interactif et n'applique que les migrations déjà commitées dans `apps/api/prisma/migrations/` — c'est la commande sûre à utiliser en production, jamais `migrate dev` ni `db push`.
+## 8. Vérifications
 
-### 6.5 Créer le premier compte Admin
+```bash
+curl -I https://fluidevent.online/health                    # 200
+curl -I https://api.fluidevent.online/api/admin/overview    # 401 = protégé et joignable
+curl -I https://storage.fluidevent.online/<bucket>/<objet>  # 200 sur un objet public
+```
 
-Aucune UI ne crée un `SUPER_ADMIN` (cohérent avec le reste du projet — un compte Admin ne s'auto-crée jamais). Deux options :
+> Un `403` sur `https://storage.<domaine>/` seul est **normal** : lister les buckets exige une authentification. Ce qui compte est la lecture d'un objet.
 
-- Adapter `apps/api/prisma/seed.ts` pour ne créer qu'un compte `SUPER_ADMIN` réel (pas les comptes de test `@fluid-events.test`) et l'exécuter une fois : `docker compose ... exec api npx prisma db seed` — **à faire avec un seed dédié à la prod**, ne réutilisez jamais le seed de dev tel quel (il crée aussi des comptes de test avec des mots de passe connus).
-- Ou insérer directement une ligne dans `users` via `psql`/le SQL Editor Supabase, avec `passwordHash` généré par `bcrypt.hash(password, 10)` (voir `apps/api/src/auth/auth-orchestrator.service.ts` pour la convention exacte) — puis se connecter via `POST /api/auth/login` et inviter les autres Managers depuis l'UI Admin (`/admin/managers`, voir `ROADMAP.md` Phase 5).
+## 9. Sauvegardes
 
-## 7. Après le premier déploiement
+`scripts/backup-db.sh`, en cron quotidien :
 
-- **Paiements** — Kkiapay/CinetPay/FedaPay se configurent désormais **par événement**, depuis le tableau de bord Admin (`/admin` → panneau paiement par manager, ou directement `PUT /api/admin/events/:eventId/payment-config`), pas via des variables d'environnement (voir `ROADMAP.md` Phase 2 §"Config paiement par événement"). Rien à faire ici au niveau infra.
-- **Webhooks providers** — configurez dans chaque dashboard provider (Kkiapay/CinetPay/FedaPay) l'URL `https://api.votredomaine.com/api/payments/webhook/<provider>`.
-- **Surveillance** — `docker compose ... logs -f api web nginx` pour un suivi manuel ; aucune solution de monitoring/alerting n'est mise en place par ce projet à ce stade (hors périmètre actuel, voir `ROADMAP.md` §5).
-- **Sauvegardes** — gérées par Supabase (PITR selon le plan souscrit) pour la base de données ; le bucket Storage suit la politique de rétention Supabase par défaut.
-- **Mise à jour** — `git pull && docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build` puis rejouer §6.4 si de nouvelles migrations existent.
+```cron
+0 3 * * * cd /opt/fluid-events && ./scripts/backup-db.sh >> /var/log/fluid-backup.log 2>&1
+```
 
-## 8. Limitations connues de ce guide
+Écrit dans un `.partial` renommé seulement en cas de succès, refuse les dumps anormalement petits, rotation à 14 jours.
 
-- Non testé en conditions réelles (aucun VPS/compte Supabase/Upstash/Resend réel disponible au moment de la rédaction) — contrairement au reste de ce projet où chaque fonctionnalité a été vérifiée en conditions Docker réelles. Le fichier `docker-compose.prod.yml` référencé a été validé syntaxiquement (`docker compose config`, aucune erreur, cycle de dépendance `api ↔ nginx` détecté et corrigé au passage) mais pas exécuté contre de vrais services managés.
-- Le service `redis` local du compose de base reste défini même en prod (non utilisé si `REDIS_URL` pointe vers Upstash) — nettoyage possible mais non fait, voir §6.1.
+**Restauration :**
+
+```bash
+gunzip -c /var/backups/fluid-events/<archive>.sql.gz | \
+  docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+  exec -T postgres psql -U fluid_user -d fluid_events
+```
+
+> ⚠️ Les sauvegardes sont **sur le même VPS** que la base. Cela protège d'une erreur logicielle, pas de la perte du serveur. Une copie externe reste à mettre en place.
+
+## 10. Mise à jour
+
+```bash
+cd /opt/fluid-events && git pull
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+# puis §7 (migrations) si de nouvelles migrations existent
+```
+
+## 11. Pièges rencontrés en conditions réelles
+
+Tous ont été corrigés dans le dépôt ; ils sont listés pour éviter leur réintroduction.
+
+| Symptôme | Cause |
+|---|---|
+| Nginx ne démarre pas | `image: nginx:latest-alpine` — ce tag n'existe pas, c'est `nginx:alpine` |
+| Base exposée sur Internet | `ports: []` **ne vide pas** une liste : Compose concatène les séquences. Il faut `ports: !reset []` |
+| MinIO tourne en prod malgré le profil `dev` | Le profil visait un service `rustfs` inexistant — il s'appelle `minio` |
+| Le navigateur appelle `localhost` en prod | Next.js fige les `NEXT_PUBLIC_*` **au build** : ils doivent passer par `build.args`, pas seulement `environment` |
+| HTTPS tombe après 90 jours | Renouvellement resté en `standalone` alors que Nginx occupe le port 80 (voir §4) |
+
+## 12. Points ouverts
+
+- **Pare-feu** — non installé. La surface réelle est déjà limitée à 22/80/443, et Docker manipule directement iptables (UFW ne contrôlerait pas les ports publiés). L'authentification SSH par mot de passe est en revanche à désactiver.
+- **Sauvegardes hors-site** — voir §9.
+- **Supervision** — aucune. Suivi manuel par `docker compose logs`.
