@@ -20,6 +20,9 @@ services:
     volumes:
       - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./docker/nginx/ssl:/etc/nginx/ssl:ro
+      # Racine servie pour `/.well-known/acme-challenge/` : permet à certbot
+      # de renouveler le certificat en mode webroot, sans arrêter Nginx.
+      - /var/www/certbot:/var/www/certbot:ro
     ports:
       - "80:80"
       - "443:443"
