@@ -29,16 +29,24 @@ export function ThemeToggle({ className }: { className?: string }) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
+  // ⚠️ `mounted` doit gouverner TOUT ce qui dépend de `resolvedTheme`, pas
+  // seulement l'icône. L'`aria-label` lisait `resolvedTheme` directement :
+  // rendu côté serveur il valait `undefined` ("Passer au thème sombre"), puis
+  // "Passer au thème clair" après hydratation si le visiteur était en sombre —
+  // React signalait la divergence et abandonnait la réconciliation de ce
+  // sous-arbre (erreur d'hydratation visible sur toutes les pages publiques).
+  const isDark = mounted && resolvedTheme === 'dark';
+
   return (
     <Button
       type="button"
       variant="ghost"
       size="icon"
-      aria-label={resolvedTheme === 'dark' ? 'Passer au thème clair' : 'Passer au thème sombre'}
+      aria-label={isDark ? 'Passer au thème clair' : 'Passer au thème sombre'}
       onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
       className={className}
     >
-      {mounted && resolvedTheme === 'dark' ? <Sun className="size-4" /> : <Moon className="size-4" />}
+      {isDark ? <Sun className="size-4" /> : <Moon className="size-4" />}
     </Button>
   );
 }
