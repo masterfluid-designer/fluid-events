@@ -5,7 +5,6 @@ import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { Mail, ShieldAlert, Ticket, ArrowRight } from "lucide-react";
-import Header from "@/components/Header";
 import Lines from "@/components/Lines";
 import { BrandIcon } from "@/components/brand/brand-logo";
 
@@ -82,10 +81,13 @@ function LoginForm() {
 
   return (
     <>
-      <Header />
-      <main className="relative overflow-hidden">
+      {/* Pas de header ni de footer sur les écrans d'authentification : rien
+          ne doit détourner de l'action en cours. Le padding haut d'origine
+          (pt-32.5) ne servait qu'à dégager le header fixe — il laisserait un
+          grand vide maintenant, d'où le centrage vertical. */}
+      <main className="relative flex min-h-svh items-center overflow-hidden">
         <Lines />
-        <section className="pb-12.5 pt-32.5 lg:pb-25 lg:pt-45 xl:pb-30 xl:pt-50">
+        <section className="w-full py-12">
           <div className="relative z-1 mx-auto max-w-125 px-4">
             <motion.div
               variants={{

@@ -5,7 +5,6 @@ import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { KeyRound, ShieldAlert, ArrowRight, CheckCircle2 } from "lucide-react";
-import Header from "@/components/Header";
 import Lines from "@/components/Lines";
 
 /**
@@ -63,10 +62,11 @@ function SetPasswordForm() {
 
   return (
     <>
-      <Header />
-      <main className="relative overflow-hidden">
+      {/* Pas de header ni de footer sur les écrans d'authentification — voir
+          auth/login/page.tsx pour le même parti pris. */}
+      <main className="relative flex min-h-svh items-center overflow-hidden">
         <Lines />
-        <section className="pb-12.5 pt-32.5 lg:pb-25 lg:pt-45 xl:pb-30 xl:pt-50">
+        <section className="w-full py-12">
           <div className="relative z-1 mx-auto max-w-125 px-4">
             <motion.div
               variants={{
