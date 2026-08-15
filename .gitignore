@@ -47,3 +47,10 @@ Thumbs.db
 *.log
 npm-debug.log*
 pnpm-debug.log*
+
+# Sources de polices : seuls les .woff2 sont versionnés (18 Mo contre 152 Mo,
+# et c'est le seul format que servent les navigateurs). Les .ttf d'origine
+# restent sur disque pour pouvoir reconvertir, sans peser dans l'historique.
+apps/web/fonts/**/*.ttf
+apps/web/fonts/**/OFL.txt
+apps/web/fonts/**/README.txt

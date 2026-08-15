@@ -224,15 +224,26 @@ export type BlockType =
 // mappe chaque clé vers une police next/font (apps/web/lib/event-fonts.ts).
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Polices proposées aux organisateurs. Doit rester aligné avec `EVENT_FONTS`
+ * (apps/web/lib/event-fonts.ts) : cette liste est ce que le backend valide à
+ * l'écriture du thème, l'autre est ce qui charge réellement les fichiers.
+ *
+ * Un thème enregistré avec une clé retirée d'ici n'est pas cassé pour autant :
+ * la validation ne s'applique qu'aux écritures, et `resolveEventFont` retombe
+ * sur la police par défaut à l'affichage.
+ */
 export const EVENT_FONT_KEYS = [
-  'newsreader',
+  'inter',
   'space-grotesk',
-  'archivo-black',
   'anton',
   'bebas-neue',
   'poppins',
-  'dm-sans',
   'playfair-display',
+  'montserrat',
+  'datatype',
+  'google-sans-flex',
+  'alex-brush',
 ] as const;
 
 export type EventFontKey = (typeof EVENT_FONT_KEYS)[number];

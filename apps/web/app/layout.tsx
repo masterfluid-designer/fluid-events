@@ -1,27 +1,37 @@
 import type { Metadata } from "next";
-import { Inter, Newsreader, Space_Grotesk } from "next/font/google";
+import localFont from "next/font/local";
 
 import "./globals.css";
 import { Providers } from "@/components/providers";
 
-const fontSans = Inter({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
+// Fichiers versionnés (apps/web/fonts/) plutôt que téléchargés au build : une
+// coupure passagère vers fonts.gstatic.com a déjà produit une image de
+// production incomplète sans faire échouer le build. Voir lib/event-fonts.ts.
+// Les fichiers variables couvrent toutes les graisses en un seul fichier.
+const fontSans = localFont({
+  src: [
+    { path: "../fonts/Inter/Inter-VariableFont_opsz,wght.woff2", style: "normal" },
+    { path: "../fonts/Inter/Inter-Italic-VariableFont_opsz,wght.woff2", style: "italic" },
+  ],
   variable: "--font-sans",
 });
 
-const fontSerif = Newsreader({
-  subsets: ["latin"],
-  weight: ["400", "500"],
-  style: ["normal", "italic"],
+// Serif du site (--font-serif). Playfair Display remplace Newsreader, qui
+// était la dernière police encore téléchargée au build : plus aucun appel à
+// fonts.gstatic.com pendant la compilation, donc plus de build capable de
+// réussir en produisant une image sans polices.
+const fontSerif = localFont({
+  src: [
+    { path: "../fonts/Playfair_Display/PlayfairDisplay-VariableFont_wght.woff2", style: "normal" },
+    { path: "../fonts/Playfair_Display/PlayfairDisplay-Italic-VariableFont_wght.woff2", style: "italic" },
+  ],
   variable: "--font-serif",
 });
 
 // Titres de la landing (Hero, sections, etc.) — pas le sans-serif par défaut
 // du site, voir globals.css --font-space-grotesk.
-const fontSpaceGrotesk = Space_Grotesk({
-  subsets: ["latin"],
-  weight: ["500", "600", "700"],
+const fontSpaceGrotesk = localFont({
+  src: "../fonts/Space_Grotesk/SpaceGrotesk-VariableFont_wght.woff2",
   variable: "--font-space-grotesk",
 });
 

@@ -1,13 +1,4 @@
-import {
-  Anton,
-  Archivo_Black,
-  Bebas_Neue,
-  DM_Sans,
-  Newsreader,
-  Playfair_Display,
-  Poppins,
-  Space_Grotesk,
-} from 'next/font/google';
+import localFont from 'next/font/local';
 import type { EventFontKey } from '@saas-events/types';
 
 /**
@@ -15,76 +6,110 @@ import type { EventFontKey } from '@saas-events/types';
  * (décision produit : chaque événement choisit son identité typographique,
  * plutôt qu'une police unique imposée à tous les clients du SaaS).
  *
- * Toutes sont auto-hébergées par `next/font/google` (aucune requête vers
- * fonts.googleapis.com au runtime). `preload: false` sur toutes : le choix
- * n'est connu qu'à l'exécution, précharger les 8 pénaliserait chaque page
- * pour 7 polices inutilisées — le navigateur ne télécharge que la famille
+ * Les fichiers sont VERSIONNÉS dans `apps/web/fonts/` et chargés via
+ * `next/font/local`, plus via `next/font/google`. Motif : `next/font/google`
+ * télécharge les fichiers pendant le build, et une coupure passagère vers
+ * `fonts.gstatic.com` a déjà produit une image de production incomplète sans
+ * faire échouer le build. Des fichiers locaux rendent le build reproductible
+ * et indépendant du réseau du serveur.
+ *
+ * `preload: false` partout : le choix de police n'est connu qu'à l'exécution
+ * (il vient du thème de l'événement), précharger les 10 pénaliserait chaque
+ * page pour 9 polices inutilisées. Le navigateur ne télécharge que la famille
  * réellement référencée par `font-family`.
+ *
+ * On utilise les fichiers VARIABLES quand ils existent : un seul fichier
+ * couvre toutes les graisses, au lieu d'en déclarer une par poids.
+ *
+ * ⚠️ Les chemins de `next/font/local` sont analysés à la compilation : ils
+ * doivent être écrits littéralement. Impossible de parcourir le dossier pour
+ * découvrir les polices — toute police déposée doit être déclarée ici.
  *
  * ⚠️ Les clés DOIVENT rester alignées avec `EVENT_FONT_KEYS`
  * (packages/types) — c'est cette liste que le backend valide à l'écriture.
  */
 
-const newsreader = Newsreader({
-  subsets: ['latin'],
-  weight: ['400', '500', '600'],
-  variable: '--font-event-newsreader',
+const inter = localFont({
+  src: [
+    { path: '../fonts/Inter/Inter-VariableFont_opsz,wght.woff2', style: 'normal' },
+    { path: '../fonts/Inter/Inter-Italic-VariableFont_opsz,wght.woff2', style: 'italic' },
+  ],
+  variable: '--font-event-inter',
   preload: false,
   display: 'swap',
 });
 
-const spaceGrotesk = Space_Grotesk({
-  subsets: ['latin'],
-  weight: ['500', '600', '700'],
+const spaceGrotesk = localFont({
+  src: '../fonts/Space_Grotesk/SpaceGrotesk-VariableFont_wght.woff2',
   variable: '--font-event-space-grotesk',
   preload: false,
   display: 'swap',
 });
 
-const archivoBlack = Archivo_Black({
-  subsets: ['latin'],
-  weight: ['400'],
-  variable: '--font-event-archivo-black',
-  preload: false,
-  display: 'swap',
-});
-
-const anton = Anton({
-  subsets: ['latin'],
-  weight: ['400'],
+const anton = localFont({
+  src: '../fonts/anton/Anton-Regular.woff2',
   variable: '--font-event-anton',
   preload: false,
   display: 'swap',
 });
 
-const bebasNeue = Bebas_Neue({
-  subsets: ['latin'],
-  weight: ['400'],
+const bebasNeue = localFont({
+  src: '../fonts/Bebas_Neue/BebasNeue-Regular.woff2',
   variable: '--font-event-bebas-neue',
   preload: false,
   display: 'swap',
 });
 
-const poppins = Poppins({
-  subsets: ['latin'],
-  weight: ['500', '600', '700'],
+const poppins = localFont({
+  src: [
+    { path: '../fonts/poppins/Poppins-Regular.woff2', weight: '400', style: 'normal' },
+    { path: '../fonts/poppins/Poppins-Medium.woff2', weight: '500', style: 'normal' },
+    { path: '../fonts/poppins/Poppins-SemiBold.woff2', weight: '600', style: 'normal' },
+    { path: '../fonts/poppins/Poppins-Bold.woff2', weight: '700', style: 'normal' },
+    { path: '../fonts/poppins/Poppins-Italic.woff2', weight: '400', style: 'italic' },
+  ],
   variable: '--font-event-poppins',
   preload: false,
   display: 'swap',
 });
 
-const dmSans = DM_Sans({
-  subsets: ['latin'],
-  weight: ['500', '700'],
-  variable: '--font-event-dm-sans',
+const playfairDisplay = localFont({
+  src: [
+    { path: '../fonts/Playfair_Display/PlayfairDisplay-VariableFont_wght.woff2', style: 'normal' },
+    { path: '../fonts/Playfair_Display/PlayfairDisplay-Italic-VariableFont_wght.woff2', style: 'italic' },
+  ],
+  variable: '--font-event-playfair-display',
   preload: false,
   display: 'swap',
 });
 
-const playfairDisplay = Playfair_Display({
-  subsets: ['latin'],
-  weight: ['500', '600', '700'],
-  variable: '--font-event-playfair-display',
+const montserrat = localFont({
+  src: [
+    { path: '../fonts/Montserrat/Montserrat-VariableFont_wght.woff2', style: 'normal' },
+    { path: '../fonts/Montserrat/Montserrat-Italic-VariableFont_wght.woff2', style: 'italic' },
+  ],
+  variable: '--font-event-montserrat',
+  preload: false,
+  display: 'swap',
+});
+
+const datatype = localFont({
+  src: '../fonts/Datatype/Datatype-VariableFont_wdth,wght.woff2',
+  variable: '--font-event-datatype',
+  preload: false,
+  display: 'swap',
+});
+
+const googleSansFlex = localFont({
+  src: '../fonts/Google_Sans_Flex/GoogleSansFlex-VariableFont_GRAD,ROND,opsz,slnt,wdth,wght.woff2',
+  variable: '--font-event-google-sans-flex',
+  preload: false,
+  display: 'swap',
+});
+
+const alexBrush = localFont({
+  src: '../fonts/Alex_Brush/AlexBrush-Regular.woff2',
+  variable: '--font-event-alex-brush',
   preload: false,
   display: 'swap',
 });
@@ -116,13 +141,13 @@ export interface EventFontDefinition {
 }
 
 export const EVENT_FONTS: Record<EventFontKey, EventFontDefinition> = {
-  newsreader: {
-    key: 'newsreader',
-    label: 'Newsreader',
-    hint: 'Serif éditoriale — le style actuel',
-    className: newsreader.className,
-    variableClassName: newsreader.variable,
-    variable: '--font-event-newsreader',
+  inter: {
+    key: 'inter',
+    label: 'Inter',
+    hint: 'Sans-serif neutre, très lisible',
+    className: inter.className,
+    variableClassName: inter.variable,
+    variable: '--font-event-inter',
   },
   'space-grotesk': {
     key: 'space-grotesk',
@@ -131,15 +156,6 @@ export const EVENT_FONTS: Record<EventFontKey, EventFontDefinition> = {
     className: spaceGrotesk.className,
     variableClassName: spaceGrotesk.variable,
     variable: '--font-event-space-grotesk',
-  },
-  'archivo-black': {
-    key: 'archivo-black',
-    label: 'Archivo Black',
-    hint: 'Display très grasse, fort impact',
-    className: archivoBlack.className,
-    variableClassName: archivoBlack.variable,
-    variable: '--font-event-archivo-black',
-    tight: true,
   },
   anton: {
     key: 'anton',
@@ -167,14 +183,6 @@ export const EVENT_FONTS: Record<EventFontKey, EventFontDefinition> = {
     variableClassName: poppins.variable,
     variable: '--font-event-poppins',
   },
-  'dm-sans': {
-    key: 'dm-sans',
-    label: 'DM Sans',
-    hint: 'Neutre et lisible',
-    className: dmSans.className,
-    variableClassName: dmSans.variable,
-    variable: '--font-event-dm-sans',
-  },
   'playfair-display': {
     key: 'playfair-display',
     label: 'Playfair Display',
@@ -183,10 +191,42 @@ export const EVENT_FONTS: Record<EventFontKey, EventFontDefinition> = {
     variableClassName: playfairDisplay.variable,
     variable: '--font-event-playfair-display',
   },
+  montserrat: {
+    key: 'montserrat',
+    label: 'Montserrat',
+    hint: 'Sans-serif large, allure urbaine',
+    className: montserrat.className,
+    variableClassName: montserrat.variable,
+    variable: '--font-event-montserrat',
+  },
+  datatype: {
+    key: 'datatype',
+    label: 'Datatype',
+    hint: 'Technique, largeurs multiples',
+    className: datatype.className,
+    variableClassName: datatype.variable,
+    variable: '--font-event-datatype',
+  },
+  'google-sans-flex': {
+    key: 'google-sans-flex',
+    label: 'Google Sans Flex',
+    hint: 'Sans-serif souple et moderne',
+    className: googleSansFlex.className,
+    variableClassName: googleSansFlex.variable,
+    variable: '--font-event-google-sans-flex',
+  },
+  'alex-brush': {
+    key: 'alex-brush',
+    label: 'Alex Brush',
+    hint: 'Manuscrite élégante, pour événements festifs',
+    className: alexBrush.className,
+    variableClassName: alexBrush.variable,
+    variable: '--font-event-alex-brush',
+  },
 };
 
-/** Police par défaut si l'organisateur n'a rien choisi — identité actuelle. */
-export const DEFAULT_EVENT_FONT: EventFontKey = 'newsreader';
+/** Police par défaut si l'organisateur n'a rien choisi. */
+export const DEFAULT_EVENT_FONT: EventFontKey = 'playfair-display';
 
 export function resolveEventFont(key: string | undefined | null): EventFontDefinition {
   if (key && key in EVENT_FONTS) return EVENT_FONTS[key as EventFontKey];
@@ -197,10 +237,10 @@ export function resolveEventFont(key: string | undefined | null): EventFontDefin
  * Toutes les classes-VARIABLES next/font, à poser une fois sur le conteneur
  * de la page publique : chacune déclare sa `@font-face` et sa variable
  * `--font-event-*`, sans imposer de `font-family`. C'est ensuite
- * `--font-event-display` (voir event-theme.ts) qui pointe vers celle choisie.
+ * `--font-event` (voir event-theme.ts) qui pointe vers celle choisie.
  *
  * ⚠️ Bien `variableClassName` et non `className` : ce dernier appliquerait
- * les 8 polices en cascade sur tout le sous-arbre et ne définirait aucune
+ * les polices en cascade sur tout le sous-arbre et ne définirait aucune
  * variable.
  */
 export const ALL_EVENT_FONT_CLASSNAMES = Object.values(EVENT_FONTS)
