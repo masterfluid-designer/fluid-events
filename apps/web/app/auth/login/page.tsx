@@ -10,7 +10,12 @@ import { BrandIcon } from "@/components/brand/brand-logo";
 
 function LoginForm() {
   const searchParams = useSearchParams();
-  const redirectTo = searchParams.get("redirect") ?? "/";
+  // Distinguer « cible explicitement demandée » de « aucune cible » : sans
+  // cette distinction on envoyait `redirect=/` au backend, qui l'honorait et
+  // ramenait tout le monde sur la page d'accueil — y compris un Admin, qui
+  // n'atteignait donc jamais son tableau de bord.
+  const explicitRedirect = searchParams.get("redirect");
+  const redirectTo = explicitRedirect ?? "/";
   const [scannerMode, setScannerMode] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -21,8 +26,12 @@ function LoginForm() {
 
   function handleGoogleLogin() {
     const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "";
-    const params = new URLSearchParams({ redirect: redirectTo });
-    window.location.href = `${apiBase}/api/auth/google?${params.toString()}`;
+    // Sans cible explicite, on n'envoie PAS de `redirect` : le backend
+    // retombe alors sur /auth/callback, qui oriente selon le rôle.
+    const query = explicitRedirect
+      ? `?${new URLSearchParams({ redirect: explicitRedirect })}`
+      : "";
+    window.location.href = `${apiBase}/api/auth/google${query}`;
   }
 
   /** Login email/password simple — comptes de test CLIENT/MANAGER/SUPER_ADMIN. */
