@@ -15,13 +15,13 @@ export const TO_FILL = 'À COMPLÉTER';
 
 /** Identité de l'éditeur — à renseigner avant toute exploitation commerciale. */
 export const publisher = {
-  legalName: TO_FILL,
-  legalForm: TO_FILL,
-  address: TO_FILL,
-  registration: TO_FILL,
-  director: TO_FILL,
+  legalName: 'Fluid Events',
+  legalForm: 'PME',
+  address: '63 Rue galinas bè pas desouza, lomé, Togo',
+  registration: '123456789',
+  director: "Eric KOUASSI",
   email: 'contact@fluidevent.online',
-  phone: TO_FILL,
+  phone: "987654321",
 };
 
 export const host = {
