@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Spinner } from '@/components/ui/spinner';
-import { api } from '@/lib/api';
+import { api, ApiError } from '@/lib/api';
 
 /**
  * Destination post-connexion, quand aucune cible précise n'a été demandée
@@ -31,15 +31,28 @@ export default function AuthCallbackPage() {
     let annule = false;
 
     (async () => {
-      try {
-        const me = await api<{ role?: string }>('/api/auth/me');
-        if (annule) return;
-        router.replace(DESTINATIONS[me?.role ?? ''] ?? '/');
-      } catch {
-        // Session illisible (cookie non posé, API injoignable) : on ne laisse
-        // pas l'utilisateur sur un écran de chargement infini.
-        if (!annule) router.replace('/');
+      // On réessaie avant d'abandonner : l'API peut être indisponible une ou
+      // deux secondes (redéploiement, conteneur qui redémarre). Sans cette
+      // reprise, un utilisateur authentifié avec succès se retrouve renvoyé
+      // sur l'accueil pour un simple 502 passager — cas réellement observé
+      // en production, l'API redémarrant à l'instant du retour OAuth.
+      for (let tentative = 0; tentative < 3; tentative++) {
+        try {
+          const me = await api<{ role?: string }>('/api/auth/me');
+          if (annule) return;
+          router.replace(DESTINATIONS[me?.role ?? ''] ?? '/');
+          return;
+        } catch (err) {
+          // 401 = pas de session : inutile d'insister, le résultat ne
+          // changera pas. Seules les pannes réseau/serveur méritent un retry.
+          if (err instanceof ApiError && err.status === 401) break;
+          if (annule) return;
+          await new Promise((r) => setTimeout(r, 800));
+        }
       }
+      // Ni session lisible, ni API joignable : on renvoie à l'accueil plutôt
+      // que de laisser un écran de chargement sans issue.
+      if (!annule) router.replace('/');
     })();
 
     return () => {
