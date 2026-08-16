@@ -21,8 +21,18 @@ export function middleware(request: NextRequest) {
   );
 
   if (isProtected && !token) {
-    const loginUrl = new URL('/auth/login', request.url);
-    loginUrl.searchParams.set('redirect', encodeURIComponent(request.url));
+    // `request.nextUrl` et non `request.url` : derrière Nginx, `request.url`
+    // porte l'adresse INTERNE du conteneur (http://localhost:3000/...), qui
+    // se retrouvait telle quelle dans l'URL de retour.
+    const loginUrl = request.nextUrl.clone();
+    loginUrl.pathname = '/auth/login';
+    loginUrl.search = '';
+    // Chemin relatif, pas une URL absolue : c'est ce que le backend accepte
+    // pour la redirection post-OAuth, et cela évite d'exposer un hôte.
+    // Pas d'encodeURIComponent ici — `searchParams.set` encode déjà, et
+    // encoder deux fois produisait `%253A`, que le backend renvoyait ensuite
+    // en chemin littéral (`/https%3A%2F%2F...` → 404).
+    loginUrl.searchParams.set('redirect', pathname + request.nextUrl.search);
     return NextResponse.redirect(loginUrl);
   }
 

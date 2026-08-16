@@ -119,6 +119,10 @@ services:
       WHATSAPP_VERIFICATION_TEMPLATE_NAME: ${WHATSAPP_VERIFICATION_TEMPLATE_NAME:-phone_verification}
       WHATSAPP_VERIFICATION_TEMPLATE_LANG: ${WHATSAPP_VERIFICATION_TEMPLATE_LANG:-fr}
       CORS_ORIGIN: ${APP_URL}
+      # Partage les cookies d'auth entre `<domaine>` (front) et `api.<domaine>`.
+      # Sans cela le middleware Next.js, qui tourne sur le domaine nu, ne voit
+      # jamais le cookie posé par l'API et renvoie en boucle vers la connexion.
+      COOKIE_DOMAIN: ${COOKIE_DOMAIN:-}
       LOG_LEVEL: info
     # Image immuable : aucun bind mount de code en production.
     volumes: !reset []

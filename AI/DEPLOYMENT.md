@@ -112,7 +112,15 @@ APP_URL=https://fluidevent.online
 API_URL=https://api.fluidevent.online
 STORAGE_PUBLIC_ENDPOINT=https://storage.fluidevent.online
 SMTP_FROM=noreply@fluidevent.online   # doit être sur le domaine vérifié Resend
+COOKIE_DOMAIN=.fluidevent.online      # le point initial n’est pas décoratif
 ```
+
+> `COOKIE_DOMAIN` fait partager les cookies d’authentification entre le front
+> (`fluidevent.online`) et l’API (`api.fluidevent.online`). Omis, le cookie
+> reste cantonné au sous-domaine de l’API : le middleware Next.js ne le voit
+> jamais et renvoie en boucle vers la connexion, même après une
+> authentification réussie — tableau de bord inatteignable. En local on le
+> laisse **vide** (tout tient sur `localhost`).
 
 > `STORAGE_ENDPOINT` (interne, `http://minio:9000`) et `STORAGE_PUBLIC_ENDPOINT` (public) sont **distincts à dessein** : le premier sert aux dépôts via le réseau Docker, le second est ce que voient les navigateurs. Les confondre stocke en base des URLs pointant vers un hôte injoignable depuis l'extérieur.
 

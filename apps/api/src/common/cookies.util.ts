@@ -1,10 +1,32 @@
 import { Response } from 'express';
 
+/**
+ * `domain` : en production l'API vit sur `api.<domaine>` et le front sur
+ * `<domaine>`. Sans cet attribut, le cookie posé par l'API reste cantonné à
+ * `api.<domaine>` — le middleware Next.js, qui tourne sur le domaine nu, ne
+ * peut alors JAMAIS le voir et renvoie indéfiniment vers la connexion, y
+ * compris après une authentification réussie (bug réel : dashboard
+ * inatteignable). Le point initial le partage avec tous les sous-domaines.
+ *
+ * Laissé vide en dev (tout est sur `localhost`, où un `domain` explicite
+ * poserait plus de problèmes qu'il n'en résout).
+ */
+const COOKIE_DOMAIN = process.env.COOKIE_DOMAIN?.trim() || undefined;
+
 const COOKIE_BASE = {
   httpOnly: true,
   secure: process.env.NODE_ENV === 'production',
   sameSite: 'lax' as const,
+  ...(COOKIE_DOMAIN ? { domain: COOKIE_DOMAIN } : {}),
 };
+
+/**
+ * Attributs à reproduire pour EFFACER un cookie. Le navigateur considère
+ * `domain` et `path` comme faisant partie de l'identité du cookie : un
+ * `clearCookie` qui ne les répète pas échoue silencieusement — le cookie
+ * reste posé et l'utilisateur paraît toujours connecté.
+ */
+const clearOptions = COOKIE_DOMAIN ? { domain: COOKIE_DOMAIN } : {};
 
 /** Pose les cookies httpOnly access + refresh token (login normal). */
 export function setAuthCookies(
@@ -26,7 +48,7 @@ export function setAuthCookies(
  */
 export function setImpersonatedAccessCookie(res: Response, accessToken: string): void {
   res.cookie('access_token', accessToken, { ...COOKIE_BASE, path: '/' });
-  res.clearCookie('refresh_token', { path: '/api/auth' });
+  res.clearCookie('refresh_token', { ...clearOptions, path: '/api/auth' });
 }
 
 /** Pose le cookie contenant le token Admin d'origine, le temps de l'impersonation. */
@@ -35,7 +57,7 @@ export function setImpersonatorCookie(res: Response, adminAccessToken: string): 
 }
 
 export function clearImpersonatorCookie(res: Response): void {
-  res.clearCookie('impersonator_token', { path: '/' });
+  res.clearCookie('impersonator_token', { ...clearOptions, path: '/' });
 }
 
 /**
@@ -47,7 +69,7 @@ export function clearImpersonatorCookie(res: Response): void {
  * sur `/api/auth`, seul son homonyme sur `/` — inexistant — serait effacé).
  */
 export function clearAuthCookies(res: Response): void {
-  res.clearCookie('access_token', { path: '/' });
-  res.clearCookie('refresh_token', { path: '/api/auth' });
-  res.clearCookie('impersonator_token', { path: '/' });
+  res.clearCookie('access_token', { ...clearOptions, path: '/' });
+  res.clearCookie('refresh_token', { ...clearOptions, path: '/api/auth' });
+  res.clearCookie('impersonator_token', { ...clearOptions, path: '/' });
 }
