@@ -9,6 +9,7 @@ import { CHECKOUT_RESUME_EVENT, consumeIntent } from '@/lib/auth';
 import { api, apiPost, ApiError } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
+import { CheckoutPhoneDialog } from './checkout-phone-dialog';
 
 /**
  * ResumeCheckout — Reprise du tunnel d'achat après retour d'OAuth (CDC §7.4, §8).
@@ -31,8 +32,15 @@ interface OrderStatus {
   items: Array<{ id: string; ticketName: string; hasTicket: boolean }>;
 }
 
+interface CartItem {
+  ticketId: string;
+  quantity: number;
+}
+
 type FlowState =
   | { step: 'idle' }
+  /** Numéro manquant : on le demande avant d’ouvrir le paiement. */
+  | { step: 'phone'; items: CartItem[] }
   | { step: 'initializing' }
   | { step: 'awaiting-payment' }
   | { step: 'confirming'; orderId: string }
@@ -56,8 +64,39 @@ export function ResumeCheckout({
     useKKiaPay();
   const [state, setState] = useState<FlowState>({ step: 'idle' });
   const startedRef = useRef(false);
+  /**
+   * Identité de l’acheteur, pour pré-remplir le widget Kkiapay (les deux
+   * autres providers sont pré-remplis côté serveur, leurs pages étant
+   * hébergées). Un `ref` et non un `state` : sa mise à jour ne doit jamais
+   * provoquer de rendu au milieu de l’ouverture du widget.
+   */
+  const buyerRef = useRef<{ name: string | null; email: string; phone: string | null } | null>(null);
 
-  async function startCheckout(items: { ticketId: string; quantity: number }[]) {
+  /**
+   * Point d’entrée du tunnel après authentification : on réclame le numéro
+   * de l’acheteur s’il n’en a pas encore, sinon on va droit au paiement — un
+   * client qui rachète ne resaisit jamais son numéro.
+   */
+  async function startCheckout(items: CartItem[]) {
+    setState({ step: 'initializing' });
+    try {
+      const me = await api<{ name: string | null; email: string; phone: string | null }>(
+        '/api/auth/me',
+      );
+      buyerRef.current = me;
+      if (!me.phone) {
+        setState({ step: 'phone', items });
+        return;
+      }
+    } catch {
+      // Le numéro ne sert qu’au pré-remplissage et à joindre l’acheteur : si
+      // `/api/auth/me` échoue, on laisse le paiement suivre son cours plutôt
+      // que de bloquer une vente. L’API reste seule garante de l’accès.
+    }
+    await initPayment(items);
+  }
+
+  async function initPayment(items: CartItem[]) {
     setState({ step: 'initializing' });
     try {
       const init = await apiPost<PaymentInitResult>('/api/payments/init', { items });
@@ -70,6 +109,12 @@ export function ResumeCheckout({
           sandbox: init.sandbox,
           partnerId: init.partnerId,
           data: init.partnerId,
+          // Pré-remplissage (décision produit 2026-08-16) : l’acheteur n’a plus
+          // qu’à confirmer. Champs omis quand inconnus — une chaîne vide
+          // afficherait un champ « rempli » mais invalide.
+          ...(buyerRef.current?.email ? { email: buyerRef.current.email } : {}),
+          ...(buyerRef.current?.phone ? { phone: buyerRef.current.phone } : {}),
+          ...(buyerRef.current?.name ? { name: buyerRef.current.name } : {}),
         });
         return;
       }
@@ -189,6 +234,19 @@ export function ResumeCheckout({
   }, [state]);
 
   if (state.step === 'idle') return null;
+
+  if (state.step === 'phone') {
+    const { items } = state;
+    return (
+      <CheckoutPhoneDialog
+        onSaved={(phone) => {
+          if (buyerRef.current) buyerRef.current.phone = phone;
+          void initPayment(items);
+        }}
+        onCancel={() => setState({ step: 'idle' })}
+      />
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">

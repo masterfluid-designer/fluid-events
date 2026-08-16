@@ -11,6 +11,17 @@ export interface FedaPayInitParams {
   amount: number;
   currency: string;
   callbackUrl: string;
+  /**
+   * Identité de l’acheteur, pour pré-remplir le formulaire hébergé
+   * (décision produit 2026-08-16). Optionnelle — un compte incomplet doit
+   * pouvoir payer. `customerCountry` est l’ISO2 déduit de l’indicatif
+   * (`PhoneService.deriveCountry`), attendu par FedaPay à côté du numéro.
+   */
+  customerFirstName?: string | null;
+  customerLastName?: string | null;
+  customerEmail?: string | null;
+  customerPhone?: string | null;
+  customerCountry?: string | null;
 }
 
 export interface FedaPayInitResult {
@@ -51,11 +62,30 @@ export class FedaPayService {
 
   async initPayment(credentials: FedaPayCredentials, params: FedaPayInitParams): Promise<FedaPayInitResult> {
     this.configure(credentials);
+    // `customer` n’est envoyé que si on a au moins un email : FedaPay refuse
+    // un objet client partiel sans identifiant exploitable.
+    const customer = params.customerEmail
+      ? {
+          firstname: params.customerFirstName ?? undefined,
+          lastname: params.customerLastName ?? undefined,
+          email: params.customerEmail,
+          ...(params.customerPhone && params.customerCountry
+            ? {
+                phone_number: {
+                  number: params.customerPhone,
+                  country: params.customerCountry,
+                },
+              }
+            : {}),
+        }
+      : undefined;
+
     const transaction = await Transaction.create({
       description: params.description,
       amount: params.amount,
       currency: { iso: params.currency },
       callback_url: params.callbackUrl,
+      ...(customer ? { customer } : {}),
     });
 
     this.configure(credentials);

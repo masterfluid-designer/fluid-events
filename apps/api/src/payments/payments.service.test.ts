@@ -87,7 +87,7 @@ function makeDeps() {
 }
 
 function makePrisma(
-  overrides: { ticket?: any; tickets?: any[]; providerConfig?: any; order?: any; orders?: any[] } = {},
+  overrides: { ticket?: any; tickets?: any[]; providerConfig?: any; order?: any; orders?: any[]; buyer?: any } = {},
 ) {
   const tx = {
     ticket: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
@@ -106,8 +106,17 @@ function makePrisma(
   // raccourci pour les tests à une seule ligne) si les deux sont fournis.
   const foundTickets = overrides.tickets ?? (overrides.ticket ? [overrides.ticket] : []);
 
+  // Acheteur chargé par `initPayment` pour pré-remplir le formulaire du
+  // prestataire (2026-08-16). Valeur par défaut complète : les tests qui ne
+  // s’intéressent pas au pré-remplissage n’ont rien à déclarer.
+  const buyer =
+    overrides.buyer === undefined
+      ? { name: 'Ada Lovelace', email: 'ada@example.com', phone: '+22890123456', country: 'TG' }
+      : overrides.buyer;
+
   return {
     ticket: { findMany: vi.fn().mockResolvedValue(foundTickets) },
+    user: { findUnique: vi.fn().mockResolvedValue(buyer) },
     paymentProviderConfig: {
       findUnique: vi.fn().mockResolvedValue(overrides.providerConfig ?? null),
       findFirst: vi.fn().mockResolvedValue(overrides.providerConfig ?? null),
@@ -220,6 +229,103 @@ describe('PaymentsService.initPayment()', () => {
       expect.objectContaining({ amount: 5000, currency: 'XOF' }),
     );
     expect(prisma.order.update).toHaveBeenCalledWith({ where: { id: 'order-1' }, data: { paymentRef: '999' } });
+  });
+
+  it("CINETPAY : transmet l'identité de l'acheteur pour pré-remplir le formulaire hébergé", async () => {
+    const deps = makeDeps();
+    deps.cinetPayService.initPayment.mockResolvedValue({
+      paymentToken: 'tok-1',
+      paymentUrl: 'https://checkout.cinetpay.com/payment/tok-1',
+    });
+    const prisma = makePrisma({
+      ticket: ACTIVE_TICKET,
+      providerConfig: {
+        eventId: 'ev-1',
+        provider: 'CINETPAY',
+        isActive: true,
+        privateKey: 'enc:apikey',
+        webhookSecret: 'enc:hmac-secret',
+        config: { siteId: 'site-123' },
+      },
+      buyer: { name: 'Ada Lovelace', email: 'ada@example.com', phone: '+22890123456', country: 'TG' },
+    });
+    const service = makeService(deps, prisma);
+
+    await service.initPayment(REQUEST_USER, singleItem('tk-1'));
+
+    // Le nom d’affichage Google est coupé en deux : CinetPay attend un
+    // prénom et un nom distincts là où nous ne stockons qu’un champ.
+    expect(deps.cinetPayService.initPayment).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        customerFirstName: 'Ada',
+        customerLastName: 'Lovelace',
+        customerEmail: 'ada@example.com',
+        customerPhone: '+22890123456',
+      }),
+    );
+  });
+
+  it("FEDAPAY : transmet l'identité de l'acheteur, pays compris (attendu à côté du numéro)", async () => {
+    const deps = makeDeps();
+    deps.fedaPayService.initPayment.mockResolvedValue({
+      transactionId: '999',
+      checkoutUrl: 'https://checkout.fedapay.com/pay/xyz',
+    });
+    const prisma = makePrisma({
+      ticket: ACTIVE_TICKET,
+      providerConfig: {
+        eventId: 'ev-1',
+        provider: 'FEDAPAY',
+        isActive: true,
+        privateKey: 'enc:secretkey',
+        webhookSecret: 'enc:whsec',
+        config: { environment: 'sandbox' },
+      },
+    });
+    const service = makeService(deps, prisma);
+
+    await service.initPayment(REQUEST_USER, singleItem('tk-1'));
+
+    expect(deps.fedaPayService.initPayment).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        customerFirstName: 'Ada',
+        customerLastName: 'Lovelace',
+        customerEmail: 'ada@example.com',
+        customerPhone: '+22890123456',
+        customerCountry: 'TG',
+      }),
+    );
+  });
+
+  it("un acheteur sans nom ni téléphone n'empêche pas le paiement (champs à null, pas de valeur inventée)", async () => {
+    const deps = makeDeps();
+    deps.cinetPayService.initPayment.mockResolvedValue({
+      paymentToken: 'tok-1',
+      paymentUrl: 'https://checkout.cinetpay.com/payment/tok-1',
+    });
+    const prisma = makePrisma({
+      ticket: ACTIVE_TICKET,
+      providerConfig: {
+        eventId: 'ev-1',
+        provider: 'CINETPAY',
+        isActive: true,
+        privateKey: 'enc:apikey',
+        webhookSecret: 'enc:hmac-secret',
+        config: { siteId: 'site-123' },
+      },
+      buyer: { name: null, email: 'ada@example.com', phone: null, country: null },
+    });
+    const service = makeService(deps, prisma);
+
+    const result = await service.initPayment(REQUEST_USER, singleItem('tk-1'));
+
+    expect(result).toMatchObject({ provider: 'CINETPAY' });
+    expect(deps.cinetPayService.initPayment).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ customerFirstName: null, customerLastName: null, customerPhone: null }),
+    );
   });
 
   it("CINETPAY : si l'appel externe échoue, annule l'Order + relâche le stock + 503 (pas de reservation orpheline)", async () => {

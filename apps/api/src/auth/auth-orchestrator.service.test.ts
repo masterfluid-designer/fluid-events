@@ -313,6 +313,46 @@ function makeWhatsapp() {
   return { sendVerificationCode: vi.fn().mockResolvedValue(undefined) };
 }
 
+describe('AuthOrchestratorService.savePhone()', () => {
+  function makeService(prisma: any, phoneService: any) {
+    return new AuthOrchestratorService(
+      prisma as any,
+      {} as any,
+      {} as any,
+      makeAudit() as any,
+      phoneService as any,
+      makeWhatsapp() as any,
+    );
+  }
+
+  it("enregistre le numéro et le pays déduit, SANS jamais poser phoneVerifiedAt", async () => {
+    const prisma = makePhoneVerificationPrisma();
+    const service = makeService(prisma, makePhoneService());
+
+    const result = await service.savePhone('u-1', '90 12 34 56');
+
+    expect(result).toEqual({ phone: '+22890123456', country: 'TG' });
+    expect(prisma.user.update).toHaveBeenCalledWith({
+      where: { id: 'u-1' },
+      data: { phone: '+22890123456', country: 'TG' },
+    });
+    // Un numéro déclaré n’est pas un numéro vérifié : confondre les deux
+    // ferait passer un Manager à travers son propre gate.
+    const written = prisma.user.update.mock.calls[0][0].data;
+    expect(written).not.toHaveProperty('phoneVerifiedAt');
+  });
+
+  it("rejette un numéro invalide (PHONE_INVALID) sans rien écrire", async () => {
+    const prisma = makePhoneVerificationPrisma();
+    const service = makeService(prisma, makePhoneService());
+
+    await expect(service.savePhone('u-1', 'invalid')).rejects.toMatchObject({
+      response: expect.objectContaining({ code: ErrorCodes.PHONE_INVALID }),
+    });
+    expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+});
+
 describe('AuthOrchestratorService.requestPhoneVerification()', () => {
   it("rejette un numéro invalide (PHONE_INVALID) sans jamais appeler WhatsApp", async () => {
     const prisma = makePhoneVerificationPrisma();

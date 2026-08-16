@@ -349,6 +349,37 @@ export class AuthOrchestratorService {
   }
 
   /**
+   * Enregistre un numéro SANS vérification (décision produit 2026-08-16 —
+   * tunnel d’achat client). Le numéro sert à pré-remplir le formulaire du
+   * prestataire de paiement et à joindre l’acheteur ; il n’ouvre aucun accès,
+   * donc en exiger la preuve coûterait une étape et un canal WhatsApp pour
+   * rien. Les Manager, eux, passent toujours par `requestPhoneVerification`.
+   *
+   * `phoneVerifiedAt` est laissé à `null` : un numéro déclaré n’est pas un
+   * numéro vérifié, et le confondre ferait passer un Manager à travers son
+   * propre gate.
+   */
+  async savePhone(userId: string, rawPhone: string): Promise<{ phone: string; country: string | null }> {
+    const phone = this.phoneService.normalizeToE164(rawPhone);
+    if (!phone) {
+      throw new BadRequestException({
+        code: ErrorCodes.PHONE_INVALID,
+        message: 'Numéro de téléphone invalide.',
+      });
+    }
+    const country = this.phoneService.deriveCountry(phone);
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { phone, country },
+    });
+
+    await this.audit.log('auth.phone.saved', 'User', userId, { phone });
+
+    return { phone, country };
+  }
+
+  /**
    * Demande un code de vérification WhatsApp pour le téléphone soumis
    * (décision produit 2026-07-15, Manager/Client obligatoire avant de
    * continuer le workflow — PhoneVerificationGate côté frontend). Le pays

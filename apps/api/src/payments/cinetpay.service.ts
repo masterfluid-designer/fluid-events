@@ -17,6 +17,16 @@ export interface CinetPayInitParams {
   description: string;
   notifyUrl: string;
   returnUrl: string;
+  /**
+   * Identité de l’acheteur, pour que CinetPay pré-remplisse son formulaire
+   * plutôt que de la redemander (décision produit 2026-08-16). Optionnelle :
+   * un compte sans nom ni téléphone doit pouvoir payer quand même.
+   * `customer_name` = nom, `customer_surname` = prénom, selon leur doc.
+   */
+  customerFirstName?: string | null;
+  customerLastName?: string | null;
+  customerEmail?: string | null;
+  customerPhone?: string | null;
 }
 
 export interface CinetPayInitResult {
@@ -95,6 +105,12 @@ export class CinetPayService {
         notify_url: params.notifyUrl,
         return_url: params.returnUrl,
         channels: 'ALL',
+        // Champs omis (et non envoyés vides) quand on ne les connaît pas :
+        // CinetPay rejette certaines chaînes vides sur le canal carte.
+        ...(params.customerLastName ? { customer_name: params.customerLastName } : {}),
+        ...(params.customerFirstName ? { customer_surname: params.customerFirstName } : {}),
+        ...(params.customerEmail ? { customer_email: params.customerEmail } : {}),
+        ...(params.customerPhone ? { customer_phone_number: params.customerPhone } : {}),
       }),
     });
     const body = (await response.json()) as CinetPayApiResponse;

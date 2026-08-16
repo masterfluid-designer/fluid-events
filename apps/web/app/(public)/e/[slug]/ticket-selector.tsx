@@ -88,6 +88,16 @@ export function TicketSelector({
   }, 0);
   const currency = tickets[0]?.currency ?? 'XOF';
 
+  // Le récapitulatif se construit depuis `tickets` COMPLET, jamais
+  // `visibleTickets` : le panier reste cumulé sur tous les jours, une ligne
+  // choisie sous un autre onglet doit rester visible — sinon le total
+  // afficherait un montant que rien à l’écran ne justifie.
+  const cartLines = cartItems.flatMap((item) => {
+    const ticket = tickets.find((t) => t.id === item.ticketId);
+    if (!ticket) return [];
+    return [{ ticket, quantity: item.quantity, subtotal: Number(ticket.price) * item.quantity }];
+  });
+
   // L'achat exige une connexion (RULES.md — jamais de commande anonyme), mais
   // elle se fait désormais dans une pop-up : cet onglet, et donc le panier
   // sélectionné, ne bougent pas. En cas de succès, `ResumeCheckout` prend le
@@ -240,24 +250,48 @@ export function TicketSelector({
       )}
 
       {totalQuantity > 0 && (
-        <div className="sticky bottom-4 z-30 mt-6 flex items-center justify-between gap-4 rounded-full border border-stroke bg-white/95 px-5 py-3 shadow-solid-2 backdrop-blur dark:border-strokedark dark:bg-blacksection/95 md:px-7 md:py-4">
-          <div className="min-w-0">
-            <div className="font-event text-lg leading-none md:text-2xl">
-              {formatCurrency(totalAmount, currency)}
-            </div>
-            <div className="mt-1 text-[11px] text-manatee dark:text-waterloo md:text-xs">
-              {totalQuantity} billet{totalQuantity > 1 ? 's' : ''} sélectionné
-              {totalQuantity > 1 ? 's' : ''}
-            </div>
+        <div className="sticky bottom-4 z-30 mt-6 rounded-3xl border border-stroke bg-white/95 p-5 shadow-solid-2 backdrop-blur dark:border-strokedark dark:bg-blacksection/95 md:p-6">
+          <div className="text-[11px] font-bold uppercase tracking-wide text-manatee dark:text-waterloo md:text-xs">
+            Récapitulatif
           </div>
-          <button
-            type="button"
-            onClick={handleContinue}
-            disabled={authPending}
-            className="inline-flex shrink-0 items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primaryho disabled:opacity-60 md:px-8"
-          >
-            {authPending ? 'Connexion...' : 'Continuer'} <Ticket className="size-4" />
-          </button>
+
+          {/* Plafonné en hauteur : un panier de nombreux types de billets ne
+              doit pas pousser le bouton Payer hors de l’écran sur mobile. */}
+          <ul className="mt-3 max-h-44 space-y-2 overflow-y-auto md:max-h-56">
+            {cartLines.map(({ ticket, quantity, subtotal }) => (
+              <li key={ticket.id} className="flex items-baseline justify-between gap-3 text-sm">
+                <span className="min-w-0 truncate">
+                  <span className="font-semibold tabular-nums">{quantity}×</span> {ticket.name}
+                  {ticket.dayLabel && (
+                    <span className="ml-1.5 text-xs text-manatee dark:text-waterloo">
+                      ({ticket.dayLabel})
+                    </span>
+                  )}
+                </span>
+                <span className="shrink-0 tabular-nums">{formatCurrency(subtotal, currency)}</span>
+              </li>
+            ))}
+          </ul>
+
+          <div className="mt-4 flex items-center justify-between gap-4 border-t border-stroke pt-4 dark:border-strokedark">
+            <div className="min-w-0">
+              <div className="font-event text-lg leading-none md:text-2xl">
+                {formatCurrency(totalAmount, currency)}
+              </div>
+              <div className="mt-1 text-[11px] text-manatee dark:text-waterloo md:text-xs">
+                {totalQuantity} billet{totalQuantity > 1 ? 's' : ''} sélectionné
+                {totalQuantity > 1 ? 's' : ''}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleContinue}
+              disabled={authPending}
+              className="inline-flex shrink-0 items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primaryho disabled:opacity-60 md:px-8"
+            >
+              {authPending ? 'Connexion...' : 'Payer'} <Ticket className="size-4" />
+            </button>
+          </div>
         </div>
       )}
     </SectionShell>

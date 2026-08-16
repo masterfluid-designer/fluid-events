@@ -44,6 +44,7 @@ const authLogger = new Logger('AuthController');
  *  POST /api/auth/refresh          → rafraîchit la paire de tokens
  *  GET  /api/auth/me               → identité courante + statut impersonation
  *  POST /api/auth/stop-impersonation → retour à la session Admin d'origine
+ *  POST /api/auth/phone                        → enregistre un numéro (sans vérif)
  *  POST /api/auth/phone/request-verification → envoie un code WhatsApp
  *  POST /api/auth/phone/confirm-verification → confirme le code reçu
  *  POST /api/auth/logout           → efface les cookies
@@ -161,6 +162,20 @@ export class AuthController {
     setImpersonatedAccessCookie(res, result.accessToken);
     clearImpersonatorCookie(res);
     return { accessToken: result.accessToken };
+  }
+
+  /**
+   * Enregistre le numéro de l’acheteur SANS vérification (décision produit
+   * 2026-08-16) — appelé pendant le tunnel d’achat, entre l’authentification
+   * Google et l’initiation du paiement. Sert à pré-remplir le formulaire du
+   * prestataire. Non @Public() : la cible est toujours `req.user.id`.
+   */
+  @Post('phone')
+  async savePhone(
+    @Req() req: Request & { user?: RequestUser },
+    @Body() dto: RequestPhoneVerificationDto,
+  ) {
+    return this.orchestrator.savePhone(req.user!.id, dto.phone);
   }
 
   /**

@@ -27,6 +27,20 @@ import { SUPPORTED_PAYMENT_PROVIDERS } from '../common/supported-payment-provide
 import type { RequestUser } from '../auth/strategies/jwt.strategy';
 
 /** true hors production — même flag utilisé à l'init (widget) et à la vérification serveur. */
+/**
+ * Coupe un nom d’affichage Google en prénom / nom. CinetPay et FedaPay
+ * attendent deux champs distincts là où nous ne stockons qu’un `User.name`.
+ * Premier mot = prénom, le reste = nom ; un nom en un seul mot ne remplit
+ * que le prénom, et `null` reste `null` — mieux vaut un champ vide qu’une
+ * valeur inventée sur le formulaire de paiement de l’acheteur.
+ */
+function splitDisplayName(name: string | null | undefined): [string | null, string | null] {
+  const trimmed = name?.trim();
+  if (!trimmed) return [null, null];
+  const [first, ...rest] = trimmed.split(/\s+/);
+  return [first, rest.length > 0 ? rest.join(' ') : null];
+}
+
 function isSandboxMode(): boolean {
   return process.env.NODE_ENV !== 'production';
 }
@@ -215,6 +229,17 @@ export class PaymentsService {
       provider: providerConfig.provider,
     });
 
+    // Identité de l’acheteur pour pré-remplir le formulaire du prestataire
+    // (décision produit 2026-08-16) : le numéro a été collecté juste avant,
+    // pendant le tunnel. Kkiapay est un widget JS pré-rempli côté navigateur ;
+    // CinetPay et FedaPay sont des pages hébergées, leurs champs client
+    // doivent donc partir d’ici, dans l’appel d’initiation.
+    const buyer = await this.prisma.user.findUnique({
+      where: { id: user.id },
+      select: { name: true, email: true, phone: true, country: true },
+    });
+    const [buyerFirstName, buyerLastName] = splitDisplayName(buyer?.name);
+
     if (providerConfig.provider === PaymentProviderType.KKIAPAY) {
       if (!providerConfig.publicKey) {
         throw new ServiceUnavailableException({
@@ -253,6 +278,10 @@ export class PaymentsService {
             // polling GET /api/payments/orders/:id (le webhook reste la seule
             // source de vérité, cette page ne fait qu'afficher l'attente).
             returnUrl: `${FRONTEND_URL}/e/${event.slug}?resume=1&orderId=${order.id}`,
+            customerFirstName: buyerFirstName,
+            customerLastName: buyerLastName,
+            customerEmail: buyer?.email,
+            customerPhone: buyer?.phone,
           },
         );
         return { provider: PaymentProviderType.CINETPAY, orderId: order.id, checkoutUrl: paymentUrl };
@@ -274,6 +303,11 @@ export class PaymentsService {
           amount: totalAmount,
           currency,
           callbackUrl: `${FRONTEND_URL}/e/${event.slug}?resume=1&orderId=${order.id}`,
+          customerFirstName: buyerFirstName,
+          customerLastName: buyerLastName,
+          customerEmail: buyer?.email,
+          customerPhone: buyer?.phone,
+          customerCountry: buyer?.country,
         },
       );
       // FedaPay assigne son propre id de transaction — on le stocke immédiatement
