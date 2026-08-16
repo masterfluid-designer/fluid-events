@@ -315,6 +315,14 @@ function CreateFirstEventOnboarding() {
   const [slug, setSlug] = useState('');
   const [slugTouched, setSlugTouched] = useState(false);
   const [location, setLocation] = useState('');
+  // Localisation exacte + contact + capacité (décision produit 2026-08-16).
+  const [venueName, setVenueName] = useState('');
+  const [addressLine, setAddressLine] = useState('');
+  const [city, setCity] = useState('');
+  const [country, setCountry] = useState('');
+  const [accessNotes, setAccessNotes] = useState('');
+  const [contactPhone, setContactPhone] = useState('');
+  const [expectedAttendees, setExpectedAttendees] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [description, setDescription] = useState('');
@@ -325,6 +333,13 @@ function CreateFirstEventOnboarding() {
         title,
         slug,
         location: location || undefined,
+        venueName: venueName || undefined,
+        addressLine: addressLine || undefined,
+        city: city || undefined,
+        country: country || undefined,
+        accessNotes: accessNotes || undefined,
+        contactPhone: contactPhone || undefined,
+        expectedAttendees: expectedAttendees ? Number(expectedAttendees) : undefined,
         description: description || undefined,
         startDate: new Date(startDate).toISOString(),
         endDate: new Date(endDate).toISOString(),
@@ -408,6 +423,78 @@ function CreateFirstEventOnboarding() {
           <div className="space-y-1.5 sm:col-span-2">
             <label className="text-xs font-medium text-muted-foreground">Lieu (optionnel)</label>
             <Input placeholder="Abidjan, Côte d'Ivoire" value={location} onChange={(e) => setLocation(e.target.value)} />
+          </div>
+
+          {/* Localisation exacte (décision produit 2026-08-16) — alimente le
+              bloc « Lieu & accès » de la page publique. Tout est optionnel :
+              on ne bloque pas la création d'un événement pour une adresse pas
+              encore arrêtée, elle se complète depuis le Builder. */}
+          <div className="space-y-1.5 sm:col-span-2">
+            <label className="text-xs font-medium text-muted-foreground">Nom du lieu (optionnel)</label>
+            <Input
+              placeholder="Palais des Sports de Treichville"
+              value={venueName}
+              onChange={(e) => setVenueName(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5 sm:col-span-2">
+            <label className="text-xs font-medium text-muted-foreground">Adresse (optionnel)</label>
+            <Input
+              placeholder="Boulevard de Marseille"
+              value={addressLine}
+              onChange={(e) => setAddressLine(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">Ville (optionnel)</label>
+            <Input placeholder="Abidjan" value={city} onChange={(e) => setCity(e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">Pays (optionnel)</label>
+            <Input
+              placeholder="Côte d'Ivoire"
+              value={country}
+              onChange={(e) => setCountry(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5 sm:col-span-2">
+            <label className="text-xs font-medium text-muted-foreground">
+              Indications d&apos;accès (optionnel)
+            </label>
+            <textarea
+              rows={2}
+              placeholder="Entrée côté nord, parking gratuit en face."
+              value={accessNotes}
+              onChange={(e) => setAccessNotes(e.target.value)}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">
+              Numéro officiel (optionnel)
+            </label>
+            <Input
+              placeholder="+22890123456"
+              value={contactPhone}
+              onChange={(e) => setContactPhone(e.target.value)}
+            />
+          </div>
+          {/* Plafond réel : la somme des stocks de billets ne pourra pas le
+              dépasser, refus côté serveur à la création d'un billet. */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">
+              Personnes prévues (optionnel)
+            </label>
+            <Input
+              type="number"
+              min={1}
+              placeholder="500"
+              value={expectedAttendees}
+              onChange={(e) => setExpectedAttendees(e.target.value)}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Plafond : vous ne pourrez pas mettre en vente plus de places que ce nombre.
+            </p>
           </div>
           <div className="space-y-1.5 sm:col-span-2">
             <label className="text-xs font-medium text-muted-foreground">Description (optionnelle)</label>

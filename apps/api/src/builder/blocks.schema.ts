@@ -10,7 +10,7 @@ import { EVENT_FONT_KEYS } from '@saas-events/types';
  * abus (limite 50 blocs) et corruption de données (types/ordres valides).
  *
  * Types de blocs autorisés (CDC §11.1 + décision produit 2026-07-13) :
- *  hero, text, image, video, gallery, countdown, tickets, faq, schedule,
+ *  hero, text, image, video, gallery, countdown, tickets, faq, schedule, location,
  *  testimonials, sponsors, speakers, html.
  */
 
@@ -44,7 +44,7 @@ const BlockSchema = z.object({
     'hero', 'text', 'image', 'video', 'gallery',
     'countdown', 'tickets', 'faq', 'schedule',
     'testimonials', 'sponsors', 'speakers', 'html',
-    'timeline',
+    'timeline', 'location',
   ]),
   order: z.number().int().min(0),
   // props est un record libre (validé plus finement par bloc au rendu si besoin)

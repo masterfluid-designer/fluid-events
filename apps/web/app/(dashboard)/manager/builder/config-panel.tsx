@@ -21,7 +21,19 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/
 export interface EventConfig {
   title: string;
   description: string;
+  /** Adresse libre historique — repli d’affichage si rien de structuré. */
   location: string;
+  // Localisation structurée (2026-08-16) — alimente le bloc « Lieu & accès ».
+  venueName: string;
+  addressLine: string;
+  city: string;
+  country: string;
+  accessNotes: string;
+  contactPhone: string;
+  // Saisies en texte : un <input type=number> vidé renvoie '', et forcer un
+  // nombre ici obligerait à gérer NaN dans le state. Converties à l’envoi.
+  latitude: string;
+  longitude: string;
   logoUrl: string;
   coverImageUrl: string;
   faqs: FaqEntry[];
@@ -67,13 +79,81 @@ export function ConfigPanel({
           value={config.coverImageUrl || undefined}
           onChange={(url) => onChange({ coverImageUrl: url ?? '' })}
         />
-        <Field label="Localisation">
+        <Field label="Localisation (affichage court)">
           <Input
             value={config.location}
             onChange={(e) => onChange({ location: e.target.value })}
             placeholder="Palais des Sports, Abidjan"
           />
         </Field>
+
+        {/* Localisation exacte (décision produit 2026-08-16) — alimente le bloc
+            « Lieu & accès » de la page publique. Tant que ces champs sont
+            vides, c'est la ligne ci-dessus qui s'affiche. */}
+        <Field label="Nom du lieu">
+          <Input
+            value={config.venueName}
+            onChange={(e) => onChange({ venueName: e.target.value })}
+            placeholder="Palais des Sports de Treichville"
+          />
+        </Field>
+        <Field label="Adresse">
+          <Input
+            value={config.addressLine}
+            onChange={(e) => onChange({ addressLine: e.target.value })}
+            placeholder="Boulevard de Marseille"
+          />
+        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Ville">
+            <Input
+              value={config.city}
+              onChange={(e) => onChange({ city: e.target.value })}
+              placeholder="Abidjan"
+            />
+          </Field>
+          <Field label="Pays">
+            <Input
+              value={config.country}
+              onChange={(e) => onChange({ country: e.target.value })}
+              placeholder="Côte d'Ivoire"
+            />
+          </Field>
+        </div>
+        <Field label="Indications d'accès">
+          <textarea
+            value={config.accessNotes}
+            onChange={(e) => onChange({ accessNotes: e.target.value })}
+            rows={3}
+            placeholder="Entrée côté nord, parking gratuit en face. Présentez votre QR à l'accueil."
+            className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          />
+        </Field>
+        <Field label="Numéro officiel de l'événement">
+          <Input
+            value={config.contactPhone}
+            onChange={(e) => onChange({ contactPhone: e.target.value })}
+            placeholder="+22890123456"
+          />
+        </Field>
+        {/* Optionnelles, mais prioritaires sur l'adresse pour le lien Maps :
+            un géocodage d'adresse peut tomber à plusieurs rues du lieu. */}
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Latitude (optionnel)">
+            <Input
+              value={config.latitude}
+              onChange={(e) => onChange({ latitude: e.target.value })}
+              placeholder="5.316667"
+            />
+          </Field>
+          <Field label="Longitude (optionnel)">
+            <Input
+              value={config.longitude}
+              onChange={(e) => onChange({ longitude: e.target.value })}
+              placeholder="-4.033333"
+            />
+          </Field>
+        </div>
       </Section>
 
       <Section title={`FAQ (${config.faqs.length}/${FAQ_MAX})`}>

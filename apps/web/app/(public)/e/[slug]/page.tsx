@@ -24,6 +24,15 @@ interface EventDetail {
   title: string;
   description: string | null;
   location: string | null;
+  venueName: string | null;
+  addressLine: string | null;
+  city: string | null;
+  country: string | null;
+  accessNotes: string | null;
+  contactPhone: string | null;
+  // Prisma sérialise les Decimal en chaîne — `buildMapsUrl` accepte les deux.
+  latitude: number | string | null;
+  longitude: number | string | null;
   startDate: string;
   endDate: string;
   status: string;
@@ -109,6 +118,14 @@ export default async function EventPage({
     title: event.title,
     description: event.description,
     location: event.location,
+    venueName: event.venueName,
+    addressLine: event.addressLine,
+    city: event.city,
+    country: event.country,
+    accessNotes: event.accessNotes,
+    contactPhone: event.contactPhone,
+    latitude: event.latitude,
+    longitude: event.longitude,
     coverImageUrl: event.coverImageUrl,
     dateLabel,
     startDate: event.startDate,

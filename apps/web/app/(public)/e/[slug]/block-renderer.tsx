@@ -1,3 +1,5 @@
+import { formatEventAddress } from '@saas-events/utils';
+import { EventLocation } from './event-location';
 import type { Block, FaqEntry, MediaEntry, ScheduleEntry, SpeakerEntry, TimelineEntry } from '@saas-events/types';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Countdown } from './countdown';
@@ -36,6 +38,16 @@ export interface EventConfigData {
   title: string;
   description: string | null;
   location: string | null;
+  // Localisation structurée (2026-08-16) — alimente le bloc `location`.
+  // `location` reste le repli d’affichage pour les événements antérieurs.
+  venueName: string | null;
+  addressLine: string | null;
+  city: string | null;
+  country: string | null;
+  accessNotes: string | null;
+  contactPhone: string | null;
+  latitude: number | string | null;
+  longitude: number | string | null;
   coverImageUrl: string | null;
   /** Date de début déjà formatée en français (calculée une fois côté page). */
   dateLabel: string;
@@ -61,6 +73,7 @@ export const BLOCK_NAV_LABELS: Partial<Record<Block['type'], string>> = {
   faq: 'Infos & FAQ',
   gallery: 'Galerie',
   timeline: 'Notre histoire',
+  location: 'Accès',
 };
 
 export interface NavItem {
@@ -90,7 +103,13 @@ export function getVisibleNavItems(
       (block.type === 'sponsors' && eventConfig.sponsorImages.length > 0) ||
       (block.type === 'faq' && eventConfig.faqs.length > 0) ||
       (block.type === 'gallery' && eventConfig.galleryImages.length > 0) ||
-      (block.type === 'timeline' && ((block.props.entries as unknown[] | undefined)?.length ?? 0) > 0);
+      (block.type === 'timeline' && ((block.props.entries as unknown[] | undefined)?.length ?? 0) > 0) ||
+      // Mêmes conditions de « vide » que EventLocation, sinon la nav
+      // pointerait vers une section qui ne rend rien.
+      (block.type === 'location' &&
+        Boolean(
+          formatEventAddress(eventConfig) || eventConfig.accessNotes || eventConfig.contactPhone,
+        ));
     if (!hasContent) continue;
     seen.add(block.type);
     items.push({ id: `block-${block.type}`, label });
@@ -233,6 +252,17 @@ function BlockItem({
           </Accordion>
         </div>
       </SectionShell>
+    );
+  }
+
+  if (block.type === 'location') {
+    return (
+      <EventLocation
+        fields={eventConfig}
+        accessNotes={eventConfig.accessNotes}
+        contactPhone={eventConfig.contactPhone}
+        anchorId="block-location"
+      />
     );
   }
 

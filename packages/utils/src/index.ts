@@ -179,3 +179,54 @@ export function consumeIntent(
     return null;
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Lien « Ouvrir dans Maps » (décision produit 2026-08-16)
+//
+// Aucune carte intégrée, donc aucune clé d'API et aucun tiers chargé chez le
+// visiteur : on se contente d'un lien vers l'URL de recherche documentée par
+// Google, qui s'ouvre dans l'application native sur mobile.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface EventLocationFields {
+  venueName?: string | null;
+  addressLine?: string | null;
+  city?: string | null;
+  country?: string | null;
+  /** Adresse libre historique — repli quand rien de structuré n'est renseigné. */
+  location?: string | null;
+  latitude?: number | string | null;
+  longitude?: number | string | null;
+}
+
+/**
+ * Adresse lisible, construite depuis les champs structurés et repliée sur
+ * `location` s'ils sont tous vides — un événement créé avant ces champs doit
+ * continuer d'afficher son adresse.
+ */
+export function formatEventAddress(fields: EventLocationFields): string | null {
+  const parts = [fields.venueName, fields.addressLine, fields.city, fields.country]
+    .map((p) => p?.trim())
+    .filter((p): p is string => Boolean(p));
+  if (parts.length > 0) return parts.join(', ');
+  return fields.location?.trim() || null;
+}
+
+/**
+ * URL de recherche Maps. Les coordonnées l'emportent sur l'adresse quand elles
+ * existent : un géocodage d'adresse approximative peut tomber à plusieurs rues
+ * de là, alors qu'un couple lat/lng désigne exactement le lieu.
+ *
+ * Renvoie `null` s'il n'y a ni coordonnées ni adresse — l'appelant masque
+ * alors le bouton plutôt que d'afficher un lien qui ne mène nulle part.
+ */
+export function buildMapsUrl(fields: EventLocationFields): string | null {
+  const lat = fields.latitude == null ? null : Number(fields.latitude);
+  const lng = fields.longitude == null ? null : Number(fields.longitude);
+  if (lat != null && lng != null && Number.isFinite(lat) && Number.isFinite(lng)) {
+    return `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+  }
+  const address = formatEventAddress(fields);
+  if (!address) return null;
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+}

@@ -27,6 +27,7 @@ import {
   Settings2,
   LayoutGrid,
   History,
+  MapPin,
   Plus,
   Palette,
 } from 'lucide-react';
@@ -84,6 +85,7 @@ const BLOCK_LIBRARY: { type: BlockType; icon: typeof ImageIcon; label: string }[
   { type: 'speakers', icon: Mic2, label: 'Speakers' },
   { type: 'sponsors', icon: Building2, label: 'Sponsors' },
   { type: 'timeline', icon: History, label: 'Frise / Héritage' },
+  { type: 'location', icon: MapPin, label: 'Lieu & accès' },
   { type: 'html', icon: Code2, label: 'HTML personnalisé' },
 ];
 
@@ -102,6 +104,7 @@ const BLOCK_LABELS: Record<BlockType, string> = {
   image: 'Image',
   html: 'HTML personnalisé',
   timeline: 'Frise / Héritage',
+  location: 'Lieu & accès',
 };
 
 /**
@@ -110,7 +113,7 @@ const BLOCK_LABELS: Record<BlockType, string> = {
  * pas dans `block.props` — les poser sur la page affiche automatiquement ce
  * contenu. Un seul exemplaire a du sens (le contenu est identique partout).
  */
-const SINGLETON_BLOCK_TYPES = new Set<BlockType>(['faq', 'schedule', 'speakers', 'gallery', 'sponsors']);
+const SINGLETON_BLOCK_TYPES = new Set<BlockType>(['faq', 'schedule', 'speakers', 'gallery', 'sponsors', 'location']);
 
 function createBlock(type: BlockType, order: number): Block {
   return { id: crypto.randomUUID(), type, order, props: {} };
@@ -120,6 +123,14 @@ const EMPTY_CONFIG: EventConfig = {
   title: '',
   description: '',
   location: '',
+  venueName: '',
+  addressLine: '',
+  city: '',
+  country: '',
+  accessNotes: '',
+  contactPhone: '',
+  latitude: '',
+  longitude: '',
   logoUrl: '',
   coverImageUrl: '',
   faqs: [],
@@ -171,6 +182,14 @@ export default function EventBuilderPage() {
       title: eventData.title ?? '',
       description: eventData.description ?? '',
       location: eventData.location ?? '',
+      venueName: eventData.venueName ?? '',
+      addressLine: eventData.addressLine ?? '',
+      city: eventData.city ?? '',
+      country: eventData.country ?? '',
+      accessNotes: eventData.accessNotes ?? '',
+      contactPhone: eventData.contactPhone ?? '',
+      latitude: eventData.latitude == null ? '' : String(eventData.latitude),
+      longitude: eventData.longitude == null ? '' : String(eventData.longitude),
       logoUrl: eventData.logoUrl ?? '',
       coverImageUrl: eventData.coverImageUrl ?? '',
       faqs: eventData.faqs ?? [],
@@ -200,6 +219,16 @@ export default function EventBuilderPage() {
           title: config.title,
           description: config.description,
           location: config.location,
+          // Chaîne vide → undefined : PATCH partiel, un champ laissé vide ne
+          // doit pas écraser la valeur existante par une chaîne vide.
+          venueName: config.venueName || undefined,
+          addressLine: config.addressLine || undefined,
+          city: config.city || undefined,
+          country: config.country || undefined,
+          accessNotes: config.accessNotes || undefined,
+          contactPhone: config.contactPhone || undefined,
+          latitude: config.latitude ? Number(config.latitude) : undefined,
+          longitude: config.longitude ? Number(config.longitude) : undefined,
           logoUrl: config.logoUrl || undefined,
           coverImageUrl: config.coverImageUrl || undefined,
           faqs: config.faqs,
@@ -630,7 +659,16 @@ export default function EventBuilderPage() {
                   speakers: config.speakers.length,
                   gallery: config.galleryImages.length,
                   sponsors: config.sponsorImages.length,
-                }[block.type as 'faq' | 'schedule' | 'speakers' | 'gallery' | 'sponsors'];
+                  // Le bloc Lieu n’affiche pas une liste mais jusqu’à trois
+                  // encarts (adresse, accès, contact) : on compte ceux qui
+                  // sont réellement remplis, pour que « rien à afficher »
+                  // reste exact.
+                  location: [
+                    config.venueName || config.addressLine || config.city || config.location,
+                    config.accessNotes,
+                    config.contactPhone,
+                  ].filter(Boolean).length,
+                }[block.type as 'faq' | 'schedule' | 'speakers' | 'gallery' | 'sponsors' | 'location'];
                 content = (
                   <button
                     type="button"

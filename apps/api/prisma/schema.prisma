@@ -90,7 +90,33 @@ model Event {
   title                    String
   description              String?
   coverImageUrl            String?
+  /// Adresse libre historique — conservée telle quelle : elle alimente le hero
+  /// et le pied de page, et sert de repli tant que les champs structurés
+  /// ci-dessous sont vides (sinon les événements existants perdraient leur
+  /// adresse à la migration).
   location                 String?
+
+  // Localisation structurée (décision produit 2026-08-16) — alimente le bloc
+  // `location` de la page publique. Pas de carte intégrée : le lien « Ouvrir
+  // dans Maps » se construit depuis ces champs, sans clé d’API ni tiers
+  // chargé chez le visiteur.
+  venueName                String?
+  addressLine              String?
+  city                     String?
+  country                  String?
+  /// Indications d’accès : étage, parking, repère visuel, consignes d’entrée.
+  accessNotes              String?
+  /// Coordonnées optionnelles — si présentes, le lien Maps les préfère à
+  /// l’adresse (plus fiable qu’un géocodage approximatif).
+  latitude                 Decimal? @db.Decimal(9, 6)
+  longitude                Decimal? @db.Decimal(9, 6)
+  /// Numéro officiel de l’événement, affiché publiquement (E.164).
+  contactPhone             String?
+  /// Nombre de personnes prévues — PLAFOND RÉEL (décision produit 2026-08-16) :
+  /// la somme des `stock` de tous les billets ne peut pas le dépasser, refusé
+  /// à la création comme à la modification d’un billet. null = aucun plafond.
+  expectedAttendees        Int?
+
   startDate                DateTime
   endDate                  DateTime // Détermine la durée de session client (endDate + 24h)
   timezone                 String              @default("Africa/Abidjan")

@@ -4,6 +4,8 @@
  */
 import { describe, it, expect } from 'vitest';
 import {
+  buildMapsUrl,
+  formatEventAddress,
   parseDurationToSeconds,
   isValidHexColor,
   sanitizeBgColor,
@@ -300,5 +302,67 @@ describe('saveIntent / consumeIntent', () => {
     saveIntent('event-b', [{ ticketId: 'ticket-b', quantity: 1 }], storage as any);
     expect(consumeIntent('event-a', storage as any)).toEqual({ items: [{ ticketId: 'ticket-a', quantity: 1 }] });
     expect(consumeIntent('event-b', storage as any)).toEqual({ items: [{ ticketId: 'ticket-b', quantity: 1 }] });
+  });
+});
+
+describe('formatEventAddress()', () => {
+  it('assemble les champs structurés dans l\u0027ordre lisible', () => {
+    expect(
+      formatEventAddress({
+        venueName: 'Palais des Sports',
+        addressLine: 'Boulevard de la Paix',
+        city: 'Abidjan',
+        country: "Côte d'Ivoire",
+      }),
+    ).toBe("Palais des Sports, Boulevard de la Paix, Abidjan, Côte d'Ivoire");
+  });
+
+  it('ignore les champs vides ou en blancs plutôt que de produire des virgules orphelines', () => {
+    expect(formatEventAddress({ venueName: 'Stade', addressLine: '   ', city: 'Lomé' })).toBe(
+      'Stade, Lomé',
+    );
+  });
+
+  it("retombe sur l'adresse libre historique quand rien n'est structuré", () => {
+    // Sans ce repli, les événements créés avant ces champs perdraient leur
+    // adresse à l'affichage.
+    expect(formatEventAddress({ location: 'Abidjan, Côte d\u0027Ivoire' })).toBe(
+      "Abidjan, Côte d'Ivoire",
+    );
+  });
+
+  it('renvoie null quand il n\u0027y a rien du tout', () => {
+    expect(formatEventAddress({})).toBeNull();
+  });
+});
+
+describe('buildMapsUrl()', () => {
+  it('préfère les coordonnées à l\u0027adresse quand elles existent', () => {
+    // Un géocodage d'adresse peut tomber à plusieurs rues du lieu réel.
+    expect(
+      buildMapsUrl({ city: 'Abidjan', latitude: 5.316667, longitude: -4.033333 }),
+    ).toBe('https://www.google.com/maps/search/?api=1&query=5.316667,-4.033333');
+  });
+
+  it('accepte des coordonnées en chaîne (Prisma renvoie les Decimal ainsi)', () => {
+    expect(buildMapsUrl({ latitude: '5.316667', longitude: '-4.033333' })).toBe(
+      'https://www.google.com/maps/search/?api=1&query=5.316667,-4.033333',
+    );
+  });
+
+  it("encode l'adresse quand aucune coordonnée n'est fournie", () => {
+    expect(buildMapsUrl({ venueName: 'Palais des Sports', city: 'Abidjan' })).toBe(
+      'https://www.google.com/maps/search/?api=1&query=Palais%20des%20Sports%2C%20Abidjan',
+    );
+  });
+
+  it('renvoie null sans coordonnées ni adresse, pour que le bouton soit masqué', () => {
+    expect(buildMapsUrl({})).toBeNull();
+  });
+
+  it('ignore une latitude seule (une coordonnée incomplète ne localise rien)', () => {
+    expect(buildMapsUrl({ latitude: 5.31, city: 'Abidjan' })).toBe(
+      'https://www.google.com/maps/search/?api=1&query=Abidjan',
+    );
   });
 });

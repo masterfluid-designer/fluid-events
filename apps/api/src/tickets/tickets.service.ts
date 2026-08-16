@@ -76,9 +76,51 @@ export class TicketsService {
     }
   }
 
+  /**
+   * Plafond de capacité (décision produit 2026-08-16) : la somme des `stock`
+   * de tous les billets d'un événement ne peut pas dépasser
+   * `Event.expectedAttendees`. `null` = aucun plafond, comportement d'avant.
+   *
+   * On compte les places OFFERTES (`stock`), pas les places vendues : le but
+   * est d'empêcher de mettre en vente plus de billets que la salle ne peut en
+   * accueillir, pas de réagir une fois la survente constatée.
+   *
+   * `excludeTicketId` sert aux modifications : le billet en cours d'édition
+   * doit sortir de la somme, sinon son propre stock actuel serait compté en
+   * plus du nouveau et toute hausse serait refusée à tort.
+   */
+  private async assertCapacityAllows(
+    eventId: string,
+    newStock: number,
+    excludeTicketId?: string,
+  ): Promise<void> {
+    const event = await this.prisma.event.findUnique({
+      where: { id: eventId },
+      select: { expectedAttendees: true },
+    });
+    if (!event?.expectedAttendees) return;
+
+    const aggregate = await this.prisma.ticket.aggregate({
+      where: { eventId, id: excludeTicketId ? { not: excludeTicketId } : undefined },
+      _sum: { stock: true },
+    });
+    const others = aggregate._sum.stock ?? 0;
+
+    if (others + newStock > event.expectedAttendees) {
+      throw new BadRequestException({
+        code: ErrorCodes.EVENT_CAPACITY_EXCEEDED,
+        message:
+          `Capacité dépassée : ${others + newStock} places pour un maximum de ` +
+          `${event.expectedAttendees}. Augmentez le nombre de personnes prévues ` +
+          `sur l'événement, ou réduisez ce stock.`,
+      });
+    }
+  }
+
   async createTicket(eventId: string, managerId: string, dto: CreateTicketDto) {
     await this.getOwnedEventOrThrow(eventId, managerId);
     this.assertValidDesignImageUrl(dto.designImageUrl);
+    await this.assertCapacityAllows(eventId, dto.stock);
 
     return this.prisma.ticket.create({
       data: {
@@ -118,6 +160,9 @@ export class TicketsService {
   async updateTicket(ticketId: string, managerId: string, dto: UpdateTicketDto) {
     await this.getOwnedTicketOrThrow(ticketId, managerId);
     this.assertValidDesignImageUrl(dto.designImageUrl);
+    // Pas de contrôle de capacité ici : `stock` est volontairement absent de
+    // UpdateTicketDto (modifier la capacité après des ventes est une décision
+    // produit non tranchée, BUSINESS.md §12), la somme ne peut donc pas bouger.
 
     return this.prisma.ticket.update({
       where: { id: ticketId },

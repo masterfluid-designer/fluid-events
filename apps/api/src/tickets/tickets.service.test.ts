@@ -3,6 +3,7 @@
  * Ownership Manager obligatoire (RULES.md §1) : un Manager ne peut créer/lire/
  * modifier/supprimer un billet QUE sur son propre événement.
  */
+import { ErrorCodes } from '@saas-events/types';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { BadRequestException, ForbiddenException, NotFoundException, ConflictException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
@@ -15,6 +16,7 @@ function makePrisma() {
   return {
     event: { findUnique: vi.fn() },
     ticket: {
+      aggregate: vi.fn(),
       create: vi.fn(),
       findMany: vi.fn(),
       findUnique: vi.fn(),
@@ -48,6 +50,64 @@ describe('TicketsService', () => {
       expect(prisma.ticket.create).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ eventId: 'ev-1', name: 'VIP' }) }),
       );
+    });
+
+
+    // ─── Plafond de capacité (décision produit 2026-08-16) ──────────────────
+    // `event.findUnique` est appelé deux fois : d'abord pour l'ownership, puis
+    // par le garde de capacité — d'où le séquençage par `mockResolvedValueOnce`.
+
+    it("refuse un billet qui ferait dépasser le nombre de personnes prévues", async () => {
+      prisma.event.findUnique
+        .mockResolvedValueOnce(OWNED_EVENT)
+        .mockResolvedValueOnce({ expectedAttendees: 500 });
+      prisma.ticket.aggregate.mockResolvedValue({ _sum: { stock: 450 } });
+
+      await expect(
+        service.createTicket('ev-1', 'mgr-1', { name: 'VIP', price: 5000, stock: 100 } as any),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({ code: ErrorCodes.EVENT_CAPACITY_EXCEEDED }),
+      });
+      expect(prisma.ticket.create).not.toHaveBeenCalled();
+    });
+
+    it('accepte un billet qui atteint exactement le plafond', async () => {
+      prisma.event.findUnique
+        .mockResolvedValueOnce(OWNED_EVENT)
+        .mockResolvedValueOnce({ expectedAttendees: 500 });
+      prisma.ticket.aggregate.mockResolvedValue({ _sum: { stock: 400 } });
+      prisma.ticket.create.mockResolvedValue({ id: 'tk-1' });
+
+      await expect(
+        service.createTicket('ev-1', 'mgr-1', { name: 'VIP', price: 5000, stock: 100 } as any),
+      ).resolves.toEqual({ id: 'tk-1' });
+    });
+
+    it("ne plafonne rien quand l'événement n'a pas de capacité déclarée", async () => {
+      prisma.event.findUnique
+        .mockResolvedValueOnce(OWNED_EVENT)
+        .mockResolvedValueOnce({ expectedAttendees: null });
+      prisma.ticket.create.mockResolvedValue({ id: 'tk-1' });
+
+      await service.createTicket('ev-1', 'mgr-1', { name: 'VIP', price: 5000, stock: 99999 } as any);
+
+      // Aucun agrégat interrogé : on sort avant, la requête serait gaspillée.
+      expect(prisma.ticket.aggregate).not.toHaveBeenCalled();
+      expect(prisma.ticket.create).toHaveBeenCalled();
+    });
+
+    it('compte le premier billet seul quand aucun autre stock n\u0027existe (_sum à null)', async () => {
+      prisma.event.findUnique
+        .mockResolvedValueOnce(OWNED_EVENT)
+        .mockResolvedValueOnce({ expectedAttendees: 50 });
+      // Prisma renvoie `null`, pas 0, quand aucune ligne ne correspond.
+      prisma.ticket.aggregate.mockResolvedValue({ _sum: { stock: null } });
+
+      await expect(
+        service.createTicket('ev-1', 'mgr-1', { name: 'VIP', price: 5000, stock: 80 } as any),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({ code: ErrorCodes.EVENT_CAPACITY_EXCEEDED }),
+      });
     });
 
     it("refuse (403) si le manager ne possède pas l'événement", async () => {

@@ -212,7 +212,12 @@ export type BlockType =
   | 'sponsors'
   | 'speakers'
   | 'html'
-  | 'timeline';
+  | 'timeline'
+  // Bloc « Où ça se passe » (décision produit 2026-08-16) : adresse structurée,
+  // indications d’accès, numéro officiel et lien Maps. Le contenu vient des
+  // champs de l’événement, pas des props du bloc — même principe que
+  // faq/schedule/speakers.
+  | 'location';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Thème de la page publique (décision produit — personnalisation par
@@ -379,6 +384,9 @@ export const ErrorCodes = {
   EVENT_NOT_FOUND: 'EVENT_NOT_FOUND',
   EVENT_NOT_ACTIVE: 'EVENT_NOT_ACTIVE',
   EVENT_EXPIRED: 'EVENT_EXPIRED',
+  // Somme des stocks de billets > Event.expectedAttendees (plafond réel,
+  // décision produit 2026-08-16).
+  EVENT_CAPACITY_EXCEEDED: 'EVENT_CAPACITY_EXCEEDED',
   // Tickets
   TICKET_NOT_FOUND: 'TICKET_NOT_FOUND',
   TICKET_SOLD_OUT: 'TICKET_SOLD_OUT',
