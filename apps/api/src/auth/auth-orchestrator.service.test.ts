@@ -366,7 +366,7 @@ describe('AuthOrchestratorService.requestPhoneVerification()', () => {
     });
   });
 
-  it("propage l'erreur si l'envoi WhatsApp échoue (l'utilisateur attend activement ce code)", async () => {
+  it("traduit un échec d'envoi WhatsApp en 503 explicite (jamais un 500 opaque)", async () => {
     const prisma = makePhoneVerificationPrisma();
     const phoneService = makePhoneService();
     const whatsapp = { sendVerificationCode: vi.fn().mockRejectedValue(new Error('WhatsApp non configuré')) };
@@ -379,9 +379,14 @@ describe('AuthOrchestratorService.requestPhoneVerification()', () => {
       whatsapp as any,
     );
 
-    await expect(service.requestPhoneVerification('u-1', '+22890123456')).rejects.toThrow(
-      'WhatsApp non configuré',
-    );
+    // L’utilisateur attend activement ce code : l’échec doit lui remonter.
+    // Mais une `Error` brute devenait un 500 « Erreur interne du serveur »,
+    // illisible — c’est ce qu’a vécu la production quand les identifiants
+    // Meta manquaient. On exige désormais un code d’erreur exploitable, et
+    // que la cause brute ne fuite pas au client.
+    await expect(service.requestPhoneVerification('u-1', '+22890123456')).rejects.toMatchObject({
+      response: { code: ErrorCodes.PHONE_VERIFICATION_UNAVAILABLE },
+    });
     expect(prisma.user.update).not.toHaveBeenCalled();
   });
 });

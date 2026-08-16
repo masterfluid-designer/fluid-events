@@ -10,8 +10,9 @@ import { api } from '@/lib/api';
 /**
  * Client — Mon profil. Lecture seule : email et téléphone ne sont
  * volontairement modifiables depuis aucun formulaire côté client (décision
- * produit 2026-07-15) — le téléphone est capturé/vérifié une seule fois via
- * `PhoneVerificationGate` (code WhatsApp, juste après l'auth), le pays est
+ * produit 2026-07-15) — le téléphone est capturé une seule fois pendant le
+ * tunnel d'achat, SANS vérification par code (décision produit 2026-08-16 :
+ * `PhoneVerificationGate` ne vise plus que les Manager), le pays est
  * déduit automatiquement de son indicatif. Réutilise `GET /api/auth/me`
  * (déjà servi pour la bannière impersonation Admin).
  */

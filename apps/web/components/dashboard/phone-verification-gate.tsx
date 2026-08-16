@@ -12,8 +12,8 @@ import { api, apiPost, ApiError } from '@/lib/api';
 import { COUNTRIES } from '@/lib/countries';
 
 /**
- * PhoneVerificationGate — bloque tout le dashboard (Manager/Client
- * uniquement) tant que le téléphone n'est pas soumis ET vérifié par code
+ * PhoneVerificationGate — bloque tout le dashboard (Manager UNIQUEMENT)
+ * tant que le téléphone n'est pas soumis ET vérifié par code
  * WhatsApp (décision produit 2026-07-15). Le pays est déduit automatiquement
  * de l'indicatif — jamais demandé séparément à l'utilisateur.
  *
@@ -22,9 +22,20 @@ import { COUNTRIES } from '@/lib/countries';
  * processus... avant de continuer le workflow", pas juste un rappel discret).
  * Admin/Scanner ne sont jamais concernés (comptes créés/gérés différemment,
  * pas de flux d'inscription self-service).
+ *
+ * Les CLIENT en ont été sortis (décision produit 2026-08-16) : leur numéro est
+ * collecté pendant le tunnel d'achat, sans vérification, et une simple
+ * connexion Google suffit à revenir consulter ses billets. Les y soumettre
+ * les enfermait dehors dès que WhatsApp n'était pas configuré — ce qui était
+ * le cas en production.
+ *
+ * La vérification n'a lieu qu'à la PREMIÈRE connexion : `phoneVerifiedAt`, une
+ * fois posé, n'est jamais effacé par une reconnexion Google
+ * (`loginWithGoogle` n'écrit que le nom et l'avatar), seulement par la
+ * soumission d'un nouveau numéro.
  */
 
-const GATED_ROLES = new Set(['MANAGER', 'CLIENT']);
+const GATED_ROLES = new Set(['MANAGER']);
 
 interface CurrentUser {
   id: string;

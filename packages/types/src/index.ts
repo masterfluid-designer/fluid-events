@@ -427,6 +427,14 @@ export const ErrorCodes = {
   PHONE_INVALID: 'PHONE_INVALID',
   PHONE_VERIFICATION_CODE_INVALID: 'PHONE_VERIFICATION_CODE_INVALID',
   PHONE_VERIFICATION_CODE_EXPIRED: 'PHONE_VERIFICATION_CODE_EXPIRED',
+  /**
+   * Le canal d’envoi du code (WhatsApp Cloud API) est indisponible :
+   * identifiants Meta absents, ou template refusé/non approuvé. Côté
+   * utilisateur c’est la même impasse dans les deux cas — sans ce code, une
+   * `Error` brute remontait en 500 « Erreur interne du serveur », illisible
+   * pour l’utilisateur comme pour l’exploitant.
+   */
+  PHONE_VERIFICATION_UNAVAILABLE: 'PHONE_VERIFICATION_UNAVAILABLE',
   // Formulaire de contact public (/contact, /support — 2026-07-24)
   CONTACT_SEND_FAILED: 'CONTACT_SEND_FAILED',
 } as const;

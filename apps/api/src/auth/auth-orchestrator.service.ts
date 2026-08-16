@@ -5,6 +5,7 @@ import {
   ForbiddenException,
   NotFoundException,
   BadRequestException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
@@ -374,10 +375,28 @@ export class AuthOrchestratorService {
     const code = String(Math.floor(100000 + Math.random() * 900000));
     const expiresAt = new Date(Date.now() + PHONE_VERIFICATION_CODE_TTL_MINUTES * 60 * 1000);
 
-    await this.whatsapp.sendVerificationCode({
-      to: phone.replace('+', ''),
-      code,
-    });
+    // Le canal WhatsApp est le SEUL moyen de recevoir ce code : s’il tombe,
+    // l’utilisateur est enfermé dehors sans recours. Une `Error` brute
+    // remontait en 500 « Erreur interne du serveur » — ni l’utilisateur ni
+    // l’exploitant n’apprenaient que la cause était une configuration Meta
+    // absente. On la traduit en 503 explicite, en conservant la cause réelle
+    // dans les journaux (jamais renvoyée au client : elle peut contenir des
+    // détails d’identifiants).
+    try {
+      await this.whatsapp.sendVerificationCode({
+        to: phone.replace('+', ''),
+        code,
+      });
+    } catch (err) {
+      this.logger.error(
+        `Échec d’envoi du code de vérification à ${phone} : ${err instanceof Error ? err.message : String(err)}`,
+      );
+      throw new ServiceUnavailableException({
+        code: ErrorCodes.PHONE_VERIFICATION_UNAVAILABLE,
+        message:
+          'L’envoi du code de vérification est momentanément indisponible. Réessayez plus tard ou contactez un administrateur.',
+      });
+    }
 
     await this.prisma.user.update({
       where: { id: userId },
