@@ -8,6 +8,11 @@ import { Role } from '@saas-events/types';
 const MANAGER_TRIAL_DAYS = 3;
 /** Délai de rétention après la fin d'un événement avant anonymisation d'un Client. */
 const CLIENT_RETENTION_DAYS = 7;
+/**
+ * Délai avant suppression d'un compte Client Google qui n'a jamais commandé.
+ * Le cron étant quotidien, la suppression tombe en pratique entre 24 et 48 h.
+ */
+const CLIENT_ORPHAN_HOURS = 24;
 
 /**
  * RetentionService — Rétention/suppression automatique des comptes (décision
@@ -24,6 +29,14 @@ const CLIENT_RETENTION_DAYS = 7;
  *    terminés il y a plus de 7 jours → données personnelles ANONYMISÉES
  *    (jamais de suppression : Order/OrderItem restent intacts pour la
  *    comptabilité, cf. Order.client en relation requise).
+ *  - Client Google sans AUCUNE commande après 24 h → compte SUPPRIMÉ
+ *    (décision produit 2026-08-16 : « le compte client ne se crée qu'après
+ *    validation du paiement »). Le compte naît techniquement dès l'OAuth,
+ *    parce que Order.clientId est une FK obligatoire posée dès l'initiation
+ *    du paiement ; on obtient le même résultat observable en effaçant ceux
+ *    qui n'ont jamais rien commandé, sans migration de schéma. Suppression
+ *    franche et non anonymisation : sans commande, aucune FK ne les retient.
+ *    Un client qui revient se reconnecte simplement, un compte est recréé.
  *
  * Jamais de manager invité par l'Admin (isSelfService=false) concerné, jamais
  * de client avec un événement à venir ou terminé depuis moins de 7 jours.
@@ -40,6 +53,7 @@ export class RetentionService {
   @Cron(CronExpression.EVERY_DAY_AT_3AM)
   async runDailyRetention(): Promise<void> {
     await this.deleteExpiredSelfServiceManagers();
+    await this.deleteOrphanClients();
     await this.anonymizeStaleClients();
   }
 
@@ -90,6 +104,47 @@ export class RetentionService {
       await this.audit.log('account.retention.manager.deleted', 'User', manager.id, {
         email: manager.email,
         hadEvent: Boolean(manager.managedEvent),
+      });
+    }
+  }
+
+  /**
+   * Supprime les comptes Client Google sans aucune commande passé 24 h.
+   *
+   * `passwordHash: null` et `googleId: { not: null }` sont volontaires : ils
+   * épargnent les comptes de test seedés (email/mot de passe, aucun
+   * `googleId`), dont certains n'ont jamais de commande et que la suite E2E
+   * attend présents. Même prudence que `anonymizeStaleClients`, qui filtre
+   * déjà sur `googleId`.
+   *
+   * Un client en cours d'achat n'est jamais concerné : l'Order est créée dès
+   * l'initiation du paiement, donc `orders: { none: {} }` l'exclut déjà.
+   */
+  async deleteOrphanClients(): Promise<void> {
+    const cutoff = new Date(Date.now() - CLIENT_ORPHAN_HOURS * 60 * 60 * 1000);
+    const orphans = await this.prisma.user.findMany({
+      where: {
+        role: Role.CLIENT,
+        googleId: { not: null },
+        passwordHash: null,
+        createdAt: { lt: cutoff },
+        orders: { none: {} },
+      },
+      select: { id: true, email: true },
+    });
+
+    for (const client of orphans) {
+      try {
+        await this.prisma.user.delete({ where: { id: client.id } });
+      } catch (error) {
+        this.logger.warn(
+          `Suppression auto échouée — client ${client.id} (${client.email}) : ${(error as Error).message}`,
+        );
+        continue;
+      }
+
+      await this.audit.log('account.retention.client.deleted', 'User', client.id, {
+        email: client.email,
       });
     }
   }

@@ -2,6 +2,7 @@
  * Tests unitaires — RetentionService
  * Suppression auto Manager self-service non abonné (3j) + anonymisation
  * Client (7j après fin de tous ses événements) — décision produit 2026-07-14.
+ * Suppression des clients Google sans commande (24 h) — 2026-08-16.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { RetentionService } from './retention.service';
@@ -15,6 +16,7 @@ function makePrisma() {
     user: {
       findMany: vi.fn().mockResolvedValue([]),
       update: vi.fn().mockResolvedValue({}),
+      delete: vi.fn().mockResolvedValue({}),
     },
     order: {
       count: vi.fn().mockResolvedValue(0),
@@ -200,5 +202,70 @@ describe('RetentionService.anonymizeStaleClients()', () => {
     await service.anonymizeStaleClients();
 
     expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+});
+
+describe('RetentionService.deleteOrphanClients()', () => {
+  let prisma: ReturnType<typeof makePrisma>;
+  let audit: ReturnType<typeof makeAudit>;
+  let service: RetentionService;
+
+  beforeEach(() => {
+    prisma = makePrisma();
+    audit = makeAudit();
+    service = new RetentionService(prisma as any, audit as any);
+  });
+
+  it("ne cible que les clients Google sans mot de passe et sans aucune commande", async () => {
+    await service.deleteOrphanClients();
+
+    expect(prisma.user.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          role: 'CLIENT',
+          googleId: { not: null },
+          // Épargne les comptes de test seedés (email/mot de passe) : certains
+          // n’ont aucune commande et la suite E2E les attend présents.
+          passwordHash: null,
+          orders: { none: {} },
+        }),
+      }),
+    );
+  });
+
+  it("supprime le compte et journalise", async () => {
+    prisma.user.findMany.mockResolvedValue([{ id: 'c-1', email: 'orphelin@example.com' }]);
+
+    await service.deleteOrphanClients();
+
+    expect(prisma.user.delete).toHaveBeenCalledWith({ where: { id: 'c-1' } });
+    expect(audit.log).toHaveBeenCalledWith(
+      'account.retention.client.deleted',
+      'User',
+      'c-1',
+      { email: 'orphelin@example.com' },
+    );
+  });
+
+  it("continue sur les clients suivants si une suppression échoue (erreur DB)", async () => {
+    prisma.user.findMany.mockResolvedValue([
+      { id: 'c-1', email: 'a@example.com' },
+      { id: 'c-2', email: 'b@example.com' },
+    ]);
+    prisma.user.delete
+      .mockRejectedValueOnce(new Error('FK inattendue'))
+      .mockResolvedValueOnce({});
+
+    await service.deleteOrphanClients();
+
+    expect(prisma.user.delete).toHaveBeenCalledTimes(2);
+    // Seul le second a abouti : pas de journal pour celui qui a échoué.
+    expect(audit.log).toHaveBeenCalledTimes(1);
+    expect(audit.log).toHaveBeenCalledWith(
+      'account.retention.client.deleted',
+      'User',
+      'c-2',
+      { email: 'b@example.com' },
+    );
   });
 });
