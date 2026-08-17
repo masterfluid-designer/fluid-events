@@ -1,7 +1,7 @@
 'use client';
 
 import { TicketPolicy } from '@saas-events/types';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { CalendarDays, Plus, X } from 'lucide-react';
@@ -11,7 +11,8 @@ import { Card } from '@/components/ui/card';
 import { Spinner } from '@/components/ui/spinner';
 import { ColorField } from '@/components/ui/color-field';
 import { ImageUploadField } from '@/components/ui/image-upload-field';
-import { api, apiPost, ApiError } from '@/lib/api';
+import { api, apiPatch, apiPost, ApiError } from '@/lib/api';
+import { TicketingPanel, type EventDayDraft } from '../builder/ticketing-panel';
 
 /**
  * Gestion des billets (CDC §6.3). Données réelles via GET /api/events/mine
@@ -55,6 +56,46 @@ export default function ManagerTicketsPage() {
   const { data: event, isLoading, isError } = useQuery({
     queryKey: ['manager-event'],
     queryFn: () => api<EventWithTickets>('/api/events/mine'),
+  });
+
+  // Régime de billetterie — état local jusqu’à l’enregistrement explicite,
+  // comme le reste de cette page.
+  const [policy, setPolicy] = useState<TicketPolicy>(TicketPolicy.SINGLE_DAY);
+  const [days, setDays] = useState<EventDayDraft[]>([]);
+  const [regimeLoaded, setRegimeLoaded] = useState(false);
+  const [regimeDirty, setRegimeDirty] = useState(false);
+
+  const { data: me } = useQuery({
+    queryKey: ['auth-me'],
+    queryFn: () => api<{ isPremium: boolean }>('/api/auth/me'),
+  });
+  const isPremium = me?.isPremium ?? false;
+
+  // Amorce unique : on ne réécrit pas l’état à chaque refetch, sinon une
+  // saisie en cours serait écrasée par la version serveur.
+  useEffect(() => {
+    if (!event || regimeLoaded) return;
+    setPolicy(event.ticketPolicy ?? TicketPolicy.SINGLE_DAY);
+    setDays((event.days ?? []).map((d) => ({ label: d.label, date: d.date.slice(0, 10) })));
+    setRegimeLoaded(true);
+  }, [event, regimeLoaded]);
+
+  const saveRegime = useMutation({
+    mutationFn: () =>
+      apiPatch('/api/events/mine', {
+        ticketPolicy: policy,
+        // Une journée sans date est une ligne que l’utilisateur n’a pas finie :
+        // on ne l’envoie pas plutôt que de faire échouer tout l’enregistrement.
+        days: days.filter((d) => d.date),
+      }),
+    onSuccess: () => {
+      toast.success('Régime enregistré');
+      setRegimeDirty(false);
+      queryClient.invalidateQueries({ queryKey: ['manager-event'] });
+    },
+    onError: (err) => {
+      toast.error(err instanceof ApiError ? err.message : "Impossible d'enregistrer le régime");
+    },
   });
 
   const createTicket = useMutation({
@@ -122,6 +163,48 @@ export default function ManagerTicketsPage() {
           {showForm ? 'Annuler' : 'Ajouter un billet'}
         </Button>
       </div>
+
+      {/* Régime de billetterie (décision produit 2026-08-16) — sa place est
+          ici, avec les billets, et non dans l'onglet Config du Builder qui
+          sert au contenu de la page publique. Un manager cherchant cette
+          option la cherche dans « Billets ». */}
+      <Card className="p-4 sm:p-5">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 className="text-sm font-semibold">Régime de billetterie</h2>
+            <p className="text-xs text-muted-foreground">
+              Ce que le scanner autorisera à l&apos;entrée.
+            </p>
+          </div>
+          {isPremium && <Badge variant="success">Premium</Badge>}
+        </div>
+
+        <TicketingPanel
+          policy={policy}
+          days={days}
+          isPremium={isPremium}
+          onPolicyChange={(next) => {
+            setPolicy(next);
+            setRegimeDirty(true);
+            // Repasser en mono-jour vide la liste : la conserver enverrait des
+            // journées que le serveur refuserait dans ce régime.
+            if (next === TicketPolicy.SINGLE_DAY) setDays([]);
+          }}
+          onDaysChange={(next) => {
+            setDays(next);
+            setRegimeDirty(true);
+          }}
+        />
+
+        <div className="mt-4 flex items-center gap-3">
+          <Button size="sm" onClick={() => saveRegime.mutate()} disabled={saveRegime.isPending}>
+            {saveRegime.isPending ? 'Enregistrement...' : 'Enregistrer le régime'}
+          </Button>
+          {regimeDirty && (
+            <span className="text-xs text-muted-foreground">Modifications non enregistrées</span>
+          )}
+        </div>
+      </Card>
 
       {showForm && (
         <Card className="p-5">

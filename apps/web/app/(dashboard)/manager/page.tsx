@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { DollarSign, Ticket, ScanLine, Radio, Clock, AlertTriangle, Rocket } from 'lucide-react';
+import { Sparkles, DollarSign, Ticket, ScanLine, Radio, Clock, AlertTriangle, Rocket } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -51,6 +51,12 @@ export default function ManagerDashboardPage() {
     queryKey: ['manager-overview'],
     queryFn: () => api<Overview>('/api/events/mine/overview'),
     retry: false,
+  });
+
+  // Palier Premium — le manager n’avait aucun moyen de savoir qu’il l’a.
+  const { data: me } = useQuery({
+    queryKey: ['auth-me'],
+    queryFn: () => api<{ isPremium: boolean }>('/api/auth/me'),
   });
 
   const setStatus = useMutation({
@@ -121,6 +127,11 @@ export default function ManagerDashboardPage() {
           >
             ● {STATUS_LABELS[overview.event.status] ?? overview.event.status}
           </Badge>
+          {me?.isPremium && (
+            <Badge variant="success" title="Options avancées débloquées, dont les événements sur plusieurs jours">
+              <Sparkles className="mr-1 size-3" /> Premium
+            </Badge>
+          )}
           {overview.event.status === 'PUBLISHED' && !confirmingCancel && (
             <Button variant="outline" size="sm" onClick={() => setConfirmingCancel(true)}>
               Annuler l&apos;événement
