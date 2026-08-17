@@ -28,6 +28,8 @@ interface TicketRow {
   stock: number;
   stockSold: number;
   isActive: boolean;
+  // Journée ouverte par ce billet en régime PER_DAY (2026-08-16).
+  eventDayId: string | null;
 }
 
 interface EventWithTickets {
@@ -149,32 +151,46 @@ export default function ManagerTicketsPage() {
 
   const totalSold = event.tickets.reduce((sum, t) => sum + t.stockSold, 0);
 
+  // Régime EFFECTIF (celui du serveur), et non l’état local en cours
+  // d’édition : le formulaire doit refléter ce qui est réellement enregistré,
+  // sinon on proposerait des journées que l’API refuserait encore.
+  const savedPolicy = event.ticketPolicy ?? TicketPolicy.SINGLE_DAY;
+  const canCreateTickets =
+    !regimeDirty && (savedPolicy !== TicketPolicy.PER_DAY || event.days.length > 0);
+  const creationHint =
+    savedPolicy === TicketPolicy.PER_DAY
+      ? "Un billet par journée et par variante — chacun avec son propre prix."
+      : savedPolicy === TicketPolicy.PASS_ALL_DAYS
+        ? `Chaque billet vaudra pour les ${event.days.length} journées de l’événement.`
+        : "Un billet, une entrée.";
+
   return (
     <div className="space-y-6 p-4 sm:p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Types de billets</h1>
-          <p className="text-sm text-muted-foreground">
-            {event.tickets.length} type{event.tickets.length > 1 ? 's' : ''} · {totalSold.toLocaleString('fr-FR')} vendus
-          </p>
-        </div>
-        <Button onClick={() => setShowForm((v) => !v)}>
-          {showForm ? <X className="size-4" /> : <Plus className="size-4" />}
-          {showForm ? 'Annuler' : 'Ajouter un billet'}
-        </Button>
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">Billetterie</h1>
+        <p className="text-sm text-muted-foreground">
+          {event.tickets.length} type{event.tickets.length > 1 ? 's' : ''} de billet ·{' '}
+          {totalSold.toLocaleString('fr-FR')} vendus
+        </p>
       </div>
 
-      {/* Régime de billetterie (décision produit 2026-08-16) — sa place est
-          ici, avec les billets, et non dans l'onglet Config du Builder qui
-          sert au contenu de la page publique. Un manager cherchant cette
-          option la cherche dans « Billets ». */}
+      {/* Deux étapes explicites (décision produit 2026-08-17) : on demande
+          d'abord sur combien de jours se déroule l'événement, parce que la
+          réponse change la façon dont les billets se créent ensuite. La
+          saisie reste manuelle, billet par billet — chaque journée peut
+          avoir ses propres variantes et ses propres prix. */}
       <Card className="p-4 sm:p-5">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h2 className="text-sm font-semibold">Régime de billetterie</h2>
-            <p className="text-xs text-muted-foreground">
-              Ce que le scanner autorisera à l&apos;entrée.
-            </p>
+          <div className="flex items-start gap-3">
+            <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
+              1
+            </span>
+            <div>
+              <h2 className="text-sm font-semibold">Votre événement se déroule sur…</h2>
+              <p className="text-xs text-muted-foreground">
+                Ce choix décide de ce que le scanner autorisera à l&apos;entrée.
+              </p>
+            </div>
           </div>
           {isPremium && <Badge variant="success">Premium</Badge>}
         </div>
@@ -198,12 +214,63 @@ export default function ManagerTicketsPage() {
 
         <div className="mt-4 flex items-center gap-3">
           <Button size="sm" onClick={() => saveRegime.mutate()} disabled={saveRegime.isPending}>
-            {saveRegime.isPending ? 'Enregistrement...' : 'Enregistrer le régime'}
+            {saveRegime.isPending ? 'Enregistrement...' : 'Enregistrer'}
           </Button>
           {regimeDirty && (
-            <span className="text-xs text-muted-foreground">Modifications non enregistrées</span>
+            <span className="text-xs text-amber-600 dark:text-amber-500">
+              Enregistrez avant d&apos;ajouter vos billets
+            </span>
           )}
         </div>
+      </Card>
+
+      <Card className="p-4 sm:p-5">
+        <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
+              2
+            </span>
+            <div>
+              <h2 className="text-sm font-semibold">Créez vos billets</h2>
+              <p className="text-xs text-muted-foreground">{creationHint}</p>
+            </div>
+          </div>
+          <Button onClick={() => setShowForm((v) => !v)} disabled={!canCreateTickets}>
+            {showForm ? <X className="size-4" /> : <Plus className="size-4" />}
+            {showForm ? 'Annuler' : 'Ajouter un billet'}
+          </Button>
+        </div>
+
+        {/* En « billet par jour », le manager crée une ligne par journée et
+            par variante : ce décompte lui montre ce qu'il reste à faire,
+            plutôt que de le lui faire tenir de tête. */}
+        {savedPolicy === TicketPolicy.PER_DAY && event.days.length > 0 && (
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {event.days.map((d) => {
+              const count = event.tickets.filter((t) => t.eventDayId === d.id).length;
+              return (
+                <div
+                  key={d.id}
+                  className={`flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-xs ${
+                    count === 0 ? 'border-dashed border-amber-500/50' : 'border-border'
+                  }`}
+                >
+                  <span className="min-w-0 truncate font-medium">{d.label}</span>
+                  <span className={count === 0 ? 'text-amber-600 dark:text-amber-500' : 'text-muted-foreground'}>
+                    {count === 0 ? 'aucun billet' : `${count} billet${count > 1 ? 's' : ''}`}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {savedPolicy === TicketPolicy.PER_DAY && event.days.length === 0 && (
+          <p className="rounded-lg border border-dashed border-amber-500/50 px-3 py-2.5 text-xs text-amber-600 dark:text-amber-500">
+            Déclarez d&apos;abord vos journées à l&apos;étape 1 : en « billet par jour », chaque
+            billet doit ouvrir une journée précise.
+          </p>
+        )}
       </Card>
 
       {showForm && (
@@ -266,7 +333,7 @@ export default function ManagerTicketsPage() {
             {/* Régime PER_DAY (2026-08-16) : la journée remplace le libellé
                 libre — c'est elle que le scanner contrôlera à l'entrée, alors
                 que `dayLabel` n'a jamais été que du texte d'affichage. */}
-            {event.ticketPolicy === TicketPolicy.PER_DAY ? (
+            {savedPolicy === TicketPolicy.PER_DAY ? (
               <label className="flex flex-col gap-1.5 md:col-span-2">
                 <span className="text-xs font-medium text-muted-foreground">
                   Journée ouverte par ce billet
@@ -316,6 +383,12 @@ export default function ManagerTicketsPage() {
                   </span>
                 )}
               </label>
+            ) : savedPolicy === TicketPolicy.PASS_ALL_DAYS ? (
+              // Un pass couvre toutes les journées : proposer un champ
+              // « Jour » laisserait croire à une restriction qui n’existe pas.
+              <p className="rounded-md border border-dashed border-border px-3 py-2 text-xs text-muted-foreground md:col-span-2">
+                Ce billet vaudra pour les {event.days.length} journées de l’événement.
+              </p>
             ) : (
               <input
                 placeholder="Jour (ex: Jour 1 — Samedi 8 Août, optionnel)"
