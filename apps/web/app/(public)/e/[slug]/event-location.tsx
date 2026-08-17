@@ -44,8 +44,12 @@ export function EventLocation({
       />
 
       <div className="mx-auto grid max-w-4xl gap-4 md:grid-cols-2">
+        {/* `items-stretch` est le défaut d’une grille, mais il n’agit que sur
+            les colonnes : les cartes empilées à droite doivent à leur tour
+            grandir (`flex-1`), sinon la colonne s’étire et son contenu laisse
+            un vide en bas — deux blocs côte à côte de hauteurs différentes. */}
         {address && (
-          <div className="rounded-2xl border border-stroke p-6 dark:border-strokedark">
+          <div className="flex h-full flex-col rounded-2xl border border-stroke p-6 dark:border-strokedark">
             <div className="flex items-start gap-3">
               <MapPin className="mt-0.5 size-5 shrink-0 text-primary" />
               <div className="min-w-0">
@@ -73,7 +77,7 @@ export function EventLocation({
         {(accessNotes || contactPhone) && (
           <div className="flex flex-col gap-4">
             {accessNotes && (
-              <div className="rounded-2xl border border-stroke p-6 dark:border-strokedark">
+              <div className="flex flex-1 flex-col rounded-2xl border border-stroke p-6 dark:border-strokedark">
                 <div className="flex items-start gap-3">
                   <Info className="mt-0.5 size-5 shrink-0 text-primary" />
                   <div className="min-w-0">
@@ -92,7 +96,7 @@ export function EventLocation({
             )}
 
             {contactPhone && (
-              <div className="rounded-2xl border border-stroke p-6 dark:border-strokedark">
+              <div className="flex flex-1 flex-col rounded-2xl border border-stroke p-6 dark:border-strokedark">
                 <div className="flex items-start gap-3">
                   <Phone className="mt-0.5 size-5 shrink-0 text-primary" />
                   <div className="min-w-0">
@@ -112,7 +116,7 @@ export function EventLocation({
                         href={`https://wa.me/${whatsappNumber}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="mt-3 inline-flex items-center gap-2 rounded-full bg-[#25D366] px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+                        className="mt-4 inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primaryho"
                       >
                         <MessageCircle className="size-4" /> Contacter via WhatsApp
                       </a>
