@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import type { Block, EventTheme, FaqEntry, MediaEntry, ScheduleEntry, SpeakerEntry } from '@saas-events/types';
-import { resolveEventTheme } from './event-theme';
+import { resolveEventTheme } from '@/lib/event-theme';
 import { ResumeCheckout } from './resume-checkout';
 import { BlockRenderer, getVisibleNavItems, type EventConfigData, type NavItem } from './block-renderer';
 import { TicketSelector } from './ticket-selector';
