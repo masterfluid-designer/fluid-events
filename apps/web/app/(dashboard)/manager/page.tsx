@@ -165,8 +165,28 @@ export default function ManagerDashboardPage() {
               Republier l&apos;événement
             </Button>
           )}
+          {/* Un événement naît en DRAFT et sa page publique répond 404 tant
+              qu’il n’est pas publié. Sans ce bouton il n’existait AUCUN moyen
+              de le publier depuis l’interface — impasse complète. */}
+          {overview.event.status === 'DRAFT' && (
+            <Button
+              size="sm"
+              disabled={setStatus.isPending}
+              onClick={() => setStatus.mutate('PUBLISHED')}
+            >
+              {setStatus.isPending ? 'Publication...' : "Publier l’événement"}
+            </Button>
+          )}
         </div>
       </div>
+
+      {overview.event.status === 'DRAFT' && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-2.5 text-sm">
+          <span className="inline-block size-2 rounded-full bg-amber-500" />
+          Votre événement est en brouillon : sa page publique répond « introuvable » tant
+          qu&apos;il n&apos;est pas publié.
+        </div>
+      )}
 
       {overview.paymentStatus.configured ? (
         <div className="flex items-center gap-2 rounded-lg border border-border bg-secondary/50 px-4 py-2.5 text-sm">
