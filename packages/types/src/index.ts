@@ -330,6 +330,22 @@ export interface TimelineEntry {
   description?: string;
 }
 
+/**
+ * Témoignage affiché dans le bloc `testimonials` (2026-08-17).
+ * Stocké dans `block.props.entries`, comme la frise — et non dans le contenu
+ * centralisé de l’événement : ça évite une migration, et un organisateur peut
+ * vouloir des témoignages différents à deux endroits de sa page.
+ */
+export interface TestimonialEntry {
+  id: string;
+  /** Le propos rapporté — seul champ réellement obligatoire. */
+  quote: string;
+  author?: string;
+  /** Rôle ou provenance : « Édition 2025 », « Bénévole »… */
+  role?: string;
+  avatarUrl?: string;
+}
+
 export interface BlockStyles {
   /** HEX uniquement — validé par Zod côté backend */
   backgroundColor?: string;

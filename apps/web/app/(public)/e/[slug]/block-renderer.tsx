@@ -1,6 +1,7 @@
+import { TestimonialsCarousel } from './testimonials-carousel';
 import { formatEventAddress } from '@saas-events/utils';
 import { EventLocation } from './event-location';
-import type { Block, FaqEntry, MediaEntry, ScheduleEntry, SpeakerEntry, TimelineEntry } from '@saas-events/types';
+import type { Block, FaqEntry, MediaEntry, ScheduleEntry, SpeakerEntry, TestimonialEntry, TimelineEntry } from '@saas-events/types';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Countdown } from './countdown';
 import { SponsorsCarousel } from './sponsors-carousel';
@@ -74,6 +75,7 @@ export const BLOCK_NAV_LABELS: Partial<Record<Block['type'], string>> = {
   gallery: 'Galerie',
   timeline: 'Notre histoire',
   location: 'Accès',
+  testimonials: 'Témoignages',
 };
 
 export interface NavItem {
@@ -104,6 +106,8 @@ export function getVisibleNavItems(
       (block.type === 'faq' && eventConfig.faqs.length > 0) ||
       (block.type === 'gallery' && eventConfig.galleryImages.length > 0) ||
       (block.type === 'timeline' && ((block.props.entries as unknown[] | undefined)?.length ?? 0) > 0) ||
+      (block.type === 'testimonials' &&
+        ((block.props.entries as unknown[] | undefined)?.length ?? 0) > 0) ||
       // Mêmes conditions de « vide » que EventLocation, sinon la nav
       // pointerait vers une section qui ne rend rien.
       (block.type === 'location' &&
@@ -346,7 +350,22 @@ function BlockItem({
     );
   }
 
-  // Rendu générique (image/video/testimonials) — seuls titre + contenu sont
+  if (block.type === 'testimonials') {
+    const entries = (block.props.entries as TestimonialEntry[] | undefined) ?? [];
+    if (entries.length === 0) return null;
+    return (
+      <SectionShell tone="muted">
+        <SectionHeading
+          eyebrow="Ils y étaient"
+          title={(block.props.title as string) || "Ce qu’ils en disent"}
+          description={(block.props.content as string) || undefined}
+        />
+        <TestimonialsCarousel entries={entries} />
+      </SectionShell>
+    );
+  }
+
+  // Rendu générique (image/video) — seuls titre + contenu sont
   // éditables sur ces types dans le Builder.
   return (
     <SectionShell>

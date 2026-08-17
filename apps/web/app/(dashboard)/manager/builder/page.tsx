@@ -31,7 +31,7 @@ import {
   Plus,
   Palette,
 } from 'lucide-react';
-import type { Block, BlockType, EventTheme, TimelineEntry } from '@saas-events/types';
+import type { Block, BlockType, EventTheme, TestimonialEntry, TimelineEntry } from '@saas-events/types';
 import { TicketPolicy } from '@saas-events/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -910,6 +910,15 @@ export default function EventBuilderPage() {
                 </p>
               )}
 
+              {selected.type === 'testimonials' && (
+                <TestimonialsEditor
+                  title={(selected.props.title as string) ?? ''}
+                  entries={(selected.props.entries as TestimonialEntry[] | undefined) ?? []}
+                  onChangeTitle={(title) => updateSelectedProps({ title })}
+                  onChangeEntries={(entries) => updateSelectedProps({ entries })}
+                />
+              )}
+
               {selected.type === 'timeline' && (
                 <TimelineEditor
                   title={(selected.props.title as string) ?? ''}
@@ -925,6 +934,7 @@ export default function EventBuilderPage() {
                 selected.type !== 'html' &&
                 selected.type !== 'countdown' &&
                 selected.type !== 'timeline' &&
+                selected.type !== 'testimonials' &&
                 !SINGLETON_BLOCK_TYPES.has(selected.type) && (
                   <>
                     <div>
@@ -1052,6 +1062,99 @@ function TimelineEditor({
         }
       >
         <Plus className="size-3.5" /> Ajouter un jalon
+      </Button>
+    </div>
+  );
+}
+
+const TESTIMONIALS_MAX = 12;
+
+/**
+ * Éditeur du bloc « Témoignages » (2026-08-17). Même patron que la frise :
+ * les entrées vivent dans `block.props`, pas dans le contenu centralisé —
+ * pas de migration, et deux blocs peuvent porter des témoignages différents.
+ */
+function TestimonialsEditor({
+  title,
+  entries,
+  onChangeTitle,
+  onChangeEntries,
+}: {
+  title: string;
+  entries: TestimonialEntry[];
+  onChangeTitle: (title: string) => void;
+  onChangeEntries: (entries: TestimonialEntry[]) => void;
+}) {
+  function patch(id: string, change: Partial<TestimonialEntry>) {
+    onChangeEntries(entries.map((en) => (en.id === id ? { ...en, ...change } : en)));
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div>
+        <label className="mb-1.5 block text-xs font-semibold">Titre de la section</label>
+        <Input
+          placeholder="Ce qu’ils en disent"
+          value={title}
+          onChange={(e) => onChangeTitle(e.target.value)}
+        />
+      </div>
+
+      <div className="flex flex-col gap-2.5">
+        {entries.map((entry) => (
+          <div key={entry.id} className="flex flex-col gap-1.5 rounded-lg border border-border p-3">
+            <div className="flex items-start gap-2">
+              <div className="flex-1 space-y-1.5">
+                <textarea
+                  placeholder="Le témoignage"
+                  value={entry.quote}
+                  onChange={(e) => patch(entry.id, { quote: e.target.value })}
+                  rows={3}
+                  className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+                <div className="grid grid-cols-2 gap-1.5">
+                  <Input
+                    placeholder="Auteur (optionnel)"
+                    value={entry.author ?? ''}
+                    onChange={(e) => patch(entry.id, { author: e.target.value })}
+                  />
+                  <Input
+                    placeholder="Rôle (ex : Édition 2025)"
+                    value={entry.role ?? ''}
+                    onChange={(e) => patch(entry.id, { role: e.target.value })}
+                  />
+                </div>
+                <ImageUploadField
+                  label="Photo (optionnel)"
+                  value={entry.avatarUrl || undefined}
+                  onChange={(url) => patch(entry.id, { avatarUrl: url ?? '' })}
+                />
+              </div>
+              <button
+                type="button"
+                aria-label="Supprimer le témoignage"
+                onClick={() => onChangeEntries(entries.filter((en) => en.id !== entry.id))}
+              >
+                <Trash2 className="size-3.5 text-muted-foreground hover:text-destructive" />
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        disabled={entries.length >= TESTIMONIALS_MAX}
+        onClick={() =>
+          onChangeEntries([
+            ...entries,
+            { id: crypto.randomUUID(), quote: '', author: '', role: '' },
+          ])
+        }
+      >
+        <Plus className="size-3.5" /> Ajouter un témoignage
       </Button>
     </div>
   );
