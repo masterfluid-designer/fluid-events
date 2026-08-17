@@ -1,3 +1,5 @@
+import { MediaShowcase } from './media-showcase';
+import type { MediaAspect } from './media-showcase';
 import { TestimonialsCarousel } from './testimonials-carousel';
 import { formatEventAddress } from '@saas-events/utils';
 import { EventLocation } from './event-location';
@@ -76,6 +78,7 @@ export const BLOCK_NAV_LABELS: Partial<Record<Block['type'], string>> = {
   timeline: 'Notre histoire',
   location: 'Accès',
   testimonials: 'Témoignages',
+  video: 'Vidéo',
 };
 
 export interface NavItem {
@@ -108,6 +111,7 @@ export function getVisibleNavItems(
       (block.type === 'timeline' && ((block.props.entries as unknown[] | undefined)?.length ?? 0) > 0) ||
       (block.type === 'testimonials' &&
         ((block.props.entries as unknown[] | undefined)?.length ?? 0) > 0) ||
+      (block.type === 'video' && Boolean(block.props.mediaUrl)) ||
       // Mêmes conditions de « vide » que EventLocation, sinon la nav
       // pointerait vers une section qui ne rend rien.
       (block.type === 'location' &&
@@ -183,6 +187,8 @@ function BlockItem({
         title={(block.props.title as string) || eventConfig.title}
         description={eventConfig.description}
         imageUrl={(block.props.imageUrl as string) || eventConfig.coverImageUrl}
+        mediaUrl={(block.props.mediaUrl as string) || null}
+        mediaAspect={(block.props.mediaAspect as MediaAspect) || '4:5'}
         dateLabel={eventConfig.dateLabel}
         location={eventConfig.location}
         isPublished={isPublished}
@@ -350,6 +356,31 @@ function BlockItem({
     );
   }
 
+  if (block.type === 'video') {
+    const mediaUrl = (block.props.mediaUrl as string) || null;
+    if (!mediaUrl) return null;
+    return (
+      <SectionShell>
+        {((block.props.title as string) || (block.props.content as string)) && (
+          <SectionHeading
+            eyebrow="En images"
+            title={(block.props.title as string) || ""}
+            description={(block.props.content as string) || undefined}
+          />
+        )}
+        {/* Largeur limitée : une vidéo étirée sur toute la page force à
+            balayer l’écran des yeux pour la suivre. */}
+        <div className="mx-auto max-w-4xl">
+          <MediaShowcase
+            url={mediaUrl}
+            aspect={(block.props.mediaAspect as MediaAspect) || '16:9'}
+            alt={(block.props.title as string) || ""}
+          />
+        </div>
+      </SectionShell>
+    );
+  }
+
   if (block.type === 'testimonials') {
     const entries = (block.props.entries as TestimonialEntry[] | undefined) ?? [];
     if (entries.length === 0) return null;
@@ -365,7 +396,7 @@ function BlockItem({
     );
   }
 
-  // Rendu générique (image/video) — seuls titre + contenu sont
+  // Rendu générique (image) — seuls titre + contenu sont
   // éditables sur ces types dans le Builder.
   return (
     <SectionShell>

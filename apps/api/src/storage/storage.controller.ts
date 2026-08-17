@@ -25,11 +25,25 @@ interface UploadedImageFile {
   size: number;
 }
 
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 Mo
-const ALLOWED_MIME_TYPES: Record<string, string> = {
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5 Mo
+/**
+ * Les vidéos de couverture (hero, bloc vidéo — décision produit 2026-08-17)
+ * sont légitimement plus lourdes qu’une image, sans devenir un dépôt de
+ * fichiers : 40 Mo couvrent une boucle courte en 1080p, et pas un long
+ * métrage sur un VPS à 1 vCPU.
+ */
+const MAX_VIDEO_SIZE = 40 * 1024 * 1024; // 40 Mo
+const MAX_FILE_SIZE = MAX_VIDEO_SIZE;
+
+const ALLOWED_IMAGE_TYPES: Record<string, string> = {
   'image/png': 'png',
   'image/jpeg': 'jpeg',
   'image/webp': 'webp',
+};
+/** Jamais de format exotique : ces deux-là couvrent tous les navigateurs cibles. */
+const ALLOWED_VIDEO_TYPES: Record<string, string> = {
+  'video/mp4': 'mp4',
+  'video/webm': 'webm',
 };
 
 /**
@@ -60,7 +74,8 @@ function assertValidFolder(folder: string): asserts folder is MediaFolder {
  * `PATCH /api/tickets/:id` (designImageUrl) ou `PUT /api/builder/:eventId/blocks`
  * (props.imageUrl), tous deux revalidés à l'écriture via `isAllowedImageUrl`.
  *
- * Jamais de SVG (risque XSS via script embarqué) : whitelist stricte PNG/JPEG/WEBP.
+ * Jamais de SVG (risque XSS via script embarqué) : whitelist stricte PNG/JPEG/WEBP,
+ * plus MP4/WEBM pour les médias de couverture (2026-08-17).
  */
 @Controller('storage')
 export class StorageController {
@@ -77,18 +92,24 @@ export class StorageController {
       });
     }
 
-    const extension = ALLOWED_MIME_TYPES[file.mimetype];
+    const extension = ALLOWED_IMAGE_TYPES[file.mimetype] ?? ALLOWED_VIDEO_TYPES[file.mimetype];
     if (!extension) {
       throw new BadRequestException({
         code: ErrorCodes.DESIGN_IMAGE_FORMAT_INVALID,
-        message: 'Format non supporté — PNG, JPEG ou WEBP uniquement.',
+        message: "Format non supporté — images PNG, JPEG, WEBP ou vidéos MP4, WEBM.",
       });
     }
 
-    if (file.size > MAX_FILE_SIZE) {
+    // Plafond par NATURE de fichier : la limite de l’intercepteur vaut pour la
+    // vidéo, sans quoi une image de 30 Mo passerait aussi.
+    const isVideo = ALLOWED_VIDEO_TYPES[file.mimetype] !== undefined;
+    const limit = isVideo ? MAX_VIDEO_SIZE : MAX_IMAGE_SIZE;
+    if (file.size > limit) {
       throw new BadRequestException({
         code: ErrorCodes.DESIGN_IMAGE_TOO_LARGE,
-        message: 'Image trop volumineuse (5 Mo maximum).',
+        message: isVideo
+          ? "Vidéo trop volumineuse (40 Mo maximum)."
+          : "Image trop volumineuse (5 Mo maximum).",
       });
     }
 
@@ -128,7 +149,9 @@ export class StorageController {
       });
     }
 
-    const extension = ALLOWED_MIME_TYPES[file.mimetype];
+    // Dépôt de logos : images UNIQUEMENT, et plafond image — la limite
+    // relevée pour les vidéos de couverture ne doit pas s’appliquer ici.
+    const extension = ALLOWED_IMAGE_TYPES[file.mimetype];
     if (!extension) {
       throw new BadRequestException({
         code: ErrorCodes.DESIGN_IMAGE_FORMAT_INVALID,
@@ -136,7 +159,7 @@ export class StorageController {
       });
     }
 
-    if (file.size > MAX_FILE_SIZE) {
+    if (file.size > MAX_IMAGE_SIZE) {
       throw new BadRequestException({
         code: ErrorCodes.DESIGN_IMAGE_TOO_LARGE,
         message: 'Image trop volumineuse (5 Mo maximum).',

@@ -1,5 +1,6 @@
 'use client';
 
+import { MEDIA_ASPECT_LABEL, type MediaAspect } from '@/lib/media';
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
@@ -824,6 +825,20 @@ export default function EventBuilderPage() {
                     value={selected.props.imageUrl as string | undefined}
                     onChange={(imageUrl) => updateSelectedProps({ imageUrl })}
                   />
+                  {/* Affiche ou vidéo mise en avant à droite du hero, et
+                      reprise en fond de section (2026-08-17). */}
+                  <ImageUploadField
+                    label="Affiche ou vidéo (colonne de droite)"
+                    allowVideo
+                    value={selected.props.mediaUrl as string | undefined}
+                    onChange={(mediaUrl) => updateSelectedProps({ mediaUrl })}
+                  />
+                  {Boolean(selected.props.mediaUrl) && (
+                    <MediaAspectPicker
+                      value={(selected.props.mediaAspect as MediaAspect) ?? '4:5'}
+                      onChange={(mediaAspect) => updateSelectedProps({ mediaAspect })}
+                    />
+                  )}
                   <div>
                     <label className="mb-1.5 block text-xs font-semibold">Titre</label>
                     <Input
@@ -910,6 +925,30 @@ export default function EventBuilderPage() {
                 </p>
               )}
 
+              {selected.type === 'video' && (
+                <>
+                  <ImageUploadField
+                    label="Vidéo (MP4/WEBM) ou image"
+                    allowVideo
+                    value={selected.props.mediaUrl as string | undefined}
+                    onChange={(mediaUrl) => updateSelectedProps({ mediaUrl })}
+                  />
+                  {Boolean(selected.props.mediaUrl) && (
+                    <MediaAspectPicker
+                      value={(selected.props.mediaAspect as MediaAspect) ?? '16:9'}
+                      onChange={(mediaAspect) => updateSelectedProps({ mediaAspect })}
+                    />
+                  )}
+                  <div>
+                    <label className="mb-1.5 block text-xs font-semibold">Titre (optionnel)</label>
+                    <Input
+                      value={(selected.props.title as string) ?? ''}
+                      onChange={(e) => updateSelectedProps({ title: e.target.value })}
+                    />
+                  </div>
+                </>
+              )}
+
               {selected.type === 'testimonials' && (
                 <TestimonialsEditor
                   title={(selected.props.title as string) ?? ''}
@@ -935,6 +974,7 @@ export default function EventBuilderPage() {
                 selected.type !== 'countdown' &&
                 selected.type !== 'timeline' &&
                 selected.type !== 'testimonials' &&
+                selected.type !== 'video' &&
                 !SINGLETON_BLOCK_TYPES.has(selected.type) && (
                   <>
                     <div>
@@ -1156,6 +1196,42 @@ function TestimonialsEditor({
       >
         <Plus className="size-3.5" /> Ajouter un témoignage
       </Button>
+    </div>
+  );
+}
+
+/**
+ * Choix du format d'affiche (2026-08-17). On propose des formats RÉELS plutôt
+ * qu'un recadrage automatique : une affiche verticale rognée en bandeau perd
+ * exactement ce qu'elle montre.
+ */
+function MediaAspectPicker({
+  value,
+  onChange,
+}: {
+  value: MediaAspect;
+  onChange: (value: MediaAspect) => void;
+}) {
+  const options = Object.keys(MEDIA_ASPECT_LABEL) as MediaAspect[];
+  return (
+    <div>
+      <label className="mb-1.5 block text-xs font-semibold">Format du média</label>
+      <div className="grid grid-cols-2 gap-1.5">
+        {options.map((option) => (
+          <button
+            key={option}
+            type="button"
+            onClick={() => onChange(option)}
+            className={`rounded-md border px-2.5 py-2 text-xs font-medium transition-colors ${
+              value === option
+                ? 'border-primary bg-primary/10 text-foreground'
+                : 'border-border text-muted-foreground hover:bg-accent'
+            }`}
+          >
+            {MEDIA_ASPECT_LABEL[option]}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

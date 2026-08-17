@@ -1,5 +1,6 @@
 'use client';
 
+import { isVideoUrl } from '@/lib/media';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { apiUpload, ApiError } from '@/lib/api';
@@ -13,10 +14,17 @@ export function ImageUploadField({
   label,
   value,
   onChange,
+  allowVideo = false,
 }: {
   label: string;
   value?: string;
   onChange: (url: string | undefined) => void;
+  /**
+   * Autorise MP4/WEBM en plus des images (médias de couverture, 2026-08-17).
+   * Le serveur applique de toute façon sa propre whitelist et un plafond
+   * distinct par nature de fichier — `accept` n’est qu’un confort de saisie.
+   */
+  allowVideo?: boolean;
 }) {
   const [uploading, setUploading] = useState(false);
 
@@ -27,7 +35,7 @@ export function ImageUploadField({
       const { url } = await apiUpload('/api/storage/upload', file);
       onChange(url);
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Impossible de téléverser l'image");
+      toast.error(err instanceof ApiError ? err.message : "Impossible de téléverser le fichier");
     } finally {
       setUploading(false);
     }
@@ -38,8 +46,13 @@ export function ImageUploadField({
       <label className="mb-1.5 block text-xs font-semibold">{label}</label>
       {value ? (
         <div className="relative">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={value} alt="" className="h-17.5 w-full rounded-lg object-cover" />
+          {isVideoUrl(value) ? (
+            // eslint-disable-next-line jsx-a11y/media-has-caption
+            <video src={value} muted playsInline className="h-17.5 w-full rounded-lg object-cover" />
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={value} alt="" className="h-17.5 w-full rounded-lg object-cover" />
+          )}
           <button
             type="button"
             onClick={() => onChange(undefined)}
@@ -53,7 +66,11 @@ export function ImageUploadField({
           {uploading ? 'Téléversement...' : 'Déposer un fichier'}
           <input
             type="file"
-            accept="image/png,image/jpeg,image/webp"
+            accept={
+              allowVideo
+                ? 'image/png,image/jpeg,image/webp,video/mp4,video/webm'
+                : 'image/png,image/jpeg,image/webp'
+            }
             className="hidden"
             disabled={uploading}
             onChange={(e) => handleFile(e.target.files?.[0] ?? null)}

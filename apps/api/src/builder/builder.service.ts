@@ -78,12 +78,19 @@ export class BuilderService {
     // Whitelist d'URL (RULES.md §6) — toute image référencée dans les props
     // d'un bloc doit pointer vers un stockage whitelisté, jamais une URL externe.
     for (const block of parsed.data.blocks) {
-      const imageUrl = block.props.imageUrl;
-      if (typeof imageUrl === 'string' && imageUrl && !isAllowedImageUrl(imageUrl)) {
-        throw new BadRequestException({
-          code: ErrorCodes.BUILDER_SCHEMA_INVALID,
-          message: `Bloc "${block.id}" : URL d'image non autorisée — utilisez POST /api/storage/upload.`,
-        });
+      // `mediaUrl`/`posterUrl` (hero et bloc vidéo, 2026-08-17) passent le MÊME
+      // contrôle : `isAllowedImageUrl` vérifie l’ORIGINE, pas le type de
+      // fichier — une vidéo hébergée ailleurs est aussi indésirable qu’une
+      // image, et une URL externe dans un <video> reste une fuite de
+      // référent chez le visiteur.
+      for (const key of ["imageUrl", "mediaUrl", "posterUrl"] as const) {
+        const url = block.props[key];
+        if (typeof url === 'string' && url && !isAllowedImageUrl(url)) {
+          throw new BadRequestException({
+            code: ErrorCodes.BUILDER_SCHEMA_INVALID,
+            message: `Bloc "${block.id}" : URL de média non autorisée — utilisez POST /api/storage/upload.`,
+          });
+        }
       }
       // Bloc HTML (décision produit 2026-07-13) : nettoyé AVANT persistance,
       // jamais au seul rendu — la page publique fait ensuite confiance à ce
