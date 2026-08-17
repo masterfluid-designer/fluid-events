@@ -7,6 +7,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ScannerService } from './scanner.service';
 import { ScanResult, Role } from '@saas-events/types';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 
 const EVENT_END = new Date(Date.now() + 3600_000);
 
@@ -188,5 +189,82 @@ describe('ScannerService.validateScan()', () => {
     const serialized = JSON.stringify(result);
     expect(serialized).not.toContain('email');
     expect(serialized).not.toContain('phone');
+  });
+});
+
+/**
+ * Pass multi-jours (décision produit 2026-08-16) : l'unicité
+ * (orderItem, journée) remplace le booléen `isScanned`. Le fake reproduit la
+ * contrainte PostgreSQL — un doublon lève P2002, comme la vraie base.
+ */
+describe('ScannerService.validateScan() — pass multi-jours', () => {
+  const TODAY = new Date();
+  const TODAY_UTC = new Date(
+    Date.UTC(TODAY.getUTCFullYear(), TODAY.getUTCMonth(), TODAY.getUTCDate()),
+  );
+
+  function makePassPrisma() {
+    const base = makeFakePrisma({
+      scanner: { id: 'sc-1', isActive: true, eventId: 'ev-1' },
+      event: { id: 'ev-1', status: 'PUBLISHED' },
+      orderItemRow: makeOrderItemRow(),
+    });
+    const seen = new Set<string>();
+    return {
+      ...base,
+      event: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'ev-1',
+          status: 'PUBLISHED',
+          ticketPolicy: 'PASS_ALL_DAYS',
+          // UTC : le fake n'a pas à simuler un décalage, la conversion est
+          // testée isolément dans scan-decision.test.ts.
+          timezone: 'UTC',
+          days: [{ id: 'd-today', date: TODAY_UTC }],
+        }),
+      },
+      ticketDayScan: {
+        create: vi.fn().mockImplementation((args: any) => {
+          const key = `${args.data.orderItemId}:${args.data.eventDayId}`;
+          if (seen.has(key)) {
+            const err: any = new Error('Unique constraint failed');
+            err.code = 'P2002';
+            // La branche du service teste `instanceof PrismaClientKnownRequestError`.
+            Object.setPrototypeOf(err, PrismaClientKnownRequestError.prototype);
+            return Promise.reject(err);
+          }
+          seen.add(key);
+          return Promise.resolve({ id: 'tds-1' });
+        }),
+      },
+    };
+  }
+
+  it('enregistre l’entrée du jour sans consommer le verrou d’usage unique', async () => {
+    const prisma = makePassPrisma();
+    const service = new ScannerService(prisma as any, makeTicketDesignService(VALID_QR), makeAudit());
+
+    const result = await service.validateScan(REQUEST_USER as any, 'token');
+
+    expect(result.result).toBe(ScanResult.VALID);
+    expect(prisma.ticketDayScan.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ orderItemId: 'oi-1', eventDayId: 'd-today' }),
+      }),
+    );
+    // Le pass doit rester utilisable les jours suivants.
+    expect(prisma.orderItem.updateMany).not.toHaveBeenCalled();
+    expect(prisma.state.orderItem?.isScanned).toBe(false);
+  });
+
+  it('refuse la seconde entrée du même jour (ALREADY_USED), sans exception qui remonte', async () => {
+    const prisma = makePassPrisma();
+    const service = new ScannerService(prisma as any, makeTicketDesignService(VALID_QR), makeAudit());
+
+    const premier = await service.validateScan(REQUEST_USER as any, 'token');
+    const second = await service.validateScan(REQUEST_USER as any, 'token');
+
+    expect(premier.result).toBe(ScanResult.VALID);
+    expect(second.result).toBe(ScanResult.ALREADY_USED);
   });
 });

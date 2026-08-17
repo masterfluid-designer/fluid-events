@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { TicketDesignService } from '../ticket-design/ticket-design.service';
@@ -7,6 +8,9 @@ import { ScanResult, ScanValidationResult } from '@saas-events/types';
 import type { RequestUser } from '../auth/strategies/jwt.strategy';
 
 /** Mappe chaque résultat de scan vers l'action d'audit correspondante (CDC §15.5). */
+/** Code Prisma d’une violation de contrainte d’unicité. */
+const UNIQUE_VIOLATION = 'P2002';
+
 const AUDIT_ACTION_BY_RESULT: Record<ScanResult, string> = {
   [ScanResult.VALID]: 'scan.valid',
   [ScanResult.ALREADY_USED]: 'scan.already_used',
@@ -60,7 +64,7 @@ export class ScannerService {
               order: {
                 select: { status: true, client: { select: { name: true } } },
               },
-              ticket: { select: { name: true } },
+              ticket: { select: { name: true, eventDayId: true } },
             },
           })
         : Promise.resolve(null),
@@ -69,11 +73,54 @@ export class ScannerService {
     const event = scanner
       ? await this.prisma.event.findUnique({
           where: { id: scanner.eventId },
-          select: { id: true, status: true },
+          select: {
+            id: true,
+            status: true,
+            // Régime, fuseau et journées (2026-08-16) : la décision de jour
+            // se prend hors BDD, il faut donc tout charger ici.
+            ticketPolicy: true,
+            timezone: true,
+            days: { select: { id: true, date: true } },
+          },
         })
       : null;
 
-    const decision = decideScan({ qrVerification, scanner, event, orderItem });
+    const decision = decideScan({ qrVerification, scanner, event, orderItem, now: new Date() });
+
+    // Pass multi-jours : l’unicité (orderItem, journée) tient lieu de verrou.
+    // Une violation de contrainte signifie qu’une entrée existe déjà pour
+    // aujourd’hui — même garantie atomique que l’updateMany gardé, déléguée
+    // à PostgreSQL plutôt que réécrite ici.
+    if (decision.result === ScanResult.VALID && decision.dayScanFor && orderItem && scanner) {
+      try {
+        await this.prisma.ticketDayScan.create({
+          data: {
+            orderItemId: orderItem.id,
+            eventDayId: decision.dayScanFor,
+            scannedById: scanner.id,
+          },
+        });
+      } catch (err) {
+        if (
+          err instanceof Prisma.PrismaClientKnownRequestError &&
+          err.code === UNIQUE_VIOLATION
+        ) {
+          await this.recordScan(scanner.id, orderItem.id, ScanResult.ALREADY_USED, user.id, ip, userAgent);
+          return { result: ScanResult.ALREADY_USED };
+        }
+        throw err;
+      }
+
+      await this.recordScan(scanner.id, orderItem.id, ScanResult.VALID, user.id, ip, userAgent);
+      return {
+        result: ScanResult.VALID,
+        attendee: {
+          name: decision.attendee!.name,
+          ticketName: decision.attendee!.ticketName,
+          scannedAt: new Date(),
+        },
+      };
+    }
 
     if (decision.result === ScanResult.VALID && orderItem && scanner) {
       // Verrou atomique : ne marque scanné que si personne d'autre ne l'a fait entre-temps.
