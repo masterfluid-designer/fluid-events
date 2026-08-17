@@ -32,6 +32,7 @@ import {
   Palette,
 } from 'lucide-react';
 import type { Block, BlockType, EventTheme, TimelineEntry } from '@saas-events/types';
+import { TicketPolicy } from '@saas-events/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
@@ -67,10 +68,12 @@ interface EventTicket {
   currency: string;
 }
 
-interface ManagerEventData extends EventConfig {
+interface ManagerEventData extends Omit<EventConfig, 'days'> {
   slug: string;
   startDate: string;
   tickets: EventTicket[];
+  /** Lignes `EventDay` telles que rendues par l’API (date ISO complète). */
+  days: Array<{ id: string; label: string; date: string; order: number }>;
 }
 
 const BLOCK_LIBRARY: { type: BlockType; icon: typeof ImageIcon; label: string }[] = [
@@ -132,6 +135,8 @@ const EMPTY_CONFIG: EventConfig = {
   contactPhone: '',
   latitude: '',
   longitude: '',
+  ticketPolicy: TicketPolicy.SINGLE_DAY,
+  days: [],
   logoUrl: '',
   coverImageUrl: '',
   faqs: [],
@@ -166,6 +171,12 @@ export default function EventBuilderPage() {
     queryFn: () => api<ManagerEventData>('/api/events/mine'),
   });
 
+  // Même clé que le gate de vérification : la réponse est déjà en cache.
+  const { data: me } = useQuery({
+    queryKey: ['auth-me'],
+    queryFn: () => api<{ isPremium: boolean }>('/api/auth/me'),
+  });
+
   // Synchronise l'état local éditable avec la dernière version chargée/sauvegardée.
   useEffect(() => {
     if (!data) return;
@@ -191,6 +202,9 @@ export default function EventBuilderPage() {
       contactPhone: eventData.contactPhone ?? '',
       latitude: eventData.latitude == null ? '' : String(eventData.latitude),
       longitude: eventData.longitude == null ? '' : String(eventData.longitude),
+      ticketPolicy: eventData.ticketPolicy ?? TicketPolicy.SINGLE_DAY,
+      // La date arrive en ISO complet ; <input type="date" /> veut YYYY-MM-DD.
+      days: (eventData.days ?? []).map((d) => ({ label: d.label, date: d.date.slice(0, 10) })),
       logoUrl: eventData.logoUrl ?? '',
       coverImageUrl: eventData.coverImageUrl ?? '',
       faqs: eventData.faqs ?? [],
@@ -230,6 +244,11 @@ export default function EventBuilderPage() {
           contactPhone: config.contactPhone || undefined,
           latitude: config.latitude ? Number(config.latitude) : undefined,
           longitude: config.longitude ? Number(config.longitude) : undefined,
+          ticketPolicy: config.ticketPolicy,
+          // Journées sans date : l’utilisateur a ajouté une ligne sans la
+          // remplir. On ne les envoie pas plutôt que de faire échouer tout
+          // l’enregistrement sur une ligne vide.
+          days: config.days.filter((d) => d.date),
           logoUrl: config.logoUrl || undefined,
           coverImageUrl: config.coverImageUrl || undefined,
           faqs: config.faqs,
@@ -508,7 +527,7 @@ export default function EventBuilderPage() {
                 </div>
               </div>
             ) : sidebarTab === 'config' ? (
-              <ConfigPanel config={config} onChange={updateConfig} />
+              <ConfigPanel config={config} onChange={updateConfig} isPremium={me?.isPremium ?? false} />
             ) : (
               <div className="p-4">
                 <ThemePanel

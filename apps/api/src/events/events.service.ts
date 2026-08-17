@@ -253,7 +253,12 @@ export class EventsService {
   async getMyEvent(managerId: string) {
     const event = await this.prisma.event.findUnique({
       where: { managerId },
-      include: { tickets: { orderBy: { createdAt: 'asc' } } },
+      include: {
+        tickets: { orderBy: { createdAt: 'asc' } },
+        // Journées déclarées (2026-08-16) — le Builder les édite et le
+        // formulaire de billet y rattache les billets en régime PER_DAY.
+        days: { orderBy: { order: 'asc' } },
+      },
     });
     if (!event) {
       throw new NotFoundException({

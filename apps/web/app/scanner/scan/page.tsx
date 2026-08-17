@@ -291,6 +291,9 @@ function ScanResultBadge({ result }: { result: ScanResult }) {
       label: 'Déjà utilisé',
     },
     [ScanResult.EXPIRED]: { variant: 'destructive', label: 'Expiré' },
+    // Billet authentique et payé, mais pas pour aujourd’hui : c’est un refus,
+    // pas une fraude — le libellé doit éviter d’accuser le porteur à l’entrée.
+    [ScanResult.WRONG_DAY]: { variant: 'warning', label: 'Pas valable aujourd’hui' },
     [ScanResult.INVALID]: { variant: 'destructive', label: 'Invalide' },
     [ScanResult.EVENT_MISMATCH]: {
       variant: 'destructive',

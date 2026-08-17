@@ -1,9 +1,10 @@
 'use client';
 
+import { TicketPolicy } from '@saas-events/types';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { Plus, X } from 'lucide-react';
+import { CalendarDays, Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
@@ -31,6 +32,10 @@ interface TicketRow {
 interface EventWithTickets {
   id: string;
   tickets: TicketRow[];
+  // Régime et journées (2026-08-16) — pilotent le champ « journée » du
+  // formulaire : radio contraint en PER_DAY, texte libre sinon.
+  ticketPolicy: TicketPolicy;
+  days: Array<{ id: string; label: string; date: string }>;
 }
 
 export default function ManagerTicketsPage() {
@@ -43,6 +48,7 @@ export default function ManagerTicketsPage() {
   const [compareAtPrice, setCompareAtPrice] = useState('');
   const [promoEndsAt, setPromoEndsAt] = useState('');
   const [dayLabel, setDayLabel] = useState('');
+  const [eventDayId, setEventDayId] = useState<string | null>(null);
   const [designImageUrl, setDesignImageUrl] = useState<string | undefined>(undefined);
   const [designBgColor, setDesignBgColor] = useState<string | undefined>(undefined);
 
@@ -61,6 +67,7 @@ export default function ManagerTicketsPage() {
         compareAtPrice: compareAtPrice ? Number(compareAtPrice) : undefined,
         promoEndsAt: promoEndsAt ? new Date(promoEndsAt).toISOString() : undefined,
         dayLabel: dayLabel || undefined,
+        eventDayId: eventDayId ?? undefined,
         designImageUrl,
         designBgColor,
       }),
@@ -173,12 +180,67 @@ export default function ManagerTicketsPage() {
                 className="rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
               />
             </label>
-            <input
-              placeholder="Jour (ex: Jour 1 — Samedi 8 Août, optionnel)"
-              value={dayLabel}
-              onChange={(e) => setDayLabel(e.target.value)}
-              className="rounded-md border border-input bg-background px-3 py-2 text-sm"
-            />
+            {/* Régime PER_DAY (2026-08-16) : la journée remplace le libellé
+                libre — c'est elle que le scanner contrôlera à l'entrée, alors
+                que `dayLabel` n'a jamais été que du texte d'affichage. */}
+            {event.ticketPolicy === TicketPolicy.PER_DAY ? (
+              <label className="flex flex-col gap-1.5 md:col-span-2">
+                <span className="text-xs font-medium text-muted-foreground">
+                  Journée ouverte par ce billet
+                </span>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {event.days.map((d) => {
+                    const selected = eventDayId === d.id;
+                    return (
+                      <label
+                        key={d.id}
+                        className={`flex cursor-pointer items-center gap-2.5 rounded-xl border p-3 transition-all focus-within:ring-2 focus-within:ring-ring ${
+                          selected
+                            ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                            : 'border-border hover:border-primary/40 hover:bg-accent/40'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="event-day"
+                          value={d.id}
+                          checked={selected}
+                          onChange={() => setEventDayId(d.id)}
+                          className="sr-only"
+                        />
+                        <span
+                          className={`flex size-7 shrink-0 items-center justify-center rounded-lg ${
+                            selected ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+                          }`}
+                        >
+                          <CalendarDays className="size-3.5" />
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block truncate text-xs font-semibold">{d.label}</span>
+                          <span className="block text-[11px] text-muted-foreground">
+                            {new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long' }).format(
+                              new Date(d.date),
+                            )}
+                          </span>
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+                {event.days.length === 0 && (
+                  <span className="text-[11px] text-amber-600 dark:text-amber-500">
+                    Aucune journée déclarée. Ajoutez-en depuis l&apos;onglet Config du Builder.
+                  </span>
+                )}
+              </label>
+            ) : (
+              <input
+                placeholder="Jour (ex: Jour 1 — Samedi 8 Août, optionnel)"
+                value={dayLabel}
+                onChange={(e) => setDayLabel(e.target.value)}
+                className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+              />
+            )}
             <div className="md:col-span-4 grid gap-3 md:grid-cols-2">
               <ImageUploadField
                 label="Image de design du billet (optionnel)"

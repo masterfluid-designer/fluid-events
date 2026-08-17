@@ -1,8 +1,10 @@
 'use client';
 
 import type { FaqEntry, MediaEntry, ScheduleEntry, SpeakerEntry } from '@saas-events/types';
+import { TicketPolicy } from '@saas-events/types';
 import { Plus, Trash2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { TicketingPanel, type EventDayDraft } from './ticketing-panel';
 import { Button } from '@/components/ui/button';
 import { ImageUploadField } from '@/components/ui/image-upload-field';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
@@ -34,6 +36,9 @@ export interface EventConfig {
   // nombre ici obligerait à gérer NaN dans le state. Converties à l’envoi.
   latitude: string;
   longitude: string;
+  // Régime de billetterie et journées (2026-08-16).
+  ticketPolicy: TicketPolicy;
+  days: EventDayDraft[];
   logoUrl: string;
   coverImageUrl: string;
   faqs: FaqEntry[];
@@ -51,9 +56,12 @@ const MEDIA_MAX = 30;
 export function ConfigPanel({
   config,
   onChange,
+  isPremium,
 }: {
   config: EventConfig;
   onChange: (patch: Partial<EventConfig>) => void;
+  /** Palier du manager — verrouille les régimes multi-jours côté interface. */
+  isPremium: boolean;
 }) {
   return (
     <div className="flex flex-col gap-6 p-4">
@@ -154,6 +162,23 @@ export function ConfigPanel({
             />
           </Field>
         </div>
+      </Section>
+
+      <Section title="Billetterie">
+        <TicketingPanel
+          policy={config.ticketPolicy}
+          days={config.days}
+          isPremium={isPremium}
+          onPolicyChange={(ticketPolicy) =>
+            onChange({
+              ticketPolicy,
+              // Repasser en mono-jour vide la liste : la conserver enverrait
+              // des journées que le serveur refuserait dans ce régime.
+              days: ticketPolicy === TicketPolicy.SINGLE_DAY ? [] : config.days,
+            })
+          }
+          onDaysChange={(days) => onChange({ days })}
+        />
       </Section>
 
       <Section title={`FAQ (${config.faqs.length}/${FAQ_MAX})`}>
