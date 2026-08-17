@@ -126,6 +126,9 @@ model Event {
   /// la somme des `stock` de tous les billets ne peut pas le dépasser, refusé
   /// à la création comme à la modification d’un billet. null = aucun plafond.
   expectedAttendees        Int?
+  /// Régime de billetterie (décision produit 2026-08-16). Reste SINGLE_DAY
+  /// tant que le Manager n’est pas Premium — c’est le comportement d’avant.
+  ticketPolicy             TicketPolicy @default(SINGLE_DAY)
 
   startDate                DateTime
   endDate                  DateTime // Détermine la durée de session client (endDate + 24h)
@@ -154,6 +157,7 @@ model Event {
   manager   User   @relation("EventManager", fields: [managerId], references: [id])
 
   tickets   Ticket[]
+  days      EventDay[]
   orders    Order[]
   scanners  Scanner[]
   eventPage EventPage?
@@ -209,6 +213,12 @@ model Ticket {
   // Regroupement visuel par jour pour un événement multi-jours (ex: "Jour 1
   // — Samedi 8 Août"). Optionnel — laissé vide, comportement mono-jour inchangé.
   dayLabel        String?
+  /// Journée ouverte par ce billet en régime PER_DAY. `null` en SINGLE_DAY et
+  /// en PASS_ALL_DAYS (où le billet vaut pour toutes les journées). Ne pas
+  /// confondre avec `dayLabel` ci-dessus, qui n’est que du texte d’affichage
+  /// et que le scanner n’a jamais lu.
+  eventDayId      String?
+  eventDay        EventDay? @relation(fields: [eventDayId], references: [id], onDelete: SetNull)
   currency        String   @default("XOF")
   stock           Int // Capacité totale
   stockSold       Int      @default(0) // Décrémenté via updateMany atomique avec guard
@@ -278,6 +288,9 @@ model OrderItem {
   scannedAt   DateTime?
   scannedById String?
   createdAt   DateTime @default(now())
+
+  /// Entrées jour par jour, uniquement en régime PASS_ALL_DAYS.
+  dayScans    TicketDayScan[]
 
   @@map("order_items")
 }
@@ -446,3 +459,63 @@ model PlatformSettings {
 // est désormais éditée à la main (apps/web/lib/content/) — seuls les logos
 // "confiance" restent pilotables depuis l'admin, via un simple dossier S3
 // (trusted-logos/), pas de table dédiée.
+
+/// Régime de billetterie d'un événement (décision produit 2026-08-16).
+/// Le multi-jours est réservé aux Managers Premium ; un compte standard reste
+/// en SINGLE_DAY, qui est exactement le comportement d'avant cette notion.
+enum TicketPolicy {
+  /// Événement d'une seule journée — aucun `EventDay`, billet à usage unique.
+  SINGLE_DAY
+  /// Un billet vaut pour TOUS les jours : une entrée autorisée par jour, pas
+  /// une seule au total. Le verrou d'unicité vit alors sur `TicketDayScan`.
+  PASS_ALL_DAYS
+  /// Chaque billet appartient à un jour précis et n'ouvre que celui-là.
+  PER_DAY
+}
+
+/// Journée d'un événement multi-jours (décision produit 2026-08-16).
+///
+/// Une vraie table, et non un tableau JSON comme `faqs`/`speakers` : le
+/// scanner valide contre ces lignes et les billets les référencent — un JSON
+/// ne porte ni clé étrangère ni contrainte d'unicité.
+model EventDay {
+  id      String   @id @default(cuid())
+  eventId String
+  event   Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  /// Libellé affiché ("Jour 1 — Samedi 8 Août"). Reprend `Ticket.dayLabel`,
+  /// qui n'était qu'un texte décoratif sans existence propre.
+  label   String
+  /// Date civile de la journée, sans heure : le scanner compare une date du
+  /// calendrier, pas un instant.
+  date    DateTime @db.Date
+  order   Int      @default(0)
+
+  tickets Ticket[]
+  scans   TicketDayScan[]
+
+  /// Deux journées d'un même événement ne peuvent pas tomber le même jour —
+  /// sinon le scanner ne saurait pas laquelle « aujourd'hui » désigne.
+  @@unique([eventId, date])
+  @@map("event_days")
+}
+
+/// Entrée d'un porteur de pass pour une journée donnée (décision produit
+/// 2026-08-16).
+///
+/// Existe uniquement pour PASS_ALL_DAYS, où le booléen `OrderItem.isScanned`
+/// ne suffit plus : il faut autoriser une entrée PAR JOUR sans rouvrir la
+/// porte au double scan dans la même journée. C'est l'index unique
+/// `(orderItemId, eventDayId)` qui tient ce rôle — la même garantie atomique
+/// que l'`updateMany` gardé du régime mono-jour, déléguée à PostgreSQL.
+model TicketDayScan {
+  id          String    @id @default(cuid())
+  orderItemId String
+  orderItem   OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  eventDayId  String
+  eventDay    EventDay  @relation(fields: [eventDayId], references: [id], onDelete: Cascade)
+  scannedAt   DateTime  @default(now())
+  scannedById String?
+
+  @@unique([orderItemId, eventDayId])
+  @@map("ticket_day_scans")
+}
