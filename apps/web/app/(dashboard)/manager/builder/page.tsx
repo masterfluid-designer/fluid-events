@@ -38,6 +38,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { ColorField } from '@/components/ui/color-field';
 import { ImageUploadField } from '@/components/ui/image-upload-field';
 import { api, apiPatch, apiPut, ApiError } from '@/lib/api';
+import { PublicLink } from '@/components/dashboard/public-link';
 import { ConfigPanel, type EventConfig } from './config-panel';
 import { ThemePanel } from './theme-panel';
 
@@ -431,6 +432,7 @@ export default function EventBuilderPage() {
               <RefreshCw className="size-3.5" />
             </Button>
           )}
+          {eventData?.slug && <PublicLink slug={eventData.slug} variant="compact" />}
           <Button size="sm" onClick={() => save.mutate()} disabled={save.isPending}>
             {save.isPending ? 'Sauvegarde...' : 'Enregistrer'}
           </Button>

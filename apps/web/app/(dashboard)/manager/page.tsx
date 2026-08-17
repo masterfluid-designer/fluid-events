@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
 import { SalesTrendChart, type DailySalesPoint } from '@/components/ui/sales-trend-chart';
 import { api, apiPatch, apiPost, ApiError } from '@/lib/api';
+import { PublicLink } from '@/components/dashboard/public-link';
 
 /**
  * Dashboard Manager (CDC §14.3 — KPIs événement géré).
@@ -99,9 +100,14 @@ export default function ManagerDashboardPage() {
   return (
     <div className="space-y-6 p-4 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold tracking-tight">{overview.event.title}</h1>
           <p className="text-sm text-muted-foreground">Tableau de bord de votre événement</p>
+          {/* L’adresse publique était introuvable depuis le dashboard : le
+              Manager devait la reconstituer de tête depuis son slug. */}
+          <div className="mt-3 max-w-xl">
+            <PublicLink slug={overview.event.slug} />
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Badge
