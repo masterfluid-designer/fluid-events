@@ -24,12 +24,25 @@ function luminance(hex: string): number {
 }
 
 /**
- * Noir ou blanc selon la couleur de fond — un organisateur qui choisit un
- * accent clair (jaune, cyan...) ne doit pas se retrouver avec du texte blanc
- * illisible sur ses boutons.
+ * Noir ou blanc sur la couleur de l’organisateur — celui des deux qui offre
+ * le MEILLEUR contraste, mesuré.
+ *
+ * La version précédente tranchait sur un seuil de luminance fixe (0,45), ce
+ * qui ne garantit aucun ratio : un accent légèrement au-dessus du seuil
+ * recevait du texte noir à 3,79:1 alors que le blanc aurait mieux fait —
+ * constaté en audit sur les boutons de la page publique, sous le minimum
+ * WCAG AA de 4,5:1 pour du texte courant.
  */
 export function readableForeground(hex: string): string {
-  return luminance(hex) > 0.45 ? '#141312' : '#ffffff';
+  const bg = luminance(hex);
+  const contrastWith = (fg: number) => {
+    const [hi, lo] = fg > bg ? [fg, bg] : [bg, fg];
+    return (hi + 0.05) / (lo + 0.05);
+  };
+  // Luminances de nos deux encres : #141312 et #ffffff.
+  const withBlack = contrastWith(luminance('#141312'));
+  const withWhite = contrastWith(1);
+  return withBlack >= withWhite ? '#141312' : '#ffffff';
 }
 
 export interface ResolvedEventTheme {

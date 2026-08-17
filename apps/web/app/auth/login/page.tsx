@@ -147,7 +147,7 @@ function LoginForm() {
 
                   <div className="mb-6 flex items-center gap-3.5">
                     <span className="h-px flex-1 bg-stroke dark:bg-strokedark" />
-                    <p className="text-xs text-manatee dark:text-waterloo">
+                    <p className="text-xs text-waterloo dark:text-manatee">
                       ou avec email et mot de passe
                     </p>
                     <span className="h-px flex-1 bg-stroke dark:bg-strokedark" />
@@ -188,7 +188,7 @@ function LoginForm() {
 
                   <div className="mb-6 flex items-center gap-3.5">
                     <span className="h-px flex-1 bg-stroke dark:bg-strokedark" />
-                    <p className="text-xs text-manatee dark:text-waterloo">
+                    <p className="text-xs text-waterloo dark:text-manatee">
                       ou accès scanner dédié
                     </p>
                     <span className="h-px flex-1 bg-stroke dark:bg-strokedark" />

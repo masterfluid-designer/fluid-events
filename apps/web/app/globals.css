@@ -620,3 +620,29 @@
   --color-primary: var(--color-accent-terracotta);
   --color-primaryho: oklch(from var(--color-accent-terracotta) calc(l - 0.1) c h);
 }
+
+/* Les variables DÉRIVÉES doivent être redéclarées ici, pas seulement leurs
+   sources : une custom property résout ses `var()` là où elle est DÉCLARÉE
+   (sur :root), puis c'est sa valeur déjà figée qui hérite. Redéfinir
+   `--color-alabaster` plus bas ne fait donc jamais re-résoudre
+   `--color-primary-foreground` — même piège que celui documenté pour la
+   police dans event-theme.ts (constaté : texte des boutons resté sur le noir
+   du thème Océan, contraste 3,8 au lieu de 4,5). */
+.public-surface {
+  --color-primary-foreground: var(--color-alabaster);
+}
+.dark .public-surface,
+.public-surface.dark {
+  --color-primary-foreground: var(--color-black);
+  --color-muted-foreground: var(--color-manatee);
+}
+
+/* En sombre, l'accent passe à sa variante CLAIRE — comme le fait le thème de
+   base. La remise à plat de la palette ci-dessus le perdait, laissant l'orange
+   foncé du mode clair sous une encre noire : 4,09:1 mesuré, sous le minimum
+   AA de 4,5. */
+.dark .public-surface,
+.public-surface.dark {
+  --color-primary: var(--color-accent-terracotta-dark);
+  --color-primaryho: oklch(from var(--color-accent-terracotta-dark) calc(l - 0.08) c h);
+}

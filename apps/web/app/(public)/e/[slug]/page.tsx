@@ -149,7 +149,10 @@ export default async function EventPage({
 
   return (
     <main
-      className={`min-h-svh ${theme.hasCustomBackground ? '' : 'bg-white dark:bg-blackho'} ${theme.fontClassName}`}
+      // `public-surface` : la palette de base, jamais celle choisie dans un
+      // tableau de bord (2026-08-17). Le thème de l’organisateur, lui, passe
+      // par `style` et l’emporte sur cette classe.
+      className={`public-surface min-h-svh ${theme.hasCustomBackground ? '' : 'bg-white dark:bg-blackho'} ${theme.fontClassName}`}
       style={theme.style}
     >
       <EventHeader

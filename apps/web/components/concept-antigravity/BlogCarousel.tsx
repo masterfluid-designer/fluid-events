@@ -26,7 +26,7 @@ export default function BlogCarousel() {
             <h4 className="font-space-grotesk text-itemtitle2 font-semibold text-black transition-colors group-hover:text-primary dark:text-white">
               {post.title}
             </h4>
-            <p className="mt-2 text-metatitle text-manatee dark:text-waterloo">
+            <p className="mt-2 text-metatitle text-manatee dark:text-manatee">
               {post.date} · {post.category}
             </p>
             <span className="mt-3 inline-flex items-center gap-1.5 text-metatitle font-medium text-primary">

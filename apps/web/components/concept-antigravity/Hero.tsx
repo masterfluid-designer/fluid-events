@@ -47,7 +47,7 @@ export default function ConceptHero() {
           </button>
         </div>
 
-        <p className="mt-5 text-metatitle text-manatee dark:text-waterloo">
+        <p className="mt-5 text-metatitle text-manatee dark:text-manatee">
           {heroContent.footnote}
         </p>
       </div>

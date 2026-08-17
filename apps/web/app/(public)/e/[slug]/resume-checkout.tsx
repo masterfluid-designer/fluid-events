@@ -256,7 +256,7 @@ export function ResumeCheckout({
           state.step === 'confirming') && (
           <>
             <Spinner className="mx-auto size-8" />
-            <p className="mt-4 text-sm text-manatee dark:text-waterloo">
+            <p className="mt-4 text-sm text-waterloo dark:text-manatee">
               {state.step === 'initializing' && 'Préparation du paiement...'}
               {state.step === 'awaiting-payment' &&
                 'Finalisez votre paiement...'}
@@ -268,7 +268,7 @@ export function ResumeCheckout({
           <>
             <CheckCircle2 className="mx-auto size-10 text-green-600" />
             <h2 className="mt-3 font-event text-lg">Paiement confirmé !</h2>
-            <p className="mt-2 text-sm text-manatee dark:text-waterloo">
+            <p className="mt-2 text-sm text-waterloo dark:text-manatee">
               Vos billets sont en cours de génération. Vous les recevrez par email.
             </p>
             <Button className="mt-5 w-full rounded-full" onClick={() => setState({ step: 'idle' })}>
@@ -280,7 +280,7 @@ export function ResumeCheckout({
           <>
             <XCircle className="mx-auto size-10 text-destructive" />
             <h2 className="mt-3 font-event text-lg">Un problème est survenu</h2>
-            <p className="mt-2 text-sm text-manatee dark:text-waterloo">{state.message}</p>
+            <p className="mt-2 text-sm text-waterloo dark:text-manatee">{state.message}</p>
             <Button
               variant="outline"
               className="mt-5 w-full rounded-full"

@@ -63,7 +63,7 @@ export default function AuthCallbackPage() {
   return (
     <main className="flex min-h-svh flex-col items-center justify-center gap-4">
       <Spinner className="size-8" />
-      <p className="text-sm text-manatee dark:text-waterloo">Connexion réussie, redirection...</p>
+      <p className="text-sm text-waterloo dark:text-manatee">Connexion réussie, redirection...</p>
     </main>
   );
 }

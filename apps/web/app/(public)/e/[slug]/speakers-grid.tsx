@@ -36,7 +36,7 @@ export function SpeakersGrid({ speakers }: { speakers: SpeakerEntry[] }) {
             className={`rounded-full px-5 py-2 text-sm font-semibold transition-colors ${
               activeCategory === null
                 ? 'bg-primary text-primary-foreground'
-                : 'border border-stroke text-manatee hover:border-black dark:border-strokedark dark:text-waterloo dark:hover:border-white'
+                : 'border border-stroke text-manatee hover:border-black dark:border-strokedark dark:text-manatee dark:hover:border-white'
             }`}
           >
             Tous
@@ -49,7 +49,7 @@ export function SpeakersGrid({ speakers }: { speakers: SpeakerEntry[] }) {
               className={`rounded-full px-5 py-2 text-sm font-semibold transition-colors ${
                 activeCategory === category
                   ? 'bg-primary text-primary-foreground'
-                  : 'border border-stroke text-manatee hover:border-black dark:border-strokedark dark:text-waterloo dark:hover:border-white'
+                  : 'border border-stroke text-manatee hover:border-black dark:border-strokedark dark:text-manatee dark:hover:border-white'
               }`}
             >
               {category}

@@ -149,7 +149,7 @@ export function TicketSelector({
               className={`rounded-full px-5 py-2.5 text-sm font-semibold transition-colors ${
                 day === activeDay
                   ? 'bg-primary text-primary-foreground'
-                  : 'border border-stroke text-manatee hover:border-black dark:border-strokedark dark:text-waterloo dark:hover:border-white'
+                  : 'border border-stroke text-manatee hover:border-black dark:border-strokedark dark:text-manatee dark:hover:border-white'
               }`}
             >
               {day}
@@ -216,12 +216,12 @@ export function TicketSelector({
                   <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-1.5">
                     <h3 className="font-event text-xl md:text-2xl">{ticket.name}</h3>
                     {hasPromo && !soldOut && (
-                      <span className="rounded-full bg-accent-terracotta px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white dark:bg-accent-terracotta-dark">
+                      <span className="rounded-full bg-accent-terracotta px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white dark:bg-accent-terracotta-dark dark:text-black">
                         Promo
                       </span>
                     )}
                     {highlighted && !hasPromo && (
-                      <span className="rounded-full border border-stroke px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-manatee dark:border-strokedark dark:text-waterloo">
+                      <span className="rounded-full border border-stroke px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-manatee dark:border-strokedark dark:text-manatee">
                         Le plus choisi
                       </span>
                     )}
@@ -233,7 +233,7 @@ export function TicketSelector({
                         {ticket.description}
                       </span>
                     )}
-                    <span className="text-xs font-medium text-manatee dark:text-waterloo">
+                    <span className="text-xs font-medium text-waterloo dark:text-manatee">
                       {soldOut
                         ? 'Épuisé'
                         : `${available} place${available > 1 ? 's' : ''} restante${available > 1 ? 's' : ''}`}
@@ -243,14 +243,14 @@ export function TicketSelector({
                   <div className="flex shrink-0 items-center gap-4">
                     <div className="text-right">
                       {hasPromo && (
-                        <div className="text-sm font-medium text-manatee line-through dark:text-waterloo">
+                        <div className="text-sm font-medium text-manatee line-through dark:text-manatee">
                           {formatCurrency(Number(ticket.compareAtPrice), ticket.currency)}
                         </div>
                       )}
                       <div className="font-event text-2xl leading-none md:text-3xl">
                         {formatCurrency(Number(ticket.price), ticket.currency)}
                       </div>
-                      <div className="mt-1 text-[11px] text-manatee dark:text-waterloo">/ personne</div>
+                      <div className="mt-1 text-[11px] text-waterloo dark:text-manatee">/ personne</div>
                     </div>
 
                     {soldOut || !isPublished ? (
@@ -264,7 +264,7 @@ export function TicketSelector({
                         className={`flex size-9 shrink-0 items-center justify-center rounded-full border transition-colors ${
                           selected
                             ? 'border-primary bg-primary text-primary-foreground'
-                            : 'border-stroke text-manatee dark:border-strokedark dark:text-waterloo'
+                            : 'border-stroke text-manatee dark:border-strokedark dark:text-manatee'
                         }`}
                       >
                         {selected ? <Check className="size-4" /> : <Plus className="size-4" />}
@@ -275,7 +275,7 @@ export function TicketSelector({
 
                 {selected && !soldOut && isPublished && (
                   <div className="flex items-center justify-between gap-4 border-t border-stroke px-6 py-4 dark:border-strokedark md:px-8">
-                    <span className="text-xs font-medium text-manatee dark:text-waterloo">
+                    <span className="text-xs font-medium text-waterloo dark:text-manatee">
                       Combien de places ?
                     </span>
                     <div className="flex items-center gap-1 rounded-full border border-stroke dark:border-strokedark">
@@ -283,7 +283,7 @@ export function TicketSelector({
                         type="button"
                         aria-label={`Retirer un billet ${ticket.name}`}
                         onClick={() => updateQuantity(ticket.id, -1, maxSelectable)}
-                        className="flex size-10 items-center justify-center rounded-full text-manatee transition-colors hover:text-black dark:text-waterloo dark:hover:text-white"
+                        className="flex size-10 items-center justify-center rounded-full text-manatee transition-colors hover:text-black dark:text-manatee dark:hover:text-white"
                       >
                         <Minus className="size-4" />
                       </button>
@@ -308,7 +308,7 @@ export function TicketSelector({
 
       {totalQuantity > 0 && (
         <div className="sticky bottom-4 z-30 mt-6 rounded-3xl border border-stroke bg-white/95 p-5 shadow-solid-2 backdrop-blur dark:border-strokedark dark:bg-blacksection/95 md:p-6">
-          <div className="text-[11px] font-bold uppercase tracking-wide text-manatee dark:text-waterloo md:text-xs">
+          <div className="text-[11px] font-bold uppercase tracking-wide text-waterloo dark:text-manatee md:text-xs">
             Récapitulatif
           </div>
 
@@ -320,7 +320,7 @@ export function TicketSelector({
                 <span className="min-w-0 truncate">
                   <span className="font-semibold tabular-nums">{quantity}×</span> {ticket.name}
                   {ticket.dayLabel && (
-                    <span className="ml-1.5 text-xs text-manatee dark:text-waterloo">
+                    <span className="ml-1.5 text-xs text-waterloo dark:text-manatee">
                       ({ticket.dayLabel})
                     </span>
                   )}
@@ -335,7 +335,7 @@ export function TicketSelector({
               <div className="font-event text-lg leading-none md:text-2xl">
                 {formatCurrency(totalAmount, currency)}
               </div>
-              <div className="mt-1 text-[11px] text-manatee dark:text-waterloo md:text-xs">
+              <div className="mt-1 text-[11px] text-waterloo dark:text-manatee md:text-xs">
                 {totalQuantity} billet{totalQuantity > 1 ? 's' : ''} sélectionné
                 {totalQuantity > 1 ? 's' : ''}
               </div>

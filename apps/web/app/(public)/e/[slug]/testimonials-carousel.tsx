@@ -91,7 +91,7 @@ export function TestimonialsCarousel({ entries }: { entries: TestimonialEntry[] 
                     <span className="block truncate text-sm font-semibold">{entry.author}</span>
                   )}
                   {entry.role && (
-                    <span className="block truncate text-xs text-manatee dark:text-waterloo">
+                    <span className="block truncate text-xs text-waterloo dark:text-manatee">
                       {entry.role}
                     </span>
                   )}

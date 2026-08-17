@@ -32,7 +32,7 @@ export function EventFooter({
           </div>
 
           <div>
-            <div className="text-xs font-bold uppercase tracking-[0.12em] text-manatee dark:text-waterloo">
+            <div className="text-xs font-bold uppercase tracking-[0.12em] text-waterloo dark:text-manatee">
               Informations
             </div>
             <ul className="mt-4 flex flex-col gap-3 text-sm">
@@ -50,7 +50,7 @@ export function EventFooter({
           </div>
 
           <div>
-            <div className="text-xs font-bold uppercase tracking-[0.12em] text-manatee dark:text-waterloo">
+            <div className="text-xs font-bold uppercase tracking-[0.12em] text-waterloo dark:text-manatee">
               Navigation
             </div>
             <ul className="mt-4 flex flex-col gap-2.5 text-sm">
@@ -76,7 +76,7 @@ export function EventFooter({
           </div>
         </div>
 
-        <div className="mt-10 flex flex-wrap items-center justify-between gap-3 border-t border-stroke pt-6 text-xs text-manatee dark:border-strokedark dark:text-waterloo">
+        <div className="mt-10 flex flex-wrap items-center justify-between gap-3 border-t border-stroke pt-6 text-xs text-manatee dark:border-strokedark dark:text-manatee">
           <span>Billetterie propulsée par Fluid Events.</span>
           <Link href="/" className="transition-colors hover:text-black dark:hover:text-white">
             fluidevents.africa

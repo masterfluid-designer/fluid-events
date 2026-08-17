@@ -256,7 +256,7 @@ function QrModal({
           // eslint-disable-next-line @next/next/no-img-element
           <img src={qrImage} alt="QR code du billet" className="mx-auto size-70" />
         )}
-        <p className="mt-4 text-xs text-manatee dark:text-waterloo">
+        <p className="mt-4 text-xs text-waterloo dark:text-manatee">
           Présentez ce QR à l&apos;entrée. Il n&apos;est valable qu&apos;une seule fois.
         </p>
       </div>

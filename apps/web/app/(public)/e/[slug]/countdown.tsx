@@ -27,7 +27,7 @@ function Digits({ value, label }: { value: string; label: string }) {
   return (
     <div className="flex flex-col items-center gap-2 rounded-2xl border border-stroke bg-white py-5 dark:border-strokedark dark:bg-blacksection md:py-7">
       <span className="font-event text-3xl leading-none tabular-nums md:text-5xl lg:text-6xl">{value}</span>
-      <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-manatee dark:text-waterloo md:text-xs">
+      <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-waterloo dark:text-manatee md:text-xs">
         {label}
       </span>
     </div>

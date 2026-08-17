@@ -56,7 +56,7 @@ function ClientHeader() {
                 className={`inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-semibold transition-colors sm:text-sm ${
                   active
                     ? 'bg-primary text-primary-foreground'
-                    : 'text-manatee hover:bg-black/5 dark:text-waterloo dark:hover:bg-white/5'
+                    : 'text-manatee hover:bg-black/5 dark:text-manatee dark:hover:bg-white/5'
                 }`}
               >
                 <Icon className="size-4" />
@@ -73,7 +73,7 @@ function ClientHeader() {
               await apiPost('/api/auth/logout', {}).catch(() => {});
               window.location.href = '/';
             }}
-            className="ml-1 inline-flex size-9 items-center justify-center rounded-full text-manatee transition-colors hover:bg-black/5 dark:text-waterloo dark:hover:bg-white/5"
+            className="ml-1 inline-flex size-9 items-center justify-center rounded-full text-manatee transition-colors hover:bg-black/5 dark:text-manatee dark:hover:bg-white/5"
           >
             <LogOut className="size-4" />
           </button>

@@ -37,7 +37,7 @@ export default function LostTicketsPage() {
       <div className="mx-auto max-w-md px-4 py-12 md:px-8">
         <Link
           href="/"
-          className="mb-6 inline-flex items-center gap-1.5 text-xs font-semibold text-manatee hover:text-black dark:text-waterloo dark:hover:text-white"
+          className="mb-6 inline-flex items-center gap-1.5 text-xs font-semibold text-manatee hover:text-black dark:text-manatee dark:hover:text-white"
         >
           <ArrowLeft className="size-3.5" /> Retour à l'accueil
         </Link>

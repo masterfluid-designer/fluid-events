@@ -53,7 +53,7 @@ export function EventLocation({
             <div className="flex items-start gap-3">
               <MapPin className="mt-0.5 size-5 shrink-0 text-primary" />
               <div className="min-w-0">
-                <div className="text-xs font-bold uppercase tracking-wide text-manatee dark:text-waterloo">
+                <div className="text-xs font-bold uppercase tracking-wide text-waterloo dark:text-manatee">
                   Adresse
                 </div>
                 <p className="mt-1.5 text-sm leading-relaxed">{address}</p>
@@ -81,7 +81,7 @@ export function EventLocation({
                 <div className="flex items-start gap-3">
                   <Info className="mt-0.5 size-5 shrink-0 text-primary" />
                   <div className="min-w-0">
-                    <div className="text-xs font-bold uppercase tracking-wide text-manatee dark:text-waterloo">
+                    <div className="text-xs font-bold uppercase tracking-wide text-waterloo dark:text-manatee">
                       Accès
                     </div>
                     {/* whitespace-pre-line : l'organisateur saisit ses
@@ -100,7 +100,7 @@ export function EventLocation({
                 <div className="flex items-start gap-3">
                   <Phone className="mt-0.5 size-5 shrink-0 text-primary" />
                   <div className="min-w-0">
-                    <div className="text-xs font-bold uppercase tracking-wide text-manatee dark:text-waterloo">
+                    <div className="text-xs font-bold uppercase tracking-wide text-waterloo dark:text-manatee">
                       Contact de l&apos;événement
                     </div>
                     {/* Lien tel: — sur mobile, un numéro affiché sans lien
