@@ -158,6 +158,28 @@ export class EventsService {
       });
     }
 
+    // Changer de régime remet la billetterie à zéro (décision produit
+    // 2026-08-17) : des billets pensés pour « un billet par jour » n'ont
+    // aucun sens en « pass », et l'inverse non plus. Mieux vaut repartir
+    // propre que laisser un mélange que le scanner interpréterait mal.
+    //
+    // MAIS jamais si une seule vente existe : supprimer un billet vendu
+    // détruirait la commande qui le référence — la base le refuse déjà par
+    // clé étrangère, on préfère un message clair à une erreur brute.
+    const policyChanged =
+      ticketPolicy !== undefined && current != null && ticketPolicy !== current.ticketPolicy;
+
+    if (policyChanged) {
+      const sold = await this.prisma.orderItem.count({ where: { ticket: { eventId } } });
+      if (sold > 0) {
+        throw new ConflictException({
+          code: ErrorCodes.TICKET_POLICY_LOCKED,
+          message:
+            'Des billets ont déjà été vendus : le déroulement de l’événement ne peut plus être changé.',
+        });
+      }
+    }
+
     // Les dates arrivent en ISO ; on ne garde que la date civile — le scanner
     // compare un jour du calendrier, jamais un instant.
     const normalized = nextDays.map((d, index) => ({
@@ -189,6 +211,13 @@ export class EventsService {
     }
 
     await this.prisma.$transaction(async (tx) => {
+      // Dans la MÊME transaction que le remplacement des journées : un
+      // nettoyage réussi suivi d’un échec sur les journées laisserait
+      // l’événement sans billets ET sans journées.
+      if (policyChanged) {
+        await tx.ticket.deleteMany({ where: { eventId } });
+      }
+
       // Remplacement en bloc, mais les journées conservées gardent leur `id` :
       // les billets qui les référencent ne doivent pas être détachés.
       await tx.eventDay.deleteMany({

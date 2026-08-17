@@ -76,6 +76,11 @@ export function apiPatch<T = unknown>(
   return api<T>(path, { ...init, method: 'PATCH', body: JSON.stringify(data) });
 }
 
+/** Helper DELETE — sans corps : les suppressions ne portent que sur l’URL. */
+export function apiDelete<T = unknown>(path: string, init?: ApiOptions): Promise<T> {
+  return api<T>(path, { ...init, method: 'DELETE' });
+}
+
 /** Helper PUT avec body JSON typé. */
 export function apiPut<T = unknown>(
   path: string,

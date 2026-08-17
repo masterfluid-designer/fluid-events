@@ -413,6 +413,8 @@ export const ErrorCodes = {
   TICKET_DAY_INVALID: 'TICKET_DAY_INVALID',
   // Billet présenté un autre jour que le sien.
   WRONG_DAY: 'WRONG_DAY',
+  // Changement de régime refusé : des billets ont déjà été vendus.
+  TICKET_POLICY_LOCKED: 'TICKET_POLICY_LOCKED',
   // Tickets
   TICKET_NOT_FOUND: 'TICKET_NOT_FOUND',
   TICKET_SOLD_OUT: 'TICKET_SOLD_OUT',

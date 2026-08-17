@@ -4,14 +4,15 @@ import { TicketPolicy } from '@saas-events/types';
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { CalendarDays, Plus, X } from 'lucide-react';
+import { CalendarDays, Plus, Settings2, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Spinner } from '@/components/ui/spinner';
 import { ColorField } from '@/components/ui/color-field';
 import { ImageUploadField } from '@/components/ui/image-upload-field';
-import { api, apiPatch, apiPost, ApiError } from '@/lib/api';
+import { api, apiDelete, apiPatch, apiPost, ApiError } from '@/lib/api';
 import { TicketingPanel, type EventDayDraft } from '../builder/ticketing-panel';
 
 /**
@@ -66,6 +67,11 @@ export default function ManagerTicketsPage() {
   const [days, setDays] = useState<EventDayDraft[]>([]);
   const [regimeLoaded, setRegimeLoaded] = useState(false);
   const [regimeDirty, setRegimeDirty] = useState(false);
+  // Édition/suppression d’un billet (2026-08-17) et confirmation du
+  // changement de régime, qui remet la billetterie à zéro.
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [ticketToDelete, setTicketToDelete] = useState<TicketRow | null>(null);
+  const [confirmRegime, setConfirmRegime] = useState(false);
 
   const { data: me } = useQuery({
     queryKey: ['auth-me'],
@@ -97,6 +103,43 @@ export default function ManagerTicketsPage() {
     },
     onError: (err) => {
       toast.error(err instanceof ApiError ? err.message : "Impossible d'enregistrer le régime");
+    },
+  });
+
+  const updateTicket = useMutation({
+    mutationFn: () =>
+      apiPatch(`/api/tickets/${editingId}`, {
+        name,
+        price: Number(price),
+        description: description || undefined,
+        compareAtPrice: compareAtPrice ? Number(compareAtPrice) : undefined,
+        promoEndsAt: promoEndsAt ? new Date(promoEndsAt).toISOString() : undefined,
+        designImageUrl,
+        designBgColor,
+        // `stock` est volontairement absent d’UpdateTicketDto côté serveur
+        // (modifier la capacité après des ventes n’est pas tranché), et la
+        // journée non plus : la changer déplacerait un billet déjà vendu.
+      }),
+    onSuccess: () => {
+      toast.success('Billet modifié');
+      resetForm();
+      queryClient.invalidateQueries({ queryKey: ['manager-event'] });
+    },
+    onError: (err) => {
+      toast.error(err instanceof ApiError ? err.message : "Impossible de modifier le billet");
+    },
+  });
+
+  const deleteTicket = useMutation({
+    mutationFn: (id: string) => apiDelete(`/api/tickets/${id}`),
+    onSuccess: () => {
+      toast.success('Billet supprimé');
+      setTicketToDelete(null);
+      queryClient.invalidateQueries({ queryKey: ['manager-event'] });
+    },
+    onError: (err) => {
+      toast.error(err instanceof ApiError ? err.message : "Impossible de supprimer le billet");
+      setTicketToDelete(null);
     },
   });
 
@@ -154,6 +197,30 @@ export default function ManagerTicketsPage() {
   // Régime EFFECTIF (celui du serveur), et non l’état local en cours
   // d’édition : le formulaire doit refléter ce qui est réellement enregistré,
   // sinon on proposerait des journées que l’API refuserait encore.
+  function resetForm() {
+    setShowForm(false);
+    setEditingId(null);
+    setName('');
+    setPrice('');
+    setStock('');
+    setDescription('');
+    setCompareAtPrice('');
+    setPromoEndsAt('');
+    setDayLabel('');
+    setEventDayId(null);
+    setDesignImageUrl(undefined);
+    setDesignBgColor(undefined);
+  }
+
+  function startEdit(t: TicketRow) {
+    setEditingId(t.id);
+    setName(t.name);
+    setPrice(String(t.price));
+    setStock(String(t.stock));
+    setDescription(t.description ?? '');
+    setShowForm(true);
+  }
+
   const savedPolicy = event.ticketPolicy ?? TicketPolicy.SINGLE_DAY;
   const canCreateTickets =
     !regimeDirty && (savedPolicy !== TicketPolicy.PER_DAY || event.days.length > 0);
@@ -213,7 +280,19 @@ export default function ManagerTicketsPage() {
         />
 
         <div className="mt-4 flex items-center gap-3">
-          <Button size="sm" onClick={() => saveRegime.mutate()} disabled={saveRegime.isPending}>
+          <Button
+            size="sm"
+            onClick={() => {
+              // Changer de régime efface les billets : on ne le fait jamais
+              // sans validation explicite quand il y en a déjà.
+              if (policy !== savedPolicy && event.tickets.length > 0) {
+                setConfirmRegime(true);
+                return;
+              }
+              saveRegime.mutate();
+            }}
+            disabled={saveRegime.isPending}
+          >
             {saveRegime.isPending ? 'Enregistrement...' : 'Enregistrer'}
           </Button>
           {regimeDirty && (
@@ -235,7 +314,10 @@ export default function ManagerTicketsPage() {
               <p className="text-xs text-muted-foreground">{creationHint}</p>
             </div>
           </div>
-          <Button onClick={() => setShowForm((v) => !v)} disabled={!canCreateTickets}>
+          <Button
+            onClick={() => (showForm ? resetForm() : setShowForm(true))}
+            disabled={!canCreateTickets && !showForm}
+          >
             {showForm ? <X className="size-4" /> : <Plus className="size-4" />}
             {showForm ? 'Annuler' : 'Ajouter un billet'}
           </Button>
@@ -278,7 +360,8 @@ export default function ManagerTicketsPage() {
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              createTicket.mutate();
+              if (editingId) updateTicket.mutate();
+              else createTicket.mutate();
             }}
             className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4"
           >
@@ -409,9 +492,33 @@ export default function ManagerTicketsPage() {
                 onChange={setDesignBgColor}
               />
             </div>
-            <Button type="submit" disabled={createTicket.isPending} className="md:col-span-4 w-fit">
-              {createTicket.isPending ? 'Création...' : 'Créer le billet'}
-            </Button>
+            <div className="md:col-span-4 flex flex-wrap items-center gap-3">
+              <Button
+                type="submit"
+                disabled={createTicket.isPending || updateTicket.isPending}
+                className="w-fit"
+              >
+                {createTicket.isPending || updateTicket.isPending
+                  ? 'Enregistrement...'
+                  : editingId
+                    ? 'Enregistrer les modifications'
+                    : 'Créer le billet'}
+              </Button>
+              {editingId && (
+                <>
+                  <Button type="button" variant="outline" size="sm" onClick={resetForm}>
+                    Annuler
+                  </Button>
+                  {/* Le stock et la journée ne sont pas modifiables : côté
+                      serveur `stock` est absent du DTO de mise à jour, et
+                      déplacer un billet d’une journée à l’autre invaliderait
+                      les QR déjà émis. */}
+                  <span className="text-xs text-muted-foreground">
+                    Le stock et la journée ne se modifient pas après création.
+                  </span>
+                </>
+              )}
+            </div>
           </form>
         </Card>
       )}
@@ -458,11 +565,78 @@ export default function ManagerTicketsPage() {
                 <Badge variant={!t.isActive ? 'outline' : soldOut ? 'secondary' : 'success'} className="w-fit">
                   {!t.isActive ? 'Inactif' : soldOut ? 'Épuisé' : 'Actif'}
                 </Badge>
+
+                {/* Actions par billet (2026-08-17) : la liste était en lecture
+                    seule, sans aucun moyen de corriger un prix ou de retirer
+                    une ligne créée par erreur. */}
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => startEdit(t)}
+                    aria-label={`Modifier ${t.name}`}
+                    title="Modifier"
+                    className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                  >
+                    <Settings2 className="size-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTicketToDelete(t)}
+                    aria-label={`Supprimer ${t.name}`}
+                    title={
+                      t.stockSold > 0
+                        ? 'Billet déjà vendu — désactivez-le plutôt'
+                        : 'Supprimer'
+                    }
+                    // Un billet vendu ne peut pas être supprimé : la base le
+                    // refuse (clé étrangère vers les commandes). Le bouton le
+                    // dit avant le clic plutôt qu'après.
+                    disabled={t.stockSold > 0}
+                    className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
+                  >
+                    <Trash2 className="size-4" />
+                  </button>
+                </div>
               </div>
             );
           })}
         </Card>
       )}
+
+      <ConfirmDialog
+        open={confirmRegime}
+        title="Changer le déroulement effacera vos billets"
+        description={
+          <>
+            Vos <strong>{event.tickets.length} billet
+            {event.tickets.length > 1 ? 's' : ''}</strong> ont été créés pour le régime actuel et
+            n’auraient plus de sens dans le nouveau. Ils seront supprimés pour repartir sur une
+            base saine. Cette action est irréversible.
+          </>
+        }
+        confirmLabel="Changer et effacer"
+        pending={saveRegime.isPending}
+        onConfirm={() => {
+          setConfirmRegime(false);
+          saveRegime.mutate();
+        }}
+        onCancel={() => setConfirmRegime(false)}
+      />
+
+      <ConfirmDialog
+        open={ticketToDelete !== null}
+        title="Supprimer ce billet ?"
+        description={
+          <>
+            <strong>{ticketToDelete?.name}</strong> sera définitivement supprimé. Aucune vente
+            n’est enregistrée dessus.
+          </>
+        }
+        confirmLabel="Supprimer"
+        pending={deleteTicket.isPending}
+        onConfirm={() => ticketToDelete && deleteTicket.mutate(ticketToDelete.id)}
+        onCancel={() => setTicketToDelete(null)}
+      />
     </div>
   );
 }

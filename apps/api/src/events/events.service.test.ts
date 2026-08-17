@@ -17,12 +17,14 @@ function makePrisma() {
       deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
       upsert: vi.fn().mockResolvedValue({}),
     },
+    ticket: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
   };
   return {
     event: { create: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
     order: { findMany: vi.fn() },
     user: { findUnique: vi.fn() },
     eventDay: { findMany: vi.fn().mockResolvedValue([]) },
+    orderItem: { count: vi.fn().mockResolvedValue(0) },
     $transaction: vi.fn().mockImplementation((fn: any) => fn(tx)),
     _tx: tx,
   };
@@ -516,5 +518,60 @@ describe('EventsService.updateMyEvent() — journées et régime', () => {
     // un manager standard ne pourrait plus rien modifier du tout.
     expect(prisma.user.findUnique).not.toHaveBeenCalled();
     expect(prisma.event.update).toHaveBeenCalled();
+  });
+});
+
+/**
+ * Changement de régime : remise à zéro de la billetterie (2026-08-17).
+ * Des billets pensés pour un régime n'ont pas de sens dans un autre — mais
+ * jamais au prix d'une vente déjà encaissée.
+ */
+describe('EventsService.updateMyEvent() — changement de régime', () => {
+  let prisma: ReturnType<typeof makePrisma>;
+  let service: EventsService;
+
+  const TWO_DAYS = [
+    { label: 'Jour 1', date: '2026-08-08' },
+    { label: 'Jour 2', date: '2026-08-09' },
+  ];
+
+  beforeEach(() => {
+    prisma = makePrisma();
+    service = new EventsService(prisma as any, { log: vi.fn().mockResolvedValue(undefined) } as any);
+    prisma.event.findUnique.mockResolvedValue({ id: 'ev-1', ticketPolicy: 'SINGLE_DAY' });
+    prisma.event.update.mockResolvedValue({ id: 'ev-1' });
+    prisma.eventDay.findMany.mockResolvedValue([]);
+    prisma.user.findUnique.mockResolvedValue({ isPremium: true });
+    prisma.orderItem.count.mockResolvedValue(0);
+  });
+
+  it('efface les billets quand le régime change', async () => {
+    await service.updateMyEvent('mgr-1', { ticketPolicy: 'PER_DAY', days: TWO_DAYS } as any);
+
+    expect(prisma._tx.ticket.deleteMany).toHaveBeenCalledWith({ where: { eventId: 'ev-1' } });
+  });
+
+  it("REFUSE le changement si une vente existe, et n'efface rien", async () => {
+    // Supprimer un billet vendu d'trairait la commande qui le référence : la
+    // base le refuserait de toute façon, on préfère un message explicite.
+    prisma.orderItem.count.mockResolvedValue(3);
+
+    await expect(
+      service.updateMyEvent('mgr-1', { ticketPolicy: 'PER_DAY', days: TWO_DAYS } as any),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ code: ErrorCodes.TICKET_POLICY_LOCKED }),
+    });
+    expect(prisma._tx.ticket.deleteMany).not.toHaveBeenCalled();
+    expect(prisma.event.update).not.toHaveBeenCalled();
+  });
+
+  it("n'efface rien quand le régime ne change pas", async () => {
+    prisma.event.findUnique.mockResolvedValue({ id: 'ev-1', ticketPolicy: 'PER_DAY' });
+
+    await service.updateMyEvent('mgr-1', { ticketPolicy: 'PER_DAY', days: TWO_DAYS } as any);
+
+    // Enregistrer à nouveau le même régime (pour modifier les journées, par
+    // exemple) ne doit pas détruire la billetterie au passage.
+    expect(prisma._tx.ticket.deleteMany).not.toHaveBeenCalled();
   });
 });
