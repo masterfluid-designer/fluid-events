@@ -48,6 +48,7 @@ export default function ManagerTicketsPage() {
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
   const [stock, setStock] = useState('');
+  const [maxPerOrder, setMaxPerOrder] = useState('');
   const [description, setDescription] = useState('');
   const [compareAtPrice, setCompareAtPrice] = useState('');
   const [promoEndsAt, setPromoEndsAt] = useState('');
@@ -149,6 +150,9 @@ export default function ManagerTicketsPage() {
         name,
         price: Number(price),
         stock: Number(stock),
+        // Sans saisie, 10 : le défaut 1 du schéma empêchait toute commande
+        // multiple, ce qui n’est presque jamais l’intention d’un organisateur.
+        maxPerOrder: maxPerOrder ? Number(maxPerOrder) : 10,
         description: description || undefined,
         compareAtPrice: compareAtPrice ? Number(compareAtPrice) : undefined,
         promoEndsAt: promoEndsAt ? new Date(promoEndsAt).toISOString() : undefined,
@@ -163,6 +167,7 @@ export default function ManagerTicketsPage() {
       setName('');
       setPrice('');
       setStock('');
+    setMaxPerOrder('');
       setDescription('');
       setCompareAtPrice('');
       setPromoEndsAt('');
@@ -203,6 +208,7 @@ export default function ManagerTicketsPage() {
     setName('');
     setPrice('');
     setStock('');
+    setMaxPerOrder('');
     setDescription('');
     setCompareAtPrice('');
     setPromoEndsAt('');
@@ -388,6 +394,17 @@ export default function ManagerTicketsPage() {
               placeholder="Stock"
               value={stock}
               onChange={(e) => setStock(e.target.value)}
+              className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+            />
+            {/* Plafond par commande (2026-08-17) : la valeur par défaut en base
+                est 1, et ce champ n’existait nulle part — l’acheteur ne pouvait
+                donc jamais prendre deux places, l’incrémenteur restant bloqué. */}
+            <input
+              type="number"
+              min="1"
+              placeholder="Max par commande (défaut 10)"
+              value={maxPerOrder}
+              onChange={(e) => setMaxPerOrder(e.target.value)}
               className="rounded-md border border-input bg-background px-3 py-2 text-sm"
             />
             <input

@@ -1,5 +1,6 @@
 "use client";
 
+import { AuthBackLink } from '@/components/auth/back-link';
 import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
@@ -156,12 +157,7 @@ function SetPasswordForm() {
               )}
 
               <div className="mt-9 border-t border-stroke pt-5 text-center dark:border-strokedark">
-                <Link
-                  className="text-sm font-semibold text-waterloo hover:text-black dark:text-manatee dark:hover:text-white"
-                  href="/"
-                >
-                  ← Retour à l&apos;accueil
-                </Link>
+                <AuthBackLink className="text-sm font-semibold text-waterloo hover:text-black dark:text-manatee dark:hover:text-white" />
               </div>
             </motion.div>
           </div>

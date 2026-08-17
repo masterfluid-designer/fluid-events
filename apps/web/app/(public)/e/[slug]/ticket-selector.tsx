@@ -276,8 +276,11 @@ export function TicketSelector({
                 {selected && !soldOut && isPublished && (
                   <div className="flex items-center justify-between gap-4 border-t border-stroke px-6 py-4 dark:border-strokedark md:px-8">
                     <span className="text-xs font-medium text-waterloo dark:text-manatee">
-                      Combien de places ?
+                      {maxSelectable > 1
+                        ? "Combien de places ?"
+                        : "Une place par commande pour ce billet"}
                     </span>
+                    {maxSelectable > 1 && (
                     <div className="flex items-center gap-1 rounded-full border border-stroke dark:border-strokedark">
                       <button
                         type="button"
@@ -298,6 +301,7 @@ export function TicketSelector({
                         <Plus className="size-4" />
                       </button>
                     </div>
+                    )}
                   </div>
                 )}
               </div>
