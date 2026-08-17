@@ -1,3 +1,4 @@
+import { DEFAULT_COLOR_THEME } from '@/lib/color-themes';
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 
@@ -54,6 +55,11 @@ export default function RootLayout({
     <html
       lang="fr"
       suppressHydrationWarning
+      // Thème par défaut posé côté SERVEUR : `ColorThemeProvider` ne lit
+      // localStorage qu’après le montage, et sans cet attribut la première
+      // peinture utiliserait les couleurs de base avant de basculer — un
+      // clignotement à chaque chargement pour qui n’a jamais choisi de thème.
+      data-color-theme={DEFAULT_COLOR_THEME}
       className={`${fontSans.variable} ${fontSerif.variable} ${fontSpaceGrotesk.variable} font-sans antialiased`}
     >
       <body>

@@ -17,13 +17,13 @@ export const COLOR_THEMES: ColorTheme[] = [
   {
     id: 'terracotta',
     label: 'Terracotta',
-    tag: 'argile · défaut',
+    tag: 'argile · chaleureux',
     swatches: ['oklch(58% 0.15 45)', 'oklch(66% 0.12 60)', 'oklch(70% 0.13 75)'],
   },
   {
     id: 'ocean',
     label: 'Océan',
-    tag: 'marine · teal · azur',
+    tag: 'marine · teal · défaut',
     swatches: ['oklch(38% 0.09 250)', 'oklch(55% 0.13 215)', 'oklch(68% 0.1 195)'],
   },
   {
@@ -54,4 +54,4 @@ export const COLOR_THEMES: ColorTheme[] = [
 
 export const COLOR_THEME_IDS = COLOR_THEMES.map((t) => t.id);
 export type ColorThemeId = (typeof COLOR_THEME_IDS)[number];
-export const DEFAULT_COLOR_THEME: ColorThemeId = 'terracotta';
+export const DEFAULT_COLOR_THEME: ColorThemeId = 'ocean';

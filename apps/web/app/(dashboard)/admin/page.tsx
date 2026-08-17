@@ -1,5 +1,6 @@
 'use client';
 
+import { StatGrid } from '@/components/dashboard/stat-grid';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Ticket, Users, DollarSign, TrendingUp, Activity, Settings2 } from 'lucide-react';
@@ -80,19 +81,7 @@ export default function AdminOverviewPage() {
         <p className="text-sm text-muted-foreground">Indicateurs clés de la plateforme</p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {kpis.map((kpi) => (
-          <Card key={kpi.label}>
-            <CardContent className="p-5">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">{kpi.label}</span>
-                <span className="text-accent-terracotta dark:text-accent-terracotta-dark">{kpi.icon}</span>
-              </div>
-              <div className="mt-2 text-2xl font-bold">{kpi.value}</div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      <StatGrid stats={kpis} />
 
       <Card className="overflow-hidden py-0">
         <div className="flex items-center justify-between border-b border-border px-4.5 py-3.5">

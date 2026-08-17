@@ -1,5 +1,6 @@
 'use client';
 
+import { StatGrid } from '@/components/dashboard/stat-grid';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { DollarSign, Ticket, ScanLine, Radio, Clock } from 'lucide-react';
@@ -90,19 +91,7 @@ export default function ManagerAnalyticsPage() {
         <p className="text-sm text-muted-foreground">{overview.event.title}</p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {stats.map((s) => (
-          <Card key={s.label}>
-            <CardContent className="p-5">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">{s.label}</span>
-                <span className="text-accent-terracotta dark:text-accent-terracotta-dark">{s.icon}</span>
-              </div>
-              <div className="mt-2 text-2xl font-bold">{s.value}</div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      <StatGrid stats={stats} />
 
       <Card>
         <CardHeader>
