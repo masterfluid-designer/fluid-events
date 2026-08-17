@@ -3,15 +3,28 @@
  * Vue manager (mine/overview) et participants — ownership + agrégats réels
  * (CDC §1.4 : 1 Manager = 1 Event ; RULES.md §1 : ownership check en service).
  */
+import { ErrorCodes } from '@saas-events/types';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { EventsService } from './events.service';
 
 function makePrisma() {
+  // `_tx` expose les appels faits dans la transaction (remplacement des
+  // journées), que les tests inspectent.
+  const tx = {
+    eventDay: {
+      deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+      upsert: vi.fn().mockResolvedValue({}),
+    },
+  };
   return {
     event: { create: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
     order: { findMany: vi.fn() },
+    user: { findUnique: vi.fn() },
+    eventDay: { findMany: vi.fn().mockResolvedValue([]) },
+    $transaction: vi.fn().mockImplementation((fn: any) => fn(tx)),
+    _tx: tx,
   };
 }
 
@@ -389,5 +402,119 @@ describe('EventsService.getPublicEventBySlug()', () => {
   it("404 si l'événement n'est pas PUBLISHED (ex: CANCELLED)", async () => {
     prisma.event.findUnique.mockResolvedValue({ id: 'ev-1', status: 'CANCELLED' });
     await expect(service.getPublicEventBySlug('concert-2026')).rejects.toThrow(NotFoundException);
+  });
+});
+
+/**
+ * Régime de billetterie et journées (décision produit 2026-08-16).
+ * Le multi-jours est réservé au palier Premium ; une journée à laquelle des
+ * billets sont rattachés ne peut pas disparaître.
+ */
+describe('EventsService.updateMyEvent() — journées et régime', () => {
+  let prisma: ReturnType<typeof makePrisma>;
+  let service: EventsService;
+
+  const TWO_DAYS = [
+    { label: 'Jour 1', date: '2026-08-08' },
+    { label: 'Jour 2', date: '2026-08-09' },
+  ];
+
+  beforeEach(() => {
+    prisma = makePrisma();
+    service = new EventsService(prisma as any, { log: vi.fn().mockResolvedValue(undefined) } as any);
+    prisma.event.findUnique.mockResolvedValue({ id: 'ev-1', ticketPolicy: 'SINGLE_DAY' });
+    prisma.event.update.mockResolvedValue({ id: 'ev-1' });
+    prisma.eventDay.findMany.mockResolvedValue([]);
+  });
+
+  it('refuse le multi-jours à un manager non Premium (PREMIUM_REQUIRED)', async () => {
+    prisma.user.findUnique.mockResolvedValue({ isPremium: false });
+
+    await expect(
+      service.updateMyEvent('mgr-1', { ticketPolicy: 'PER_DAY', days: TWO_DAYS } as any),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ code: ErrorCodes.PREMIUM_REQUIRED }),
+    });
+    // Le refus doit précéder toute écriture — pas de régime à moitié appliqué.
+    expect(prisma.event.update).not.toHaveBeenCalled();
+  });
+
+  it('refuse une seule journée en multi-jours (une journée, c’est SINGLE_DAY)', async () => {
+    prisma.user.findUnique.mockResolvedValue({ isPremium: true });
+
+    await expect(
+      service.updateMyEvent('mgr-1', {
+        ticketPolicy: 'PASS_ALL_DAYS',
+        days: [{ label: 'Jour unique', date: '2026-08-08' }],
+      } as any),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ code: ErrorCodes.EVENT_DAYS_INVALID }),
+    });
+  });
+
+  it('refuse des journées déclarées sur un événement resté mono-jour', async () => {
+    prisma.user.findUnique.mockResolvedValue({ isPremium: true });
+
+    await expect(
+      service.updateMyEvent('mgr-1', { ticketPolicy: 'SINGLE_DAY', days: TWO_DAYS } as any),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ code: ErrorCodes.EVENT_DAYS_INVALID }),
+    });
+  });
+
+  it('refuse deux journées à la même date (le scanner ne saurait pas laquelle)', async () => {
+    prisma.user.findUnique.mockResolvedValue({ isPremium: true });
+
+    await expect(
+      service.updateMyEvent('mgr-1', {
+        ticketPolicy: 'PER_DAY',
+        days: [
+          { label: 'Matin', date: '2026-08-08' },
+          { label: 'Soir', date: '2026-08-08' },
+        ],
+      } as any),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ code: ErrorCodes.EVENT_DAYS_INVALID }),
+    });
+  });
+
+  it('refuse de supprimer une journée à laquelle des billets sont rattachés', async () => {
+    prisma.user.findUnique.mockResolvedValue({ isPremium: true });
+    // Une 3e journée existe en base, absente de la nouvelle liste, et porte
+    // des billets déjà vendus : la supprimer les détacherait (SetNull) et ils
+    // n'ouvriraient plus rien au contrôle d'accès.
+    prisma.eventDay.findMany.mockResolvedValue([
+      { id: 'd-1', date: new Date('2026-08-08T00:00:00.000Z'), _count: { tickets: 0 } },
+      { id: 'd-3', date: new Date('2026-08-10T00:00:00.000Z'), _count: { tickets: 4 } },
+    ]);
+
+    await expect(
+      service.updateMyEvent('mgr-1', { ticketPolicy: 'PER_DAY', days: TWO_DAYS } as any),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ code: ErrorCodes.EVENT_DAYS_INVALID }),
+    });
+  });
+
+  it('accepte deux journées pour un manager Premium et normalise les dates', async () => {
+    prisma.user.findUnique.mockResolvedValue({ isPremium: true });
+
+    await service.updateMyEvent('mgr-1', { ticketPolicy: 'PER_DAY', days: TWO_DAYS } as any);
+
+    const upserts = prisma._tx.eventDay.upsert.mock.calls.map((c: any) => c[0]);
+    expect(upserts).toHaveLength(2);
+    // Date civile à minuit UTC : le scanner compare un jour du calendrier.
+    expect(upserts[0].create.date.toISOString()).toBe('2026-08-08T00:00:00.000Z');
+    expect(prisma.event.update).toHaveBeenCalled();
+  });
+
+  it('laisse passer une mise à jour ordinaire sans toucher aux journées', async () => {
+    prisma.user.findUnique.mockResolvedValue({ isPremium: false });
+
+    await service.updateMyEvent('mgr-1', { title: 'Nouveau titre' } as any);
+
+    // Ni régime ni journées dans le DTO : aucune vérification Premium, sinon
+    // un manager standard ne pourrait plus rien modifier du tout.
+    expect(prisma.user.findUnique).not.toHaveBeenCalled();
+    expect(prisma.event.update).toHaveBeenCalled();
   });
 });

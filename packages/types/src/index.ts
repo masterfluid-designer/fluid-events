@@ -42,6 +42,21 @@ export const EventStatus = {
 
 export type EventStatus = (typeof EventStatus)[keyof typeof EventStatus];
 
+/**
+ * Régime de billetterie d’un événement (décision produit 2026-08-16).
+ * Quitter SINGLE_DAY exige un Manager Premium.
+ */
+export const TicketPolicy = {
+  /** Une seule journée — billet à usage unique, comportement historique. */
+  SINGLE_DAY: 'SINGLE_DAY',
+  /** Un billet couvre toutes les journées : une entrée autorisée par jour. */
+  PASS_ALL_DAYS: 'PASS_ALL_DAYS',
+  /** Chaque billet n’ouvre que la journée à laquelle il est rattaché. */
+  PER_DAY: 'PER_DAY',
+} as const;
+
+export type TicketPolicy = (typeof TicketPolicy)[keyof typeof TicketPolicy];
+
 export const OrderStatus = {
   PENDING: 'PENDING',
   PAID: 'PAID',
@@ -66,6 +81,8 @@ export const ScanResult = {
   EXPIRED: 'EXPIRED',
   INVALID: 'INVALID',
   EVENT_MISMATCH: 'EVENT_MISMATCH',
+  /** Billet valable, mais pas aujourd’hui (régime PER_DAY / pass hors dates). */
+  WRONG_DAY: 'WRONG_DAY',
 } as const;
 
 export type ScanResult = (typeof ScanResult)[keyof typeof ScanResult];
@@ -387,6 +404,15 @@ export const ErrorCodes = {
   // Somme des stocks de billets > Event.expectedAttendees (plafond réel,
   // décision produit 2026-08-16).
   EVENT_CAPACITY_EXCEEDED: 'EVENT_CAPACITY_EXCEEDED',
+  // Multi-jours (décision produit 2026-08-16)
+  // Option réservée au palier Premium.
+  PREMIUM_REQUIRED: 'PREMIUM_REQUIRED',
+  // Liste de journées incohérente avec le régime choisi.
+  EVENT_DAYS_INVALID: 'EVENT_DAYS_INVALID',
+  // Billet sans journée en régime PER_DAY, ou journée d’un autre événement.
+  TICKET_DAY_INVALID: 'TICKET_DAY_INVALID',
+  // Billet présenté un autre jour que le sien.
+  WRONG_DAY: 'WRONG_DAY',
   // Tickets
   TICKET_NOT_FOUND: 'TICKET_NOT_FOUND',
   TICKET_SOLD_OUT: 'TICKET_SOLD_OUT',

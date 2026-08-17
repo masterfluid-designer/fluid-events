@@ -51,6 +51,15 @@ export class CreateTicketDto {
   @Min(0)
   stock!: number;
 
+  /**
+   * Journée ouverte par ce billet, en régime PER_DAY uniquement (décision
+   * produit 2026-08-16). Obligatoire dans ce régime, interdite ailleurs —
+   * la cohérence est vérifiée côté service, qui seul connaît le régime.
+   */
+  @IsOptional()
+  @IsString()
+  eventDayId?: string;
+
   @IsOptional()
   @IsInt()
   @Min(1)

@@ -15,6 +15,7 @@ const OTHER_EVENT = { id: 'ev-2', managerId: 'mgr-2' };
 function makePrisma() {
   return {
     event: { findUnique: vi.fn() },
+    eventDay: { findFirst: vi.fn().mockResolvedValue({ id: 'd-1' }) },
     ticket: {
       aggregate: vi.fn(),
       create: vi.fn(),
@@ -108,6 +109,82 @@ describe('TicketsService', () => {
       ).rejects.toMatchObject({
         response: expect.objectContaining({ code: ErrorCodes.EVENT_CAPACITY_EXCEEDED }),
       });
+    });
+
+    // ─── Rattachement à une journée (décision produit 2026-08-16) ───────────
+    // `event.findUnique` sert successivement à l'ownership, au plafond de
+    // capacité, puis au régime de billetterie — d'où le séquençage.
+
+    it("refuse une journée quand l'événement n'est pas en régime « billet par jour »", async () => {
+      prisma.event.findUnique
+        .mockResolvedValueOnce(OWNED_EVENT)
+        .mockResolvedValueOnce({ expectedAttendees: null })
+        .mockResolvedValueOnce({ ticketPolicy: 'SINGLE_DAY' });
+
+      await expect(
+        service.createTicket('ev-1', 'mgr-1', {
+          name: 'VIP',
+          price: 5000,
+          stock: 10,
+          eventDayId: 'd-1',
+        } as any),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({ code: ErrorCodes.TICKET_DAY_INVALID }),
+      });
+      expect(prisma.ticket.create).not.toHaveBeenCalled();
+    });
+
+    it('exige une journée en régime PER_DAY', async () => {
+      prisma.event.findUnique
+        .mockResolvedValueOnce(OWNED_EVENT)
+        .mockResolvedValueOnce({ expectedAttendees: null })
+        .mockResolvedValueOnce({ ticketPolicy: 'PER_DAY' });
+
+      await expect(
+        service.createTicket('ev-1', 'mgr-1', { name: 'VIP', price: 5000, stock: 10 } as any),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({ code: ErrorCodes.TICKET_DAY_INVALID }),
+      });
+    });
+
+    it("refuse une journée appartenant à un autre événement", async () => {
+      // Sinon un manager ouvrirait une porte chez un organisateur voisin.
+      prisma.event.findUnique
+        .mockResolvedValueOnce(OWNED_EVENT)
+        .mockResolvedValueOnce({ expectedAttendees: null })
+        .mockResolvedValueOnce({ ticketPolicy: 'PER_DAY' });
+      prisma.eventDay.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.createTicket('ev-1', 'mgr-1', {
+          name: 'VIP',
+          price: 5000,
+          stock: 10,
+          eventDayId: 'd-autre-event',
+        } as any),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({ code: ErrorCodes.TICKET_DAY_INVALID }),
+      });
+    });
+
+    it('accepte un billet rattaché à une journée de son propre événement', async () => {
+      prisma.event.findUnique
+        .mockResolvedValueOnce(OWNED_EVENT)
+        .mockResolvedValueOnce({ expectedAttendees: null })
+        .mockResolvedValueOnce({ ticketPolicy: 'PER_DAY' });
+      prisma.eventDay.findFirst.mockResolvedValue({ id: 'd-1' });
+      prisma.ticket.create.mockResolvedValue({ id: 'tk-1' });
+
+      await service.createTicket('ev-1', 'mgr-1', {
+        name: 'VIP',
+        price: 5000,
+        stock: 10,
+        eventDayId: 'd-1',
+      } as any);
+
+      expect(prisma.ticket.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ eventDayId: 'd-1' }) }),
+      );
     });
 
     it("refuse (403) si le manager ne possède pas l'événement", async () => {

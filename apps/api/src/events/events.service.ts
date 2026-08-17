@@ -4,7 +4,8 @@ import { InputJsonValue } from '@prisma/client/runtime/library';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
-import { ErrorCodes } from '@saas-events/types';
+import { EventDayDto } from './dto/event-config.dto';
+import { ErrorCodes, TicketPolicy } from '@saas-events/types';
 import { isAllowedImageUrl } from '../storage/image-whitelist.util';
 import { bucketSalesByDay } from '../common/analytics.util';
 import { AuditService } from '../common/audit.service';
@@ -62,12 +63,27 @@ export class EventsService {
 
     this.assertImagesAllowed(data);
 
-    const { faqs, schedule, speakers, galleryImages, sponsorImages, startDate, endDate, ...rest } = data;
+    const {
+      faqs,
+      schedule,
+      speakers,
+      galleryImages,
+      sponsorImages,
+      startDate,
+      endDate,
+      days,
+      ticketPolicy,
+      ...rest
+    } = data;
+
+    // Avant l’écriture : un régime refusé ne doit laisser aucune trace.
+    await this.applyDaysAndPolicy(event.id, managerId, ticketPolicy, days);
 
     const updated = await this.prisma.event.update({
       where: { id: event.id },
       data: {
         ...rest,
+        ticketPolicy,
         startDate: startDate ? new Date(startDate) : undefined,
         endDate: endDate ? new Date(endDate) : undefined,
         faqs: faqs as unknown as InputJsonValue | undefined,
@@ -87,6 +103,107 @@ export class EventsService {
    * photos de speakers, galerie, sponsors), pas seulement au rendu. `@IsUrl`
    * ne garantit qu'une forme d'URL valide, jamais une origine autorisée.
    */
+  /**
+   * Applique le régime de billetterie et la liste des journées (décision
+   * produit 2026-08-16). Trois garde-fous, dans cet ordre :
+   *
+   *  1. Quitter SINGLE_DAY exige le palier Premium. Le frontend masque déjà
+   *     l'option, mais un PATCH direct doit être refusé — RULES.md §1 : la
+   *     décision vit dans NestJS, jamais dans le client.
+   *  2. La liste doit être cohérente avec le régime : aucune journée en
+   *     SINGLE_DAY, au moins deux sinon (une seule journée, c'est SINGLE_DAY).
+   *  3. Une journée à laquelle des billets sont rattachés ne peut pas
+   *     disparaître. `Ticket.eventDayId` est en `SetNull` : la supprimer
+   *     détacherait silencieusement des billets déjà vendus, qui n'ouvriraient
+   *     plus aucune journée au contrôle d'accès.
+   */
+  private async applyDaysAndPolicy(
+    eventId: string,
+    managerId: string,
+    ticketPolicy: TicketPolicy | undefined,
+    days: EventDayDto[] | undefined,
+  ): Promise<void> {
+    if (ticketPolicy === undefined && days === undefined) return;
+
+    const manager = await this.prisma.user.findUnique({
+      where: { id: managerId },
+      select: { isPremium: true },
+    });
+    const current = await this.prisma.event.findUnique({
+      where: { id: eventId },
+      select: { ticketPolicy: true },
+    });
+    const effectivePolicy = ticketPolicy ?? current?.ticketPolicy ?? TicketPolicy.SINGLE_DAY;
+    const wantsMultiDay = effectivePolicy !== TicketPolicy.SINGLE_DAY || (days?.length ?? 0) > 0;
+
+    if (wantsMultiDay && !manager?.isPremium) {
+      throw new ForbiddenException({
+        code: ErrorCodes.PREMIUM_REQUIRED,
+        message:
+          'Les événements sur plusieurs jours sont réservés au palier Premium. Contactez un administrateur.',
+      });
+    }
+
+    const nextDays = days ?? [];
+    if (effectivePolicy === TicketPolicy.SINGLE_DAY && nextDays.length > 0) {
+      throw new BadRequestException({
+        code: ErrorCodes.EVENT_DAYS_INVALID,
+        message: "Un événement d'une seule journée ne peut pas déclarer de journées.",
+      });
+    }
+    if (effectivePolicy !== TicketPolicy.SINGLE_DAY && nextDays.length < 2) {
+      throw new BadRequestException({
+        code: ErrorCodes.EVENT_DAYS_INVALID,
+        message: 'Déclarez au moins deux journées, ou repassez en événement d’une seule journée.',
+      });
+    }
+
+    // Les dates arrivent en ISO ; on ne garde que la date civile — le scanner
+    // compare un jour du calendrier, jamais un instant.
+    const normalized = nextDays.map((d, index) => ({
+      label: d.label,
+      date: new Date(`${d.date.slice(0, 10)}T00:00:00.000Z`),
+      order: d.order ?? index,
+    }));
+    const keys = new Set(normalized.map((d) => d.date.toISOString()));
+    if (keys.size !== normalized.length) {
+      throw new BadRequestException({
+        code: ErrorCodes.EVENT_DAYS_INVALID,
+        message: 'Deux journées ne peuvent pas tomber à la même date.',
+      });
+    }
+
+    const existing = await this.prisma.eventDay.findMany({
+      where: { eventId },
+      select: { id: true, date: true, _count: { select: { tickets: true } } },
+    });
+    const doomed = existing.filter(
+      (d) => !keys.has(d.date.toISOString()) && d._count.tickets > 0,
+    );
+    if (doomed.length > 0) {
+      throw new BadRequestException({
+        code: ErrorCodes.EVENT_DAYS_INVALID,
+        message:
+          'Une journée à laquelle des billets sont rattachés ne peut pas être supprimée. Retirez d’abord ces billets.',
+      });
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      // Remplacement en bloc, mais les journées conservées gardent leur `id` :
+      // les billets qui les référencent ne doivent pas être détachés.
+      await tx.eventDay.deleteMany({
+        where: { eventId, date: { notIn: normalized.map((d) => d.date) } },
+      });
+      for (const day of normalized) {
+        await tx.eventDay.upsert({
+          where: { eventId_date: { eventId, date: day.date } },
+          create: { eventId, ...day },
+          update: { label: day.label, order: day.order },
+        });
+      }
+    });
+  }
+
   private assertImagesAllowed(data: UpdateEventDto) {
     const urls = [
       data.logoUrl,

@@ -13,6 +13,7 @@ const AUDIT_ACTION_BY_RESULT: Record<ScanResult, string> = {
   [ScanResult.EXPIRED]: 'scan.expired',
   [ScanResult.INVALID]: 'scan.invalid',
   [ScanResult.EVENT_MISMATCH]: 'scan.invalid',
+  [ScanResult.WRONG_DAY]: 'scan.wrong_day',
 };
 
 /**

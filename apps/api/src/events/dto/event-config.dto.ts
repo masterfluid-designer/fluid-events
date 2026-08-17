@@ -1,4 +1,4 @@
-import { IsDateString, IsOptional, IsString, IsUrl, MaxLength } from 'class-validator';
+import { IsDateString, IsInt, IsOptional, IsString, IsUrl, MaxLength, Min } from 'class-validator';
 
 /**
  * Sous-DTOs — contenu centralisé de l'événement (décision produit
@@ -75,4 +75,27 @@ export class MediaEntryDto {
   @IsString()
   @MaxLength(150)
   role?: string;
+}
+
+/**
+ * DTO — Une journée d'un événement multi-jours (décision produit 2026-08-16).
+ *
+ * Pas d'`id` : les journées sont remplacées en bloc à chaque enregistrement,
+ * comme les FAQ ou les speakers. Un `id` client serait un identifiant que le
+ * serveur devrait vérifier appartenir bien à l'événement — coût inutile pour
+ * une liste de deux ou trois lignes.
+ */
+export class EventDayDto {
+  @IsString()
+  @MaxLength(120)
+  label!: string;
+
+  /** Date civile (YYYY-MM-DD) — le scanner compare un jour du calendrier. */
+  @IsDateString()
+  date!: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  order?: number;
 }

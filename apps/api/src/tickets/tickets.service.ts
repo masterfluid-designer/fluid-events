@@ -9,7 +9,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 import { UpdateTicketDto } from './dto/update-ticket.dto';
-import { ErrorCodes } from '@saas-events/types';
+import { ErrorCodes, TicketPolicy } from '@saas-events/types';
 import { isAllowedImageUrl } from '../storage/image-whitelist.util';
 
 /** Code d'erreur Prisma — violation de contrainte de clé étrangère. */
@@ -117,10 +117,62 @@ export class TicketsService {
     }
   }
 
+  /**
+   * Rattachement d'un billet à une journée (décision produit 2026-08-16).
+   *
+   * En PER_DAY la journée est obligatoire : un billet sans journée n'ouvrirait
+   * rien au contrôle d'accès, le scanner n'ayant aucun jour à comparer.
+   * Dans les deux autres régimes elle doit être absente — un billet SINGLE_DAY
+   * rattaché à une journée laisserait croire à une restriction que le scanner
+   * n'appliquerait pas.
+   */
+  private async assertTicketDayMatchesPolicy(
+    eventId: string,
+    eventDayId: string | undefined,
+  ): Promise<void> {
+    const event = await this.prisma.event.findUnique({
+      where: { id: eventId },
+      select: { ticketPolicy: true },
+    });
+    const policy = event?.ticketPolicy ?? TicketPolicy.SINGLE_DAY;
+
+    if (policy !== TicketPolicy.PER_DAY) {
+      if (eventDayId) {
+        throw new BadRequestException({
+          code: ErrorCodes.TICKET_DAY_INVALID,
+          message:
+            "Ce billet ne peut pas être rattaché à une journée : l'événement n'est pas en régime « billet par jour ».",
+        });
+      }
+      return;
+    }
+
+    if (!eventDayId) {
+      throw new BadRequestException({
+        code: ErrorCodes.TICKET_DAY_INVALID,
+        message: 'Choisissez la journée ouverte par ce billet.',
+      });
+    }
+
+    // La journée doit appartenir à CET événement : un id venant d'un autre
+    // événement ouvrirait une porte que son organisateur n'a pas ouverte.
+    const day = await this.prisma.eventDay.findFirst({
+      where: { id: eventDayId, eventId },
+      select: { id: true },
+    });
+    if (!day) {
+      throw new BadRequestException({
+        code: ErrorCodes.TICKET_DAY_INVALID,
+        message: "Cette journée n'appartient pas à votre événement.",
+      });
+    }
+  }
+
   async createTicket(eventId: string, managerId: string, dto: CreateTicketDto) {
     await this.getOwnedEventOrThrow(eventId, managerId);
     this.assertValidDesignImageUrl(dto.designImageUrl);
     await this.assertCapacityAllows(eventId, dto.stock);
+    await this.assertTicketDayMatchesPolicy(eventId, dto.eventDayId);
 
     return this.prisma.ticket.create({
       data: {
@@ -131,6 +183,7 @@ export class TicketsService {
         compareAtPrice: dto.compareAtPrice,
         promoEndsAt: dto.promoEndsAt ? new Date(dto.promoEndsAt) : undefined,
         dayLabel: dto.dayLabel,
+        eventDayId: dto.eventDayId,
         currency: dto.currency,
         stock: dto.stock,
         maxPerOrder: dto.maxPerOrder,

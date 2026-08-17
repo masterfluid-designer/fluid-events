@@ -350,6 +350,8 @@ enum ScanResult {
   EXPIRED
   INVALID
   EVENT_MISMATCH
+  /// Billet authentique et payé, mais pas valable aujourd’hui (2026-08-16).
+  WRONG_DAY
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

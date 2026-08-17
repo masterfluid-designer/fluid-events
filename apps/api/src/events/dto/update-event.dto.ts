@@ -15,8 +15,14 @@ import {
   MaxLength,
   ValidateNested,
 } from 'class-validator';
-import { EventStatus } from '@saas-events/types';
-import { FaqEntryDto, MediaEntryDto, ScheduleEntryDto, SpeakerEntryDto } from './event-config.dto';
+import { EventStatus, TicketPolicy } from '@saas-events/types';
+import {
+  EventDayDto,
+  FaqEntryDto,
+  MediaEntryDto,
+  ScheduleEntryDto,
+  SpeakerEntryDto,
+} from './event-config.dto';
 
 /**
  * DTO — Mise à jour de l'événement du manager (PATCH /api/events/mine).
@@ -67,6 +73,26 @@ export class UpdateEventDto {
   @IsOptional()
   @IsEnum(EventStatus)
   status?: EventStatus;
+
+  /**
+   * Régime de billetterie (décision produit 2026-08-16). Réservé aux Managers
+   * Premium dès qu’il quitte SINGLE_DAY — contrôlé côté service, jamais ici.
+   */
+  @IsOptional()
+  @IsEnum(TicketPolicy)
+  ticketPolicy?: TicketPolicy;
+
+  /**
+   * Journées de l’événement, remplacées en bloc à chaque enregistrement.
+   * Plafonnées à 31 : au-delà il ne s’agit plus d’un événement mais d’une
+   * saison, que ce modèle (1 Manager = 1 Event) ne prétend pas couvrir.
+   */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(31)
+  @ValidateNested({ each: true })
+  @Type(() => EventDayDto)
+  days?: EventDayDto[];
 
   @IsOptional()
   @IsArray()
