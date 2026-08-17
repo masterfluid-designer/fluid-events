@@ -581,3 +581,42 @@
    le bloc .dark de la section "shadcn/ui compatibility" ci-dessus (dark) —
    aucune redéfinition supplémentaire nécessaire ici, l'attribut
    [data-color-theme="terracotta"] n'a donc pas de bloc dédié. */
+
+/* ─────────────────────────────────────────────────────────────────────────
+   .public-surface — Surfaces qui suivent l'identité de l'ÉVÉNEMENT, jamais
+   le thème de couleur des tableaux de bord (décision produit 2026-08-17).
+
+   Concerne l'espace client et les écrans du scanner : ils appartiennent au
+   monde de la page publique, pas à celui d'un back-office. Or les thèmes
+   (`[data-color-theme="ocean"]`, etc.) sont posés sur <html> et leurs
+   variables descendent partout par héritage — il ne suffit donc pas de « ne
+   pas les appliquer », il faut redéclarer la palette de base ici.
+
+   Une éventuelle couleur d'accent de l'organisateur passe ensuite par un
+   `style` en ligne (resolveEventTheme), qui l'emporte sur cette classe.
+   ───────────────────────────────────────────────────────────────────────── */
+.public-surface {
+  --color-stroke: #e7e4de;
+  --color-strokedark: #2e2c2933;
+  --color-titlebg: #f3e6d8;
+  --color-titlebg2: #ffeac2;
+  --color-white: #ffffff;
+  --color-black: #1c1b1a;
+  --color-accent-terracotta: oklch(58% 0.15 45);
+  --color-accent-terracotta-dark: oklch(70% 0.16 40);
+  --color-accent-2: oklch(58% 0.15 45);
+  --color-accent-3: oklch(66% 0.12 60);
+  --color-chart-1: oklch(70% 0.13 75);
+  --color-chart-2: oklch(62% 0.09 125);
+  --color-chart-3: oklch(78% 0.09 85);
+  --color-chart-4: oklch(50% 0.06 40);
+  --color-waterloo: #6b6862;
+  --color-manatee: #9c988f;
+  --color-alabaster: #f3f1ec;
+  --color-zumthor: #f3f1ec;
+  --color-socialicon: #d8d5ce;
+  /* `--color-primary` est dérivée de l'accent : la redéclarer explicitement
+     évite qu'elle reste figée sur la valeur résolue au niveau de :root. */
+  --color-primary: var(--color-accent-terracotta);
+  --color-primaryho: oklch(from var(--color-accent-terracotta) calc(l - 0.1) c h);
+}

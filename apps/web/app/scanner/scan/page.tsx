@@ -1,5 +1,8 @@
 'use client';
 
+import { useQuery } from '@tanstack/react-query';
+import { PublicSurface } from '@/components/public-surface';
+import { api } from '@/lib/api';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
@@ -33,6 +36,12 @@ import type { BadgeProps } from '@/components/ui/badge';
  * Cooldown de 2s après chaque scan pour éviter les doubles lectures physiques.
  */
 export default function ScannerPage() {
+  // `/api/auth/me` expose le slug de l’événement rattaché au compte scanner.
+  const { data: me } = useQuery({
+    queryKey: ['auth-me'],
+    queryFn: () => api<{ eventSlug: string | null }>('/api/auth/me'),
+    retry: false,
+  });
   const router = useRouter();
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const isScanningRef = useRef(false);
@@ -108,7 +117,10 @@ export default function ScannerPage() {
   const validCount = history.filter((h) => h.result === ScanResult.VALID).length;
 
   return (
-    <main className="min-h-svh bg-black text-white">
+    // Couleurs de l’événement (2026-08-17) : l’écran reste noir — on scanne
+    // dans des salles sombres — mais l’accent devient celui de l’organisateur.
+    <PublicSurface eventSlug={me?.eventSlug} bare>
+      <main className="min-h-svh bg-black text-white">
       <div className="mx-auto flex min-h-svh max-w-md flex-col">
         {/* Header */}
         <header className="flex items-center justify-between p-4">
@@ -233,7 +245,8 @@ export default function ScannerPage() {
           </Card>
         </div>
       </div>
-    </main>
+      </main>
+    </PublicSurface>
   );
 }
 

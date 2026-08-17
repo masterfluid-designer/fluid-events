@@ -340,6 +340,10 @@ export class AuthOrchestratorService {
         // Palier Premium (2026-08-16) : le frontend conditionne les options
         // avancées dessus. Jamais une garantie — le serveur revalide.
         isPremium: true,
+        // Événement rattaché à un compte SCANNER (2026-08-17) : son interface
+        // doit porter les couleurs de la page publique de cet événement, et
+        // n’a aujourd’hui aucun moyen de savoir duquel il s’agit.
+        scannerProfile: { select: { event: { select: { slug: true } } } },
       },
     });
     if (!user) {
@@ -348,7 +352,10 @@ export class AuthOrchestratorService {
         message: 'Utilisateur introuvable.',
       });
     }
-    return user;
+    // À plat plutôt qu’imbriqué : l’appelant n’a que faire du profil scanner,
+    // seulement du slug à interroger.
+    const { scannerProfile, ...rest } = user;
+    return { ...rest, eventSlug: scannerProfile?.event?.slug ?? null };
   }
 
   /**

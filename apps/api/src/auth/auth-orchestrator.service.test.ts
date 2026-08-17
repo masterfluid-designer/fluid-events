@@ -218,7 +218,37 @@ describe('AuthOrchestratorService.getCurrentUser()', () => {
       phone: '+22890000000',
       country: 'CI',
       avatarUrl: null,
+      // Compte non-scanner : le slug est présent mais nul (2026-08-17).
+      eventSlug: null,
     });
+  });
+
+  it("expose le slug de l'événement pour un compte SCANNER, à plat", async () => {
+    // L’interface du scanner doit porter les couleurs de la page publique de
+    // SON événement, et n’avait aucun moyen de savoir duquel il s’agit.
+    const prisma = {
+      user: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'u-2',
+          email: 'scan@x.com',
+          name: 'Scan',
+          role: Role.SCANNER,
+          isActive: true,
+          phone: null,
+          country: null,
+          avatarUrl: null,
+          scannerProfile: { event: { slug: 'concert-2026' } },
+        }),
+      },
+    };
+    const service = new AuthOrchestratorService(prisma as any, {} as any, {} as any, makeAudit() as any, {} as any, {} as any);
+
+    const result = await service.getCurrentUser('u-2');
+
+    expect(result).toMatchObject({ eventSlug: 'concert-2026' });
+    // Le profil scanner lui-même n’a pas à remonter : l’appelant n’en a que
+    // faire, et c’est de la donnée en plus exposée sans raison.
+    expect(result).not.toHaveProperty('scannerProfile');
   });
 
   it('404 si le user est introuvable (USER_NOT_FOUND)', async () => {

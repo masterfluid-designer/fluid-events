@@ -1,5 +1,6 @@
 'use client';
 
+import { PublicSurface } from '@/components/public-surface';
 import Link from 'next/link';
 import { useEffect } from 'react';
 import { Camera, ArrowRight } from 'lucide-react';
@@ -30,7 +31,10 @@ export default function ScannerLanding() {
   }, []);
 
   return (
-    <main className="flex min-h-svh items-center justify-center bg-black px-4 py-12 text-white">
+    // Aucun événement connu avant la connexion : la surface sert ici à
+    // neutraliser le thème des tableaux de bord, pas à en emprunter un.
+    <PublicSurface bare>
+      <main className="flex min-h-svh items-center justify-center bg-black px-4 py-12 text-white">
       <Card className="w-full max-w-md border-white/10 bg-[#141312]">
         <CardHeader className="space-y-3 text-center">
           <div className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-white/10">
@@ -56,6 +60,7 @@ export default function ScannerLanding() {
           </p>
         </CardContent>
       </Card>
-    </main>
+      </main>
+    </PublicSurface>
   );
 }

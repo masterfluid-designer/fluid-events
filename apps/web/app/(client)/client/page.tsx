@@ -9,9 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Spinner } from '@/components/ui/spinner';
 import { Card, CardContent } from '@/components/ui/card';
-import type { EventTheme } from '@saas-events/types';
 import { api } from '@/lib/api';
-import { resolveEventTheme } from '@/lib/event-theme';
 
 /**
  * Dashboard Client — Mes billets (GET /api/payments/orders).
@@ -58,25 +56,6 @@ function ClientTicketsContent() {
     queryFn: () => fetchOrders(eventSlug),
   });
 
-  // Habillage aux couleurs de l’événement (décision produit 2026-08-17) :
-  // un acheteur qui arrive depuis la page publique doit rester dans le même
-  // univers visuel pour consulter son billet.
-  //
-  // UNIQUEMENT quand `?event=` désigne un événement précis : sans ce filtre,
-  // la liste mélange les événements et emprunter l’identité de l’un d’eux
-  // serait arbitraire. Endpoint PUBLIC, donc rien à ajouter côté API.
-  const { data: publicEvent } = useQuery({
-    queryKey: ['public-event-theme', eventSlug],
-    queryFn: () =>
-      api<{ eventPage: { theme: EventTheme | null } | null }>(
-        `/api/events/public/${eventSlug}`,
-      ),
-    enabled: Boolean(eventSlug),
-    // Le thème d’un événement ne bouge pas pendant qu’on regarde son billet.
-    staleTime: 5 * 60 * 1000,
-  });
-
-  const theme = resolveEventTheme(eventSlug ? publicEvent?.eventPage?.theme : null);
   const [qrModalItemId, setQrModalItemId] = useState<{ orderId: string; itemId: string } | null>(null);
 
   const tickets = (orders ?? []).flatMap((order) =>
@@ -84,10 +63,7 @@ function ClientTicketsContent() {
   );
 
   return (
-    <div
-      className={`space-y-6 p-4 sm:p-6 ${theme.fontClassName}`}
-      style={theme.style}
-    >
+    <div className="space-y-6">
       <div>
         {/* `font-event` : la variable de police est posée sur le conteneur,
             encore faut-il qu’un élément s’en serve — le titre reprend donc la
