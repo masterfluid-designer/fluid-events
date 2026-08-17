@@ -1,4 +1,4 @@
-import { MapPin, Phone, Navigation, Info } from 'lucide-react';
+import { MapPin, Phone, Navigation, Info, MessageCircle } from 'lucide-react';
 import { buildMapsUrl, formatEventAddress, type EventLocationFields } from '@saas-events/utils';
 import { SectionShell, SectionHeading } from './section-shell';
 
@@ -26,6 +26,10 @@ export function EventLocation({
   anchorId?: string;
 }) {
   const address = formatEventAddress(fields);
+  // wa.me attend le numéro international SANS « + » ni séparateurs. Le champ
+  // est validé en E.164 à l’écriture, mais on nettoie quand même : un espace
+  // ou un point suffirait à produire un lien qui n’ouvre rien.
+  const whatsappNumber = contactPhone?.replace(/[^0-9]/g, '') || null;
   const mapsUrl = buildMapsUrl(fields);
 
   // Rien à montrer : on ne rend pas une section vide avec un titre orphelin.
@@ -103,6 +107,16 @@ export function EventLocation({
                     >
                       {contactPhone}
                     </a>
+                    {whatsappNumber && (
+                      <a
+                        href={`https://wa.me/${whatsappNumber}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-3 inline-flex items-center gap-2 rounded-full bg-[#25D366] px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+                      >
+                        <MessageCircle className="size-4" /> Contacter via WhatsApp
+                      </a>
+                    )}
                   </div>
                 </div>
               </div>

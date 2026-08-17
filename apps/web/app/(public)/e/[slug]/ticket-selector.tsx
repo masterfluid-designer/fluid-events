@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Minus, Plus, Ticket } from 'lucide-react';
+import { Check, Minus, Plus, Ticket } from 'lucide-react';
 import { CHECKOUT_RESUME_EVENT, openGoogleAuthPopup } from '@/lib/auth';
 import { SectionShell, SectionHeading } from './section-shell';
 
@@ -70,6 +70,16 @@ export function TicketSelector({
       t.compareAtPrice != null &&
       Number(t.compareAtPrice) > Number(t.price),
   );
+
+  /**
+   * Bascule la sélection d’un billet (décision produit 2026-08-17) : premier
+   * clic = une place et l’incrémenteur apparaît, second clic = retour à zéro
+   * et il disparaît. Déselectionner remet bien la quantité à 0 : garder des
+   * places dans un panier dont le compteur est masqué serait un piège.
+   */
+  function toggleTicket(ticketId: string, max: number) {
+    setQuantities((prev) => ({ ...prev, [ticketId]: (prev[ticketId] ?? 0) > 0 ? 0 : Math.min(1, max) }));
+  }
 
   function updateQuantity(ticketId: string, delta: number, max: number) {
     setQuantities((prev) => {
@@ -159,6 +169,9 @@ export function TicketSelector({
             const soldOut = available <= 0;
             const highlighted = index === 0 && !soldOut;
             const quantity = quantities[ticket.id] ?? 0;
+            // Sélectionné == au moins une place : pas d’état parallèle à tenir
+            // synchronisé avec le panier, donc pas de désynchronisation possible.
+            const selected = quantity > 0;
             const maxSelectable = Math.min(available, ticket.maxPerOrder || available);
             const hasPromo =
               ticket.compareAtPrice != null && Number(ticket.compareAtPrice) > Number(ticket.price);
@@ -166,18 +179,41 @@ export function TicketSelector({
             return (
               <div
                 key={ticket.id}
-                className={`relative flex flex-col gap-5 overflow-hidden rounded-3xl border p-6 transition-colors md:flex-row md:items-center md:justify-between md:gap-8 md:p-8 ${
+                className={`relative overflow-hidden rounded-3xl border transition-colors ${
                   soldOut ? 'opacity-60' : ''
-                } ${highlighted ? 'border-black dark:border-white' : 'border-stroke dark:border-strokedark'}`}
+                } ${
+                  selected
+                    ? 'border-primary ring-1 ring-primary'
+                    : highlighted
+                      ? 'border-black dark:border-white'
+                      : 'border-stroke dark:border-strokedark'
+                }`}
               >
                 {soldOut && (
-                  <div className="pointer-events-none absolute -right-14 top-6 w-48 rotate-45 bg-destructive py-1.5 text-center text-xs font-bold uppercase tracking-[0.15em] text-white">
+                  <div className="pointer-events-none absolute -right-14 top-6 z-10 w-48 rotate-45 bg-destructive py-1.5 text-center text-xs font-bold uppercase tracking-[0.15em] text-white">
                     Sold out
                   </div>
                 )}
 
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2.5">
+                {/*
+                  La carte entière sélectionne le billet (décision produit
+                  2026-08-17) : un clic ajoute une place et dévoile
+                  l'incrémenteur, un second clic déselectionne et le referme.
+                  Plusieurs billets peuvent être sélectionnés en même temps.
+
+                  L'en-tête est un <button> et l'incrémenteur vit EN DEHORS :
+                  imbriquer des boutons dans un bouton est invalide, et casse
+                  la navigation clavier.
+                */}
+                <button
+                  type="button"
+                  onClick={() => toggleTicket(ticket.id, maxSelectable)}
+                  disabled={soldOut || !isPublished}
+                  aria-pressed={selected}
+                  aria-expanded={selected}
+                  className="flex w-full flex-wrap items-center gap-x-6 gap-y-2 p-6 text-left disabled:cursor-not-allowed md:flex-nowrap md:p-8"
+                >
+                  <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-1.5">
                     <h3 className="font-event text-xl md:text-2xl">{ticket.name}</h3>
                     {hasPromo && !soldOut && (
                       <span className="rounded-full bg-accent-terracotta px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white dark:bg-accent-terracotta-dark">
@@ -189,44 +225,65 @@ export function TicketSelector({
                         Le plus choisi
                       </span>
                     )}
-                  </div>
-                  {ticket.description && (
-                    <p className="mt-1.5 max-w-md text-sm text-waterloo dark:text-manatee">
-                      {ticket.description}
-                    </p>
-                  )}
-                  <div className="mt-2 text-xs font-medium text-manatee dark:text-waterloo">
-                    {soldOut
-                      ? 'Épuisé — la vente est terminée'
-                      : `${available} place${available > 1 ? 's' : ''} restante${available > 1 ? 's' : ''}`}
-                  </div>
-                </div>
-
-                <div className="flex shrink-0 items-center justify-between gap-5 md:justify-end md:gap-7">
-                  <div className="text-left md:text-right">
-                    {hasPromo && (
-                      <div className="text-sm font-medium text-manatee line-through dark:text-waterloo">
-                        {formatCurrency(Number(ticket.compareAtPrice), ticket.currency)}
-                      </div>
+                    {/* Indications sur la même ligne que le nom : description
+                        puis places restantes, tronquées plutôt que de pousser
+                        le prix à la ligne. */}
+                    {ticket.description && (
+                      <span className="min-w-0 truncate text-sm text-waterloo dark:text-manatee">
+                        {ticket.description}
+                      </span>
                     )}
-                    <div className="font-event text-2xl leading-none md:text-3xl">
-                      {formatCurrency(Number(ticket.price), ticket.currency)}
-                    </div>
-                    <div className="mt-1 text-[11px] text-manatee dark:text-waterloo">/ personne</div>
+                    <span className="text-xs font-medium text-manatee dark:text-waterloo">
+                      {soldOut
+                        ? 'Épuisé'
+                        : `${available} place${available > 1 ? 's' : ''} restante${available > 1 ? 's' : ''}`}
+                    </span>
                   </div>
 
-                  {soldOut || !isPublished ? (
-                    <span className="rounded-full border border-stroke px-5 py-2.5 text-sm font-semibold text-manatee dark:border-strokedark">
-                      Indisponible
+                  <div className="flex shrink-0 items-center gap-4">
+                    <div className="text-right">
+                      {hasPromo && (
+                        <div className="text-sm font-medium text-manatee line-through dark:text-waterloo">
+                          {formatCurrency(Number(ticket.compareAtPrice), ticket.currency)}
+                        </div>
+                      )}
+                      <div className="font-event text-2xl leading-none md:text-3xl">
+                        {formatCurrency(Number(ticket.price), ticket.currency)}
+                      </div>
+                      <div className="mt-1 text-[11px] text-manatee dark:text-waterloo">/ personne</div>
+                    </div>
+
+                    {soldOut || !isPublished ? (
+                      <span className="rounded-full border border-stroke px-4 py-2 text-xs font-semibold text-manatee dark:border-strokedark">
+                        Indisponible
+                      </span>
+                    ) : (
+                      // Pastille d'état : indique que la carte est cliquable et
+                      // si elle est retenue, sans occuper la place d'un bouton.
+                      <span
+                        className={`flex size-9 shrink-0 items-center justify-center rounded-full border transition-colors ${
+                          selected
+                            ? 'border-primary bg-primary text-primary-foreground'
+                            : 'border-stroke text-manatee dark:border-strokedark dark:text-waterloo'
+                        }`}
+                      >
+                        {selected ? <Check className="size-4" /> : <Plus className="size-4" />}
+                      </span>
+                    )}
+                  </div>
+                </button>
+
+                {selected && !soldOut && isPublished && (
+                  <div className="flex items-center justify-between gap-4 border-t border-stroke px-6 py-4 dark:border-strokedark md:px-8">
+                    <span className="text-xs font-medium text-manatee dark:text-waterloo">
+                      Combien de places ?
                     </span>
-                  ) : (
                     <div className="flex items-center gap-1 rounded-full border border-stroke dark:border-strokedark">
                       <button
                         type="button"
                         aria-label={`Retirer un billet ${ticket.name}`}
                         onClick={() => updateQuantity(ticket.id, -1, maxSelectable)}
-                        disabled={quantity === 0}
-                        className="flex size-10 items-center justify-center rounded-full text-manatee transition-colors hover:text-black disabled:opacity-30 dark:text-waterloo dark:hover:text-white"
+                        className="flex size-10 items-center justify-center rounded-full text-manatee transition-colors hover:text-black dark:text-waterloo dark:hover:text-white"
                       >
                         <Minus className="size-4" />
                       </button>
@@ -241,8 +298,8 @@ export function TicketSelector({
                         <Plus className="size-4" />
                       </button>
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
             );
           })}
