@@ -233,6 +233,43 @@ Brief utilisateur traité point par point, tout déployé et vérifié en produc
   - **Non couvert** : le mode clair signale encore des textes blancs sur images assombries. Non mesurable par l’audit DOM (la couche d’assombrissement est un FRÈRE derrière le texte, pas un ancêtre) — non prouvé fautif, non prouvé correct.
 - **Reste** : harmonisation du rythme vertical entre sections.
 
+### Plafond de places par commande enfin modifiable (2026-08-17)
+
+Relevé champ par champ entre `schema.prisma`, les DTO et les deux formulaires
+de billet : `maxPerOrder` était saisissable à la CRÉATION seulement. Un billet
+créé avant l'ajout de ce champ restait donc à la valeur par défaut du schéma
+(1) à vie, et l'incrémenteur de la page publique n'apparaissait jamais —
+l'acheteur ne pouvait prendre qu'une place, sans qu'aucun écran ne l'explique.
+
+- **Cause du point aveugle** : le commentaire du schéma justifiait `@default(1)`
+  par « V1 : 1 billet = 1 QR = 1 personne ». Les deux notions sont
+  indépendantes — une commande de N places émet N billets, donc N QR. Le défaut
+  était un plafond restrictif, pas une contrainte technique. Commentaire réécrit.
+- **Correctif** : `maxPerOrder` ajouté au type `TicketRow`, à l'amorce du
+  formulaire d'édition et au corps du PATCH. Le serveur l'acceptait déjà
+  (`UpdateTicketDto`) — rien à changer côté API. Vide = champ inchangé, la
+  mise à jour restant partielle.
+- **Champ étiqueté** plutôt que placeholder seul : en modification il est
+  pré-rempli, et un « 1 » nu dans une case sans libellé n'apprend rien.
+- **Vérifié en conditions réelles** (stack Docker) : PATCH → 200 + persistance
+  en base ; soumission depuis le vrai formulaire (Standard 1 → 10) écrite en
+  base ; `/api/events/public/:slug` renvoie 10 ; l'incrémenteur de
+  `/e/concert-festa-2026` apparaît, monte jusqu'à 10 et se bloque au plafond.
+  Suite API : 468 tests / 35 fichiers au vert.
+- **Au passage** : le client Prisma du conteneur API était périmé (34 erreurs
+  `ticketPolicy`/`eventDay` inconnus, API en échec de compilation depuis
+  plusieurs heures). `prisma generate` dans le conteneur — la BDD, elle, était
+  déjà à jour (18 migrations).
+
+**Écarts relevés et NON traités** (même défaut, mêmes symptômes) :
+
+| Champ | Statut |
+|---|---|
+| `saleStartDate` / `saleEndDate` | Appliqués par le serveur (`TICKET_SALE_NOT_STARTED`, `TICKET_SALE_ENDED`) mais saisissables nulle part → préventes et clôtures impossibles à régler, alors que la page publique affiche déjà un bandeau « Prévente ». |
+| `isActive` | La liste affiche un badge « Inactif » qu'aucune action ne peut produire ; c'est pourtant la réponse conseillée par l'API quand la suppression est refusée (« désactivez-le plutôt »). |
+| `category`, `designTextColor` | Jamais exposés. `designBgColor` l'est sans son pendant texte — un billet illisible est déjà possible. |
+| `currency` | À ne PAS exposer : le panier somme sans conversion, le multi-devises est hors périmètre V1. |
+
 ## 4. Priorités immédiates (à date)
 
 | Module | Priorité | Référence CDC |

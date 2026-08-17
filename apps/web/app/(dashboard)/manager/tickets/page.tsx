@@ -28,6 +28,7 @@ interface TicketRow {
   currency: string;
   stock: number;
   stockSold: number;
+  maxPerOrder: number;
   isActive: boolean;
   // Journée ouverte par ce billet en régime PER_DAY (2026-08-16).
   eventDayId: string | null;
@@ -117,6 +118,8 @@ export default function ManagerTicketsPage() {
         promoEndsAt: promoEndsAt ? new Date(promoEndsAt).toISOString() : undefined,
         designImageUrl,
         designBgColor,
+        // Vide = champ inchangé (PATCH partiel), et non « remets le défaut ».
+        maxPerOrder: maxPerOrder ? Number(maxPerOrder) : undefined,
         // `stock` est volontairement absent d’UpdateTicketDto côté serveur
         // (modifier la capacité après des ventes n’est pas tranché), et la
         // journée non plus : la changer déplacerait un billet déjà vendu.
@@ -167,7 +170,7 @@ export default function ManagerTicketsPage() {
       setName('');
       setPrice('');
       setStock('');
-    setMaxPerOrder('');
+      setMaxPerOrder('');
       setDescription('');
       setCompareAtPrice('');
       setPromoEndsAt('');
@@ -223,6 +226,7 @@ export default function ManagerTicketsPage() {
     setName(t.name);
     setPrice(String(t.price));
     setStock(String(t.stock));
+    setMaxPerOrder(String(t.maxPerOrder));
     setDescription(t.description ?? '');
     setShowForm(true);
   }
@@ -398,15 +402,20 @@ export default function ManagerTicketsPage() {
             />
             {/* Plafond par commande (2026-08-17) : la valeur par défaut en base
                 est 1, et ce champ n’existait nulle part — l’acheteur ne pouvait
-                donc jamais prendre deux places, l’incrémenteur restant bloqué. */}
-            <input
-              type="number"
-              min="1"
-              placeholder="Max par commande (défaut 10)"
-              value={maxPerOrder}
-              onChange={(e) => setMaxPerOrder(e.target.value)}
-              className="rounded-md border border-input bg-background px-3 py-2 text-sm"
-            />
+                donc jamais prendre deux places, l’incrémenteur restant bloqué.
+                Étiqueté plutôt que placeholder seul : en modification le champ
+                est pré-rempli, et un « 1 » nu ne dit pas de quoi il parle. */}
+            <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+              Places max par commande
+              <input
+                type="number"
+                min="1"
+                placeholder={editingId ? undefined : '10'}
+                value={maxPerOrder}
+                onChange={(e) => setMaxPerOrder(e.target.value)}
+                className="rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
+              />
+            </label>
             <input
               placeholder="Description (optionnel)"
               value={description}

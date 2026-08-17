@@ -222,7 +222,11 @@ model Ticket {
   currency        String   @default("XOF")
   stock           Int // Capacité totale
   stockSold       Int      @default(0) // Décrémenté via updateMany atomique avec guard
-  maxPerOrder     Int      @default(1) // V1 : 1 billet = 1 QR = 1 personne
+  /// Plafond de places par commande. Sans rapport avec l'invariant « 1 billet
+  /// = 1 QR = 1 personne » : une commande de N places émet N billets, donc N
+  /// QR. Le défaut 1 est donc un plafond restrictif, pas une contrainte
+  /// technique — le formulaire propose 10 à la création (2026-08-17).
+  maxPerOrder     Int      @default(1)
   category        String?
   isActive        Boolean  @default(true)
   saleStartDate   DateTime?
