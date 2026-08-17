@@ -209,6 +209,8 @@ Tous ont été corrigés dans le dépôt ; ils sont listés pour éviter leur r�
 | MinIO tourne en prod malgré le profil `dev` | Le profil visait un service `rustfs` inexistant — il s'appelle `minio` |
 | Le navigateur appelle `localhost` en prod | Next.js fige les `NEXT_PUBLIC_*` **au build** : ils doivent passer par `build.args`, pas seulement `environment` |
 | HTTPS tombe après 90 jours | Renouvellement resté en `standalone` alors que Nginx occupe le port 80 (voir §4) |
+| Une modification de `nginx.conf` n’a aucun effet après `git pull` | Le montage porte sur **un fichier**, pas un dossier. `git pull` remplace le fichier (nouvel inode) et le conteneur reste accroché à l’ancien : `nginx -t` et `nginx -s reload` valident et rechargent l’**ancien** contenu, sans erreur. Il faut `up -d --force-recreate nginx` |
+| L’aperçu du Builder affiche « Ce contenu est bloqué » | CSP : `frame-src` listait la seule origine Kkiapay, sans `'self'` — l’iframe de la page publique, pourtant de même origine, était refusée. `frame-ancestors` ne joue aucun rôle ici (il règle qui nous embarque, pas ce que nous embarquons) |
 
 ## 12. Points ouverts
 
