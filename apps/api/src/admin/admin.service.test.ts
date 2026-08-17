@@ -837,6 +837,52 @@ describe('AdminService.setManagerSubscription()', () => {
   });
 });
 
+describe('AdminService.setManagerPremium()', () => {
+  let prisma: ReturnType<typeof makePrisma>;
+  let audit: ReturnType<typeof makeAudit>;
+  let service: AdminService;
+
+  beforeEach(() => {
+    prisma = makePrisma();
+    audit = makeAudit();
+    service = new AdminService(prisma as any, makeCrypto() as any, makeEmail() as any, audit as any, makeAuthService() as any, {} as any);
+  });
+
+  it('accorde le palier Premium et journalise', async () => {
+    prisma.user.findUnique.mockResolvedValue({ id: 'mgr-1', role: 'MANAGER' });
+    prisma.user.update.mockResolvedValue({ id: 'mgr-1', isPremium: true });
+
+    const result = await service.setManagerPremium('mgr-1', true);
+
+    expect(prisma.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'mgr-1' }, data: { isPremium: true } }),
+    );
+    expect(audit.log).toHaveBeenCalledWith('admin.manager.premium', 'User', 'mgr-1', {
+      isPremium: true,
+    });
+    expect(result).toEqual({ id: 'mgr-1', isPremium: true });
+  });
+
+  it("ne touche JAMAIS à l'abonnement au passage", async () => {
+    // Les deux drapeaux sont distincts à dessein : `subscriptionActive`
+    // commande la suppression par rétention, `isPremium` les options
+    // avancées. Les confondre supprimerait des comptes ou en promouvrait.
+    prisma.user.findUnique.mockResolvedValue({ id: 'mgr-1', role: 'MANAGER' });
+    prisma.user.update.mockResolvedValue({ id: 'mgr-1', isPremium: false });
+
+    await service.setManagerPremium('mgr-1', false);
+
+    const written = prisma.user.update.mock.calls[0][0].data;
+    expect(written).not.toHaveProperty('subscriptionActive');
+    expect(written).not.toHaveProperty('isActive');
+  });
+
+  it('404 si le manager est introuvable', async () => {
+    prisma.user.findUnique.mockResolvedValue(null);
+    await expect(service.setManagerPremium('unknown', true)).rejects.toThrow(NotFoundException);
+  });
+});
+
 describe('AdminService.impersonateManager()', () => {
   let prisma: ReturnType<typeof makePrisma>;
   let audit: ReturnType<typeof makeAudit>;

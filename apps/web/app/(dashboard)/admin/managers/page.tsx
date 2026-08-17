@@ -25,6 +25,8 @@ interface ManagerRow {
   isActive: boolean;
   isSelfService: boolean;
   subscriptionActive: boolean;
+  // Palier Premium (2026-08-16) — débloque le multi-jours.
+  isPremium: boolean;
   createdAt: string;
   eventId: string | null;
   eventTitle: string | null;
@@ -83,6 +85,20 @@ export default function AdminManagersPage() {
     },
     onError: (err) => {
       toast.error(err instanceof ApiError ? err.message : "Impossible de changer l'abonnement");
+    },
+  });
+
+  // Séparé de l’abonnement à dessein : l’abonnement protège le compte de la
+  // suppression automatique, Premium débloque les options avancées.
+  const togglePremium = useMutation({
+    mutationFn: ({ id, isPremium }: { id: string; isPremium: boolean }) =>
+      apiPatch(`/api/admin/managers/${id}/premium`, { isPremium }),
+    onSuccess: (_data, variables) => {
+      toast.success(variables.isPremium ? 'Palier Premium accordé' : 'Palier Premium retiré');
+      invalidate();
+    },
+    onError: (err) => {
+      toast.error(err instanceof ApiError ? err.message : 'Impossible de changer le palier');
     },
   });
 
@@ -171,6 +187,7 @@ export default function AdminManagersPage() {
                   <Badge variant={m.subscriptionActive ? 'success' : 'outline'}>
                     {m.subscriptionActive ? 'Abonné' : 'Non abonné'}
                   </Badge>
+                  {m.isPremium && <Badge variant="success">Premium</Badge>}
 
                   <Button
                     variant="outline"
@@ -189,6 +206,14 @@ export default function AdminManagersPage() {
                     }
                   >
                     {m.subscriptionActive ? 'Couper abonnement' : 'Activer abonnement'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={togglePremium.isPending}
+                    onClick={() => togglePremium.mutate({ id: m.id, isPremium: !m.isPremium })}
+                  >
+                    {m.isPremium ? 'Retirer Premium' : 'Passer Premium'}
                   </Button>
                   <Button
                     variant="secondary"

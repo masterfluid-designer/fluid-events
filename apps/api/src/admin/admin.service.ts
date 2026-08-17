@@ -485,6 +485,7 @@ export class AdminService {
         isActive: true,
         isSelfService: true,
         subscriptionActive: true,
+        isPremium: true,
         createdAt: true,
         managedEvent: { select: { id: true, title: true, status: true } },
       },
@@ -498,6 +499,7 @@ export class AdminService {
       isActive: m.isActive,
       isSelfService: m.isSelfService,
       subscriptionActive: m.subscriptionActive,
+      isPremium: m.isPremium,
       createdAt: m.createdAt,
       eventId: m.managedEvent?.id ?? null,
       eventTitle: m.managedEvent?.title ?? null,
@@ -567,6 +569,23 @@ export class AdminService {
       select: { id: true, isActive: true },
     });
     await this.audit.log('admin.manager.status', 'User', manager.id, { isActive });
+    return updated;
+  }
+
+  /**
+   * PATCH /api/admin/managers/:id/premium — accorde ou retire le palier
+   * Premium (décision produit 2026-08-16). Séparé de l’abonnement à dessein :
+   * l’abonnement protège le compte de la suppression automatique, Premium
+   * débloque les options avancées (événements sur plusieurs jours).
+   */
+  async setManagerPremium(managerId: string, isPremium: boolean) {
+    const manager = await this.getManagerOrThrow(managerId);
+    const updated = await this.prisma.user.update({
+      where: { id: manager.id },
+      data: { isPremium },
+      select: { id: true, isPremium: true },
+    });
+    await this.audit.log('admin.manager.premium', 'User', manager.id, { isPremium });
     return updated;
   }
 

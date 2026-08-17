@@ -337,6 +337,9 @@ export class AuthOrchestratorService {
         country: true,
         avatarUrl: true,
         phoneVerifiedAt: true,
+        // Palier Premium (2026-08-16) : le frontend conditionne les options
+        // avancées dessus. Jamais une garantie — le serveur revalide.
+        isPremium: true,
       },
     });
     if (!user) {

@@ -64,6 +64,16 @@ model User {
   // abonné (l'Admin l'a déjà vérifié) ; un Manager self-service démarre non
   // abonné (fenêtre d'essai de 3 jours avant suppression automatique).
   subscriptionActive Boolean @default(false)
+  /// Palier Premium (décision produit 2026-08-16) : débloque les options
+  /// avancées, à commencer par les événements sur plusieurs jours — un Manager
+  /// par défaut est limité à un événement d’une seule journée. Accordé à la main
+  /// par l’Admin.
+  ///
+  /// Délibérément DISTINCT de `subscriptionActive` : ce dernier commande la
+  /// suppression par rétention et vaut déjà `true` pour tout Manager invité par
+  /// un Admin — le réutiliser rendrait Premium tout compte invité, sans que
+  /// personne ne l’ait décidé.
+  isPremium          Boolean @default(false)
 
   managedEvent   Event?   @relation("EventManager")
   scannerProfile Scanner?
