@@ -229,6 +229,34 @@ export interface ScanValidationResult {
 // Event Builder (CDC §11)
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Blocs dont il ne peut exister QU'UN seul par page (2026-08-18).
+ *
+ * Deux familles s'y retrouvent :
+ *  - ceux qui rendent le contenu centralisé de l'événement (faq, schedule,
+ *    speakers, gallery, sponsors, location, countdown) : deux exemplaires
+ *    afficheraient deux fois la même chose ;
+ *  - ceux qui sont structurellement uniques (hero = l'ouverture de la page,
+ *    tickets = la billetterie).
+ *
+ * `hero` et `tickets` manquaient à cette liste, et le contrôle ne vivait que
+ * dans la palette du Builder. Une page de production s'est retrouvée avec SIX
+ * hero et DEUX billetteries empilés, rendus fidèlement les uns après les
+ * autres. Les blocs à contenu propre (text, image, video, html, timeline,
+ * testimonials) restent librement répétables.
+ */
+export const SINGLETON_BLOCK_TYPES = [
+  'hero',
+  'tickets',
+  'countdown',
+  'faq',
+  'schedule',
+  'speakers',
+  'gallery',
+  'sponsors',
+  'location',
+] as const;
+
 export type BlockType =
   | 'hero'
   | 'text'

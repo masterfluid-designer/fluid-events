@@ -33,7 +33,10 @@ import {
   Palette,
 } from 'lucide-react';
 import type { Block, BlockType, EventTheme, TestimonialEntry, TimelineEntry } from '@saas-events/types';
-import { TicketPolicy } from '@saas-events/types';
+import {
+  SINGLETON_BLOCK_TYPES as SHARED_SINGLETON_BLOCK_TYPES,
+  TicketPolicy,
+} from '@saas-events/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
@@ -118,7 +121,9 @@ const BLOCK_LABELS: Record<BlockType, string> = {
  * pas dans `block.props` — les poser sur la page affiche automatiquement ce
  * contenu. Un seul exemplaire a du sens (le contenu est identique partout).
  */
-const SINGLETON_BLOCK_TYPES = new Set<BlockType>(['faq', 'schedule', 'speakers', 'gallery', 'sponsors', 'location']);
+// Liste partagée avec le serveur (packages/types) : `hero` et `tickets` y
+// manquaient, ce qui a laissé empiler six ouvertures sur une page réelle.
+const SINGLETON_BLOCK_TYPES = new Set<BlockType>(SHARED_SINGLETON_BLOCK_TYPES);
 
 function createBlock(type: BlockType, order: number): Block {
   return { id: crypto.randomUUID(), type, order, props: {} };

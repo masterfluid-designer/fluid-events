@@ -52,8 +52,35 @@ const BlockSchema = z.object({
   styles: BlockStylesSchema,
 });
 
-/** Tableau de blocs, limité à 50 pour éviter les abus. */
-export const BlocksArraySchema = z.array(BlockSchema).max(50);
+/** Types dont un seul exemplaire est admis par page — voir @saas-events/types. */
+const SINGLETON_TYPES = new Set<string>([
+  'hero', 'tickets', 'countdown', 'faq', 'schedule',
+  'speakers', 'gallery', 'sponsors', 'location',
+]);
+
+/**
+ * Tableau de blocs, limité à 50 pour éviter les abus.
+ *
+ * L'unicité est vérifiée ICI et pas seulement dans la palette du Builder : une
+ * règle que seul le client applique n'en est pas une (RULES.md §1). Une page de
+ * production a accumulé six blocs `hero` faute de ce contrôle.
+ */
+export const BlocksArraySchema = z.array(BlockSchema)
+  .max(50)
+  .superRefine((blocks, ctx) => {
+    const vus = new Set<string>();
+    for (const [index, block] of blocks.entries()) {
+      if (!SINGLETON_TYPES.has(block.type)) continue;
+      if (vus.has(block.type)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [index, 'type'],
+          message: `Un seul bloc « ${block.type} » est autorisé par page.`,
+        });
+      }
+      vus.add(block.type);
+    }
+  });
 
 /**
  * Thème de la page publique (personnalisation par organisateur) — persisté

@@ -120,10 +120,35 @@ describe('BlocksArraySchema', () => {
     expect(BlocksArraySchema.safeParse([]).success).toBe(true);
   });
 
+  // Unicité par page (2026-08-18) — une page de production avait accumulé six
+  // blocs `hero` et deux billetteries, la garde n'existant que dans la palette
+  // du Builder et omettant justement ces deux types.
+  it.each(['hero', 'tickets', 'countdown', 'faq', 'location'])(
+    'refuse deux blocs « %s » sur la même page',
+    (type) => {
+      const blocks = [
+        validBlock({ id: UUID, order: 0, type }),
+        validBlock({ id: '660e8400-e29b-41d4-a716-446655440000', order: 1, type }),
+      ];
+      expect(BlocksArraySchema.safeParse(blocks).success).toBe(false);
+    },
+  );
+
+  it.each(['text', 'image', 'video', 'html', 'timeline', 'testimonials'])(
+    'laisse répéter un bloc « %s », qui porte son propre contenu',
+    (type) => {
+      const blocks = [
+        validBlock({ id: UUID, order: 0, type }),
+        validBlock({ id: '660e8400-e29b-41d4-a716-446655440000', order: 1, type }),
+      ];
+      expect(BlocksArraySchema.safeParse(blocks).success).toBe(true);
+    },
+  );
+
   it('valide plusieurs blocs triés', () => {
     const blocks = [
-      validBlock({ id: UUID, order: 0 }),
-      validBlock({ id: '660e8400-e29b-41d4-a716-446655440000', order: 1 }),
+      validBlock({ id: UUID, order: 0, type: 'text' }),
+      validBlock({ id: '660e8400-e29b-41d4-a716-446655440000', order: 1, type: 'text' }),
     ];
     expect(BlocksArraySchema.safeParse(blocks).success).toBe(true);
   });
@@ -145,6 +170,8 @@ describe('BlocksArraySchema', () => {
       validBlock({
         id: `${(0x550e8400 + i).toString(16).padStart(8, '0')}-e29b-41d4-a716-446655440000`,
         order: i,
+        // `text` est répétable ; `hero` (défaut du gabarit) ne l'est plus.
+        type: 'text',
       }),
     );
     const result = BlocksArraySchema.safeParse(blocks);
