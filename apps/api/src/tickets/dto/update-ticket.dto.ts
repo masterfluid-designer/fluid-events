@@ -37,9 +37,11 @@ export class UpdateTicketDto {
   @Min(0)
   compareAtPrice?: number;
 
+  // `| null` : une date posée doit pouvoir être RETIRÉE. class-validator
+  // ignore null sous @IsOptional(), le service distingue null d'undefined.
   @IsOptional()
   @IsDateString()
-  promoEndsAt?: string;
+  promoEndsAt?: string | null;
 
   @IsOptional()
   @IsString()
@@ -64,11 +66,11 @@ export class UpdateTicketDto {
 
   @IsOptional()
   @IsDateString()
-  saleStartDate?: string;
+  saleStartDate?: string | null;
 
   @IsOptional()
   @IsDateString()
-  saleEndDate?: string;
+  saleEndDate?: string | null;
 
   // require_tld: false — voir CreateTicketDto (stockage dev sur localhost).
   @IsOptional()

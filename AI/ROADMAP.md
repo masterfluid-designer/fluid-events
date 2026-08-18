@@ -270,6 +270,54 @@ l'acheteur ne pouvait prendre qu'une place, sans qu'aucun écran ne l'explique.
 | `category`, `designTextColor` | Jamais exposés. `designBgColor` l'est sans son pendant texte — un billet illisible est déjà possible. |
 | `currency` | À ne PAS exposer : le panier somme sans conversion, le multi-devises est hors périmètre V1. |
 
+### Fenêtre de vente saisissable, plafond figé après la première vente (2026-08-18)
+
+Suite directe de l'entrée précédente : `saleStartDate` / `saleEndDate` étaient
+le même défaut que `maxPerOrder`, en pire. Le serveur les faisait respecter
+depuis toujours (`TICKET_SALE_NOT_STARTED`, `TICKET_SALE_ENDED` dans
+`payments.service.ts`), mais AUCUN écran ne permettait de les définir : les
+préventes étaient impossibles à mettre en place, alors que la page publique
+affiche déjà un bandeau « Prévente ».
+
+- **Saisie** : deux champs « Ouverture / Clôture des ventes » dans le formulaire
+  de billet (création ET modification), bornés l'un par l'autre. Une fenêtre
+  inversée bloque l'enregistrement — elle produirait un billet jamais vendable.
+- **Effacement possible** : `updateTicket` faisait `dto.saleStartDate ? new
+  Date(...) : undefined`, ce qui confond « non transmis » et « vide ». Une date
+  posée par erreur ne pouvait donc plus être retirée. Un helper
+  `toNullableDate()` distingue les trois cas ; le DTO accepte `null`.
+- **Piège évité** : le formulaire de modification ne ré-affichait NI la promo,
+  NI la fenêtre, NI le design. Tant que ces champs partaient en `undefined`
+  c'était sans conséquence — mais dès qu'une case vide veut dire « efface »,
+  rouvrir un billet et enregistrer aurait supprimé ses dates. `startEdit()`
+  pré-remplit désormais tout ce que le formulaire réémet. Les dates passent par
+  `toLocalInput()` : un `slice(0, 16)` sur l'ISO aurait affiché l'heure UTC.
+- **Page publique alignée** : elle proposait les billets hors fenêtre comme
+  n'importe quels autres — l'acheteur ne l'apprenait qu'au paiement. Trois
+  états distincts désormais (« Épuisé », « En vente à partir du… », « Ventes
+  clôturées »), un seul comportement d'interaction. L'affichage n'est qu'un
+  confort : la garde reste côté serveur, comme pour `maxPerOrder`.
+
+**Plafond par commande figé dès la première vente** (décision produit
+2026-08-18) : les acheteurs suivants joueraient sinon sous une autre règle que
+les précédents — même raisonnement que `TICKET_POLICY_LOCKED`. Nouveau code
+`TICKET_MAX_PER_ORDER_LOCKED` (409), champ en lecture seule côté formulaire
+avec le nombre de ventes en explication. Renvoyer la MÊME valeur reste accepté :
+le formulaire réémet tous ses champs, il ne faut pas le punir pour ça.
+
+**Vérification** : 6 tests unitaires ajoutés à `tickets.service.test.ts`
+(verrou, valeur identique tolérée, billet invendu libre, `null` efface,
+`undefined` n'efface pas, chaîne convertie en `Date`) — 29/29 au vert.
+
+⚠️ **Piège d'environnement à connaître** : `nest start --watch` dans le
+conteneur API NE VOIT PAS les écritures faites depuis l'hôte sur le montage
+lié. L'API tournait sur un `dist` antérieur, et un premier test « en conditions
+réelles » a donc validé du code périmé — le PATCH passait alors que le verrou
+existait dans les sources. `docker restart fluid-events-api` force une
+reconstruction complète. Toujours vérifier
+`grep <symbole nouveau> apps/api/dist/...` avant de conclure quoi que ce soit
+d'un test HTTP après une modification côté API.
+
 ## 4. Priorités immédiates (à date)
 
 | Module | Priorité | Référence CDC |

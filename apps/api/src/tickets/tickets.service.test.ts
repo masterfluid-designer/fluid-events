@@ -289,6 +289,99 @@ describe('TicketsService', () => {
       expect(result).toEqual({ id: 'tk-1', name: 'VIP Or' });
     });
 
+    // ─── Plafond par commande figé après la première vente ──────────────
+    // Décision produit 2026-08-18 : les acheteurs suivants doivent jouer sous
+    // la même règle que les précédents (même raisonnement que le régime).
+
+    it('updateTicket() refuse de changer maxPerOrder si des places sont vendues', async () => {
+      prisma.ticket.findUnique.mockResolvedValue({
+        ...ownedTicket,
+        name: 'Standard',
+        maxPerOrder: 10,
+        stockSold: 5,
+      });
+
+      await expect(
+        service.updateTicket('tk-1', 'mgr-1', { maxPerOrder: 3 } as any),
+      ).rejects.toMatchObject({
+        response: { code: ErrorCodes.TICKET_MAX_PER_ORDER_LOCKED },
+      });
+      expect(prisma.ticket.update).not.toHaveBeenCalled();
+    });
+
+    it('updateTicket() accepte maxPerOrder identique sur un billet vendu', async () => {
+      // Le formulaire réémet tous ses champs : renvoyer la même valeur ne doit
+      // pas être traité comme une modification.
+      prisma.ticket.findUnique.mockResolvedValue({
+        ...ownedTicket,
+        name: 'Standard',
+        maxPerOrder: 10,
+        stockSold: 5,
+      });
+      prisma.ticket.update.mockResolvedValue({ id: 'tk-1' });
+
+      await service.updateTicket('tk-1', 'mgr-1', { maxPerOrder: 10 } as any);
+      expect(prisma.ticket.update).toHaveBeenCalled();
+    });
+
+    it("updateTicket() laisse changer maxPerOrder tant que rien n'est vendu", async () => {
+      prisma.ticket.findUnique.mockResolvedValue({
+        ...ownedTicket,
+        name: 'Backstage',
+        maxPerOrder: 1,
+        stockSold: 0,
+      });
+      prisma.ticket.update.mockResolvedValue({ id: 'tk-1' });
+
+      await service.updateTicket('tk-1', 'mgr-1', { maxPerOrder: 4 } as any);
+      expect(prisma.ticket.update).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ maxPerOrder: 4 }) }),
+      );
+    });
+
+    // ─── Fenêtre de vente : null efface, undefined laisse tel quel ───────────
+
+    it('updateTicket() efface une date de vente quand elle vaut null', async () => {
+      prisma.ticket.findUnique.mockResolvedValue({ ...ownedTicket, stockSold: 0, maxPerOrder: 1 });
+      prisma.ticket.update.mockResolvedValue({ id: 'tk-1' });
+
+      await service.updateTicket('tk-1', 'mgr-1', {
+        saleStartDate: null,
+        saleEndDate: null,
+      } as any);
+
+      expect(prisma.ticket.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ saleStartDate: null, saleEndDate: null }),
+        }),
+      );
+    });
+
+    it('updateTicket() ne touche pas aux dates absentes du DTO', async () => {
+      prisma.ticket.findUnique.mockResolvedValue({ ...ownedTicket, stockSold: 0, maxPerOrder: 1 });
+      prisma.ticket.update.mockResolvedValue({ id: 'tk-1' });
+
+      await service.updateTicket('tk-1', 'mgr-1', { name: 'VIP Or' } as any);
+
+      const data = prisma.ticket.update.mock.calls[0][0].data;
+      expect(data.saleStartDate).toBeUndefined();
+      expect(data.saleEndDate).toBeUndefined();
+      expect(data.promoEndsAt).toBeUndefined();
+    });
+
+    it('updateTicket() convertit une date de vente transmise en Date', async () => {
+      prisma.ticket.findUnique.mockResolvedValue({ ...ownedTicket, stockSold: 0, maxPerOrder: 1 });
+      prisma.ticket.update.mockResolvedValue({ id: 'tk-1' });
+
+      await service.updateTicket('tk-1', 'mgr-1', {
+        saleStartDate: '2026-09-01T10:00:00.000Z',
+      } as any);
+
+      const data = prisma.ticket.update.mock.calls[0][0].data;
+      expect(data.saleStartDate).toBeInstanceOf(Date);
+      expect((data.saleStartDate as Date).toISOString()).toBe('2026-09-01T10:00:00.000Z');
+    });
+
     it("updateTicket() refuse si le manager n'est pas propriétaire", async () => {
       prisma.ticket.findUnique.mockResolvedValue(foreignTicket);
       await expect(

@@ -437,6 +437,9 @@ export const ErrorCodes = {
   TICKET_SALE_NOT_STARTED: 'TICKET_SALE_NOT_STARTED',
   TICKET_SALE_ENDED: 'TICKET_SALE_ENDED',
   TICKET_MAX_PER_ORDER_EXCEEDED: 'TICKET_MAX_PER_ORDER_EXCEEDED',
+  // Plafond par commande figé : des billets ont déjà été vendus sous la
+  // règle en vigueur (décision produit 2026-08-18, comme pour le régime).
+  TICKET_MAX_PER_ORDER_LOCKED: 'TICKET_MAX_PER_ORDER_LOCKED',
   // Paiements
   CART_EMPTY: 'CART_EMPTY',
   CART_MULTIPLE_EVENTS: 'CART_MULTIPLE_EVENTS',

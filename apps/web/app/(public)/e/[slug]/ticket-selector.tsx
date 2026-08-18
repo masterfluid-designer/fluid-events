@@ -35,11 +35,25 @@ export interface PublicTicket {
   description?: string | null;
   compareAtPrice?: number | null;
   promoEndsAt?: string | null;
+  // Fenêtre de vente (2026-08-18). L'API la faisait déjà respecter à
+  // `POST /api/payments/init` ; la page, elle, proposait le billet comme
+  // n'importe quel autre — l'acheteur ne l'apprenait qu'après avoir payé
+  // de son attention. Ces bornes ne sont qu'un affichage : la garde reste
+  // côté serveur, comme pour maxPerOrder.
+  saleStartDate?: string | null;
+  saleEndDate?: string | null;
   dayLabel?: string | null;
 }
 
 function formatCurrency(amount: number, currency: string): string {
   return new Intl.NumberFormat('fr-FR', { style: 'currency', currency }).format(amount);
+}
+
+/** Date d'ouverture des ventes, lisible dans la ligne d'indications. */
+function formatSaleDate(iso: string): string {
+  return new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long', timeStyle: 'short' }).format(
+    new Date(iso),
+  );
 }
 
 export function TicketSelector({
@@ -62,6 +76,8 @@ export function TicketSelector({
   const activeDay = selectedDay ?? days[0] ?? null;
   const visibleTickets = days.length > 0 ? tickets.filter((t) => t.dayLabel === activeDay) : tickets;
 
+  // Un seul instant de référence pour le composant : bannière promo ET
+  // fenêtres de vente des cartes.
   const now = Date.now();
   const activePromo = tickets.find(
     (t) =>
@@ -167,7 +183,22 @@ export function TicketSelector({
           {visibleTickets.map((ticket, index) => {
             const available = ticket.stock - ticket.stockSold;
             const soldOut = available <= 0;
-            const highlighted = index === 0 && !soldOut;
+            const notYetOnSale = Boolean(
+              ticket.saleStartDate && now < new Date(ticket.saleStartDate).getTime(),
+            );
+            const saleOver = Boolean(
+              ticket.saleEndDate && now > new Date(ticket.saleEndDate).getTime(),
+            );
+            // Épuisé, pas encore ouvert, clôturé : trois raisons distinctes de
+            // ne pas pouvoir acheter, un seul comportement d'interaction.
+            const unavailable = soldOut || notYetOnSale || saleOver;
+            // …mais pas un seul traitement visuel. Un billet épuisé ou clôturé
+            // est un reliquat : on l'éteint. Un billet pas encore ouvert est
+            // une PROMESSE — l'éteindre le fait passer pour un déchet alors
+            // qu'il faut au contraire donner envie d'y revenir. Il garde donc
+            // son contraste plein, et c'est son badge qui porte l'état.
+            const dimmed = soldOut || saleOver;
+            const highlighted = index === 0 && !unavailable;
             const quantity = quantities[ticket.id] ?? 0;
             // Sélectionné == au moins une place : pas d’état parallèle à tenir
             // synchronisé avec le panier, donc pas de désynchronisation possible.
@@ -180,7 +211,7 @@ export function TicketSelector({
               <div
                 key={ticket.id}
                 className={`relative overflow-hidden rounded-3xl border transition-colors ${
-                  soldOut ? 'opacity-60' : ''
+                  dimmed ? 'opacity-60' : ''
                 } ${
                   selected
                     ? 'border-primary ring-1 ring-primary'
@@ -208,14 +239,14 @@ export function TicketSelector({
                 <button
                   type="button"
                   onClick={() => toggleTicket(ticket.id, maxSelectable)}
-                  disabled={soldOut || !isPublished}
+                  disabled={unavailable || !isPublished}
                   aria-pressed={selected}
                   aria-expanded={selected}
                   className="flex w-full flex-wrap items-center gap-x-6 gap-y-2 p-6 text-left disabled:cursor-not-allowed md:flex-nowrap md:p-8"
                 >
                   <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-1.5">
                     <h3 className="font-event text-xl md:text-2xl">{ticket.name}</h3>
-                    {hasPromo && !soldOut && (
+                    {hasPromo && !unavailable && (
                       <span className="rounded-full bg-accent-terracotta px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white dark:bg-accent-terracotta-dark dark:text-black">
                         Promo
                       </span>
@@ -236,7 +267,11 @@ export function TicketSelector({
                     <span className="text-xs font-medium text-waterloo dark:text-manatee">
                       {soldOut
                         ? 'Épuisé'
-                        : `${available} place${available > 1 ? 's' : ''} restante${available > 1 ? 's' : ''}`}
+                        : notYetOnSale
+                          ? `En vente à partir du ${formatSaleDate(ticket.saleStartDate!)}`
+                          : saleOver
+                            ? 'Ventes clôturées'
+                            : `${available} place${available > 1 ? 's' : ''} restante${available > 1 ? 's' : ''}`}
                     </span>
                   </div>
 
@@ -253,9 +288,19 @@ export function TicketSelector({
                       <div className="mt-1 text-[11px] text-waterloo dark:text-manatee">/ personne</div>
                     </div>
 
-                    {soldOut || !isPublished ? (
-                      <span className="rounded-full border border-stroke px-4 py-2 text-xs font-semibold text-manatee dark:border-strokedark">
-                        Indisponible
+                    {unavailable || !isPublished ? (
+                      // « Bientôt » se distingue des deux autres : c'est le
+                      // seul état qui appelle un retour du visiteur, il porte
+                      // donc la couleur de l'événement plutôt que le gris des
+                      // billets morts.
+                      <span
+                        className={`rounded-full px-4 py-2 text-xs font-semibold ${
+                          notYetOnSale
+                            ? 'border border-primary/40 bg-primary/10 text-primary'
+                            : 'border border-stroke text-manatee dark:border-strokedark'
+                        }`}
+                      >
+                        {notYetOnSale ? 'Bientôt' : saleOver ? 'Terminé' : 'Indisponible'}
                       </span>
                     ) : (
                       // Pastille d'état : indique que la carte est cliquable et
@@ -273,7 +318,7 @@ export function TicketSelector({
                   </div>
                 </button>
 
-                {selected && !soldOut && isPublished && (
+                {selected && !unavailable && isPublished && (
                   <div className="flex items-center justify-between gap-4 border-t border-stroke px-6 py-4 dark:border-strokedark md:px-8">
                     <span className="text-xs font-medium text-waterloo dark:text-manatee">
                       {maxSelectable > 1

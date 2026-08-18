@@ -211,19 +211,40 @@ export class TicketsService {
   }
 
   async updateTicket(ticketId: string, managerId: string, dto: UpdateTicketDto) {
-    await this.getOwnedTicketOrThrow(ticketId, managerId);
+    const ticket = await this.getOwnedTicketOrThrow(ticketId, managerId);
     this.assertValidDesignImageUrl(dto.designImageUrl);
     // Pas de contrôle de capacité ici : `stock` est volontairement absent de
     // UpdateTicketDto (modifier la capacité après des ventes est une décision
     // produit non tranchée, BUSINESS.md §12), la somme ne peut donc pas bouger.
 
+    // Le plafond par commande se fige à la première vente (décision produit
+    // 2026-08-18) : les acheteurs suivants ne joueraient plus sous la même
+    // règle que les précédents. Même raisonnement que TICKET_POLICY_LOCKED.
+    // Renvoyer la MÊME valeur n'est pas une modification — le formulaire
+    // réémet tous ses champs, il ne faut pas le punir pour ça.
+    if (
+      dto.maxPerOrder !== undefined &&
+      dto.maxPerOrder !== ticket.maxPerOrder &&
+      ticket.stockSold > 0
+    ) {
+      throw new ConflictException({
+        code: ErrorCodes.TICKET_MAX_PER_ORDER_LOCKED,
+        message:
+          `"${ticket.name}" a déjà ${ticket.stockSold} vente(s) : le nombre de places ` +
+          'par commande ne peut plus changer.',
+      });
+    }
+
     return this.prisma.ticket.update({
       where: { id: ticketId },
       data: {
         ...dto,
-        saleStartDate: dto.saleStartDate ? new Date(dto.saleStartDate) : undefined,
-        saleEndDate: dto.saleEndDate ? new Date(dto.saleEndDate) : undefined,
-        promoEndsAt: dto.promoEndsAt ? new Date(dto.promoEndsAt) : undefined,
+        // `null` efface la date, `undefined` la laisse telle quelle. Le
+        // ternaire précédent confondait les deux : une fenêtre de vente posée
+        // par erreur ne pouvait plus être retirée (2026-08-18).
+        saleStartDate: toNullableDate(dto.saleStartDate),
+        saleEndDate: toNullableDate(dto.saleEndDate),
+        promoEndsAt: toNullableDate(dto.promoEndsAt),
       },
     });
   }
@@ -247,4 +268,14 @@ export class TicketsService {
       throw err;
     }
   }
+}
+
+/**
+ * Convertit une date d'entrée en valeur Prisma : `undefined` = champ non
+ * transmis (inchangé), `null` = effacement explicite, chaîne = nouvelle date.
+ */
+function toNullableDate(value: string | null | undefined): Date | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null || value === '') return null;
+  return new Date(value);
 }

@@ -54,6 +54,8 @@ interface EventDetail {
     description: string | null;
     compareAtPrice: number | null;
     promoEndsAt: string | null;
+    saleStartDate: string | null;
+    saleEndDate: string | null;
     dayLabel: string | null;
   }>;
   eventPage: { blocks: Block[]; theme: EventTheme | null } | null;

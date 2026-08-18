@@ -30,6 +30,16 @@ interface TicketRow {
   stockSold: number;
   maxPerOrder: number;
   isActive: boolean;
+  // Champs ré-affichés par le formulaire d'édition. Sans eux, rouvrir un
+  // billet montrait des cases vides là où des valeurs existaient — et depuis
+  // que les dates peuvent être EFFACÉES (null), les réémettre vides les
+  // aurait supprimées (2026-08-18).
+  compareAtPrice: string | null;
+  promoEndsAt: string | null;
+  saleStartDate: string | null;
+  saleEndDate: string | null;
+  designImageUrl: string | null;
+  designBgColor: string | null;
   // Journée ouverte par ce billet en régime PER_DAY (2026-08-16).
   eventDayId: string | null;
 }
@@ -43,6 +53,23 @@ interface EventWithTickets {
   days: Array<{ id: string; label: string; date: string }>;
 }
 
+/**
+ * ISO (UTC) → valeur d'un <input type="datetime-local">, qui n'accepte QUE
+ * l'heure locale au format `YYYY-MM-DDTHH:mm`. Un `slice(0, 16)` sur l'ISO
+ * afficherait l'heure UTC, décalée pour l'organisateur.
+ */
+function toLocalInput(iso: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** Saisie locale → ISO, ou `null` pour effacer la date côté serveur. */
+function toIsoOrNull(local: string): string | null {
+  return local ? new Date(local).toISOString() : null;
+}
+
 export default function ManagerTicketsPage() {
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
@@ -53,6 +80,11 @@ export default function ManagerTicketsPage() {
   const [description, setDescription] = useState('');
   const [compareAtPrice, setCompareAtPrice] = useState('');
   const [promoEndsAt, setPromoEndsAt] = useState('');
+  // Fenêtre de vente (2026-08-18) : le serveur la fait déjà respecter
+  // (TICKET_SALE_NOT_STARTED / TICKET_SALE_ENDED), elle n'était saisissable
+  // nulle part — les préventes étaient donc impossibles à mettre en place.
+  const [saleStartDate, setSaleStartDate] = useState('');
+  const [saleEndDate, setSaleEndDate] = useState('');
   const [dayLabel, setDayLabel] = useState('');
   const [eventDayId, setEventDayId] = useState<string | null>(null);
   const [designImageUrl, setDesignImageUrl] = useState<string | undefined>(undefined);
@@ -115,11 +147,21 @@ export default function ManagerTicketsPage() {
         price: Number(price),
         description: description || undefined,
         compareAtPrice: compareAtPrice ? Number(compareAtPrice) : undefined,
-        promoEndsAt: promoEndsAt ? new Date(promoEndsAt).toISOString() : undefined,
+        // Le formulaire ré-affiche ces dates, donc une case vide veut bien
+        // dire « retire-la » — d'où `null` et non `undefined`.
+        promoEndsAt: toIsoOrNull(promoEndsAt),
+        saleStartDate: toIsoOrNull(saleStartDate),
+        saleEndDate: toIsoOrNull(saleEndDate),
         designImageUrl,
         designBgColor,
-        // Vide = champ inchangé (PATCH partiel), et non « remets le défaut ».
-        maxPerOrder: maxPerOrder ? Number(maxPerOrder) : undefined,
+        // Figé dès la première vente (décision produit 2026-08-18) : le champ
+        // est en lecture seule, et on ne le renvoie pas — le serveur refuse.
+        maxPerOrder:
+          (event?.tickets.find((t) => t.id === editingId)?.stockSold ?? 0) > 0
+            ? undefined
+            : maxPerOrder
+              ? Number(maxPerOrder)
+              : undefined,
         // `stock` est volontairement absent d’UpdateTicketDto côté serveur
         // (modifier la capacité après des ventes n’est pas tranché), et la
         // journée non plus : la changer déplacerait un billet déjà vendu.
@@ -159,6 +201,8 @@ export default function ManagerTicketsPage() {
         description: description || undefined,
         compareAtPrice: compareAtPrice ? Number(compareAtPrice) : undefined,
         promoEndsAt: promoEndsAt ? new Date(promoEndsAt).toISOString() : undefined,
+        saleStartDate: saleStartDate ? new Date(saleStartDate).toISOString() : undefined,
+        saleEndDate: saleEndDate ? new Date(saleEndDate).toISOString() : undefined,
         dayLabel: dayLabel || undefined,
         eventDayId: eventDayId ?? undefined,
         designImageUrl,
@@ -174,6 +218,8 @@ export default function ManagerTicketsPage() {
       setDescription('');
       setCompareAtPrice('');
       setPromoEndsAt('');
+      setSaleStartDate('');
+      setSaleEndDate('');
       setDayLabel('');
       setDesignImageUrl(undefined);
       setDesignBgColor(undefined);
@@ -215,6 +261,8 @@ export default function ManagerTicketsPage() {
     setDescription('');
     setCompareAtPrice('');
     setPromoEndsAt('');
+    setSaleStartDate('');
+    setSaleEndDate('');
     setDayLabel('');
     setEventDayId(null);
     setDesignImageUrl(undefined);
@@ -228,8 +276,26 @@ export default function ManagerTicketsPage() {
     setStock(String(t.stock));
     setMaxPerOrder(String(t.maxPerOrder));
     setDescription(t.description ?? '');
+    // Tout ce que le formulaire réémet doit être ré-affiché, sinon
+    // enregistrer sans y toucher effacerait la valeur existante.
+    setCompareAtPrice(t.compareAtPrice ?? '');
+    setPromoEndsAt(toLocalInput(t.promoEndsAt));
+    setSaleStartDate(toLocalInput(t.saleStartDate));
+    setSaleEndDate(toLocalInput(t.saleEndDate));
+    setDesignImageUrl(t.designImageUrl ?? undefined);
+    setDesignBgColor(t.designBgColor ?? undefined);
     setShowForm(true);
   }
+
+  // Ce qui est déjà vendu fige certains choix : on les affiche en lecture
+  // seule plutôt que de les masquer, pour que la règle en vigueur reste
+  // lisible (décision produit 2026-08-18, alignée sur le stock).
+  const editingTicket = editingId ? event.tickets.find((t) => t.id === editingId) : undefined;
+  const maxPerOrderLocked = (editingTicket?.stockSold ?? 0) > 0;
+  // Une fenêtre inversée ne serait jamais ouverte : l'avertir ne suffit pas,
+  // il faut empêcher d'enregistrer un billet invendable.
+  const saleWindowInverted =
+    Boolean(saleStartDate && saleEndDate) && new Date(saleEndDate) <= new Date(saleStartDate);
 
   const savedPolicy = event.ticketPolicy ?? TicketPolicy.SINGLE_DAY;
   const canCreateTickets =
@@ -413,8 +479,17 @@ export default function ManagerTicketsPage() {
                 placeholder={editingId ? undefined : '10'}
                 value={maxPerOrder}
                 onChange={(e) => setMaxPerOrder(e.target.value)}
-                className="rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
+                readOnly={maxPerOrderLocked}
+                aria-describedby={maxPerOrderLocked ? 'max-per-order-lock' : undefined}
+                className={`rounded-md border border-input px-3 py-2 text-sm text-foreground ${
+                  maxPerOrderLocked ? 'cursor-not-allowed bg-muted' : 'bg-background'
+                }`}
               />
+              {maxPerOrderLocked && (
+                <span id="max-per-order-lock" className="text-[11px]">
+                  Figé : {editingTicket?.stockSold} place(s) déjà vendue(s) sous cette règle.
+                </span>
+              )}
             </label>
             <input
               placeholder="Description (optionnel)"
@@ -439,6 +514,35 @@ export default function ManagerTicketsPage() {
                 className="rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
               />
             </label>
+            {/* Fenêtre de vente (2026-08-18) : l'API refusait déjà l'achat
+                hors de cette fenêtre, mais aucun écran ne permettait de la
+                définir — le mécanisme existait sans être atteignable. */}
+            <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+              Ouverture des ventes (optionnel)
+              <input
+                type="datetime-local"
+                value={saleStartDate}
+                onChange={(e) => setSaleStartDate(e.target.value)}
+                max={saleEndDate || undefined}
+                className="rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+              Clôture des ventes (optionnel)
+              <input
+                type="datetime-local"
+                value={saleEndDate}
+                onChange={(e) => setSaleEndDate(e.target.value)}
+                min={saleStartDate || undefined}
+                className="rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
+              />
+            </label>
+            {saleWindowInverted && (
+              <p className="text-[11px] text-amber-600 md:col-span-4 dark:text-amber-500">
+                La clôture doit venir après l&apos;ouverture, sinon le billet ne sera jamais en
+                vente.
+              </p>
+            )}
             {/* Régime PER_DAY (2026-08-16) : la journée remplace le libellé
                 libre — c'est elle que le scanner contrôlera à l'entrée, alors
                 que `dayLabel` n'a jamais été que du texte d'affichage. */}
@@ -521,7 +625,7 @@ export default function ManagerTicketsPage() {
             <div className="md:col-span-4 flex flex-wrap items-center gap-3">
               <Button
                 type="submit"
-                disabled={createTicket.isPending || updateTicket.isPending}
+                disabled={createTicket.isPending || updateTicket.isPending || saleWindowInverted}
                 className="w-fit"
               >
                 {createTicket.isPending || updateTicket.isPending
