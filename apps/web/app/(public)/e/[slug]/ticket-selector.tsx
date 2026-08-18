@@ -713,7 +713,17 @@ export function TicketSelector({
                             </p>
                           </div>
 
-                          <div className="flex shrink-0 items-center gap-4">
+                          {/*
+                            `shrink-0` sans repli mobile faisait déborder cette
+                            rangée : 389 px de prix + bouton dans une carte de
+                            335 px, en `overflow-hidden` — le bouton
+                            « Réserver via WhatsApp » était purement COUPÉ sur
+                            un écran de 375 px, seul moyen de réserver la
+                            formule. Sous `sm`, la rangée prend toute la
+                            largeur et s'enroule ; au-delà elle retrouve son
+                            comportement d'origine.
+                          */}
+                          <div className="flex w-full flex-wrap items-center justify-between gap-4 sm:w-auto sm:shrink-0 sm:justify-start">
                             <div className="text-right">
                               {hasPromo && (
                                 <div className="text-sm font-medium text-manatee line-through dark:text-manatee">

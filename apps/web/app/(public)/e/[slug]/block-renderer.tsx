@@ -118,7 +118,9 @@ export function getVisibleNavItems(
       // pointerait vers une section qui ne rend rien.
       (block.type === 'location' &&
         Boolean(
-          formatEventAddress(eventConfig) || eventConfig.accessNotes || eventConfig.contactPhone,
+          // Plus `accessNotes` : ces indications sont passées à l'espace
+          // client, la section publique ne les montre plus (2026-08-18).
+          formatEventAddress(eventConfig) || eventConfig.contactPhone,
         ));
     if (!hasContent) continue;
     seen.add(block.type);
