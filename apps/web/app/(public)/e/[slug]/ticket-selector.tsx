@@ -1,7 +1,8 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Check, Minus, Plus, Ticket } from 'lucide-react';
+import { Check, MessageCircle, Minus, Plus, Sparkles, Ticket } from 'lucide-react';
+import type { TicketSaleMode } from '@saas-events/types';
 import { CHECKOUT_RESUME_EVENT, openGoogleAuthPopup } from '@/lib/auth';
 import { SectionShell, SectionHeading } from './section-shell';
 
@@ -55,6 +56,14 @@ export interface PublicTicket {
   category?: string | null;
   /** Bénéfices inclus, affichés en puces cochées (2026-08-18). */
   features?: string[] | null;
+  /**
+   * `ON_REQUEST` : formule négociée hors ligne (table, package groupe). Elle
+   * s'affiche mais ne s'achète pas ici — l'API la refuse au panier, cet
+   * affichage n'est que la moitié visible de la règle.
+   */
+  saleMode?: TicketSaleMode | null;
+  /** Pastille de qualification d'une formule sur demande. */
+  requestBadge?: string | null;
 }
 
 function formatCurrency(amount: number, currency: string): string {
@@ -83,6 +92,15 @@ function splitDayLabel(label: string): { title: string; subtitle: string | null 
 /** Un billet est épuisé quand il ne reste aucune place. */
 function isSoldOut(ticket: PublicTicket): boolean {
   return ticket.stock - ticket.stockSold <= 0;
+}
+
+/**
+ * Une formule sur demande ne s'achète pas ici — elle n'a donc pas de stock qui
+ * veuille dire quelque chose. L'exclure des calculs d'épuisement évite qu'une
+ * table négociée, créée à stock zéro, déclare toute une journée complète.
+ */
+function isOnRequest(ticket: PublicTicket): boolean {
+  return ticket.saleMode === 'ON_REQUEST';
 }
 
 /**
@@ -159,11 +177,18 @@ export function TicketSelector({
   tickets,
   slug,
   isPublished,
+  contactPhone,
 }: {
   tickets: PublicTicket[];
   slug: string;
   isPublished: boolean;
+  /** Numéro de l'événement — seul canal des formules sur demande. */
+  contactPhone?: string | null;
 }) {
+  // wa.me attend le numéro international SANS « + » ni séparateurs. Le champ
+  // est validé en E.164 à l'écriture, mais on nettoie quand même : un espace
+  // suffirait à produire un lien qui n'ouvre rien (même garde que le bloc Accès).
+  const whatsappNumber = contactPhone?.replace(/[^0-9]/g, '') || null;
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [authPending, setAuthPending] = useState(false);
 
@@ -191,7 +216,7 @@ export function TicketSelector({
   const soldOutDays = useMemo(() => {
     const result = new Set<string>();
     for (const day of days) {
-      const ofDay = tickets.filter((t) => t.dayLabel === day);
+      const ofDay = tickets.filter((t) => t.dayLabel === day && !isOnRequest(t));
       if (ofDay.length > 0 && ofDay.every(isSoldOut)) result.add(day);
     }
     return result;
@@ -199,10 +224,11 @@ export function TicketSelector({
 
   // Le bandeau d'épuisement annonce ce que le visiteur a SOUS LES YEUX : la
   // journée ouverte s'il y a des onglets, sinon la billetterie entière.
+  const onlineTickets = tickets.filter((t) => !isOnRequest(t));
   const currentIsSoldOut =
     days.length > 0
       ? activeDay !== null && soldOutDays.has(activeDay)
-      : tickets.length > 0 && tickets.every(isSoldOut);
+      : onlineTickets.length > 0 && onlineTickets.every(isSoldOut);
 
   const groups = useMemo(() => groupByCategory(visibleTickets), [visibleTickets]);
 
@@ -224,7 +250,8 @@ export function TicketSelector({
     visibleTickets.find((t) => {
       const notYet = t.saleStartDate && now < new Date(t.saleStartDate).getTime();
       const over = t.saleEndDate && now > new Date(t.saleEndDate).getTime();
-      return !isSoldOut(t) && !notYet && !over;
+      // Une formule négociée n'est pas « la plus choisie » : elle se demande.
+      return !isOnRequest(t) && !isSoldOut(t) && !notYet && !over;
     })?.id ?? null;
 
   function updateQuantity(ticketId: string, delta: number, max: number) {
@@ -449,6 +476,10 @@ export function TicketSelector({
                     // donner envie d'y revenir. Il garde son contraste plein,
                     // et c'est son badge qui porte l'état.
                     const dimmed = soldOut || saleOver;
+                    // Formule négociée : elle ignore stock et fenêtre de vente,
+                    // qui ne veulent rien dire pour elle. Elle n'est jamais
+                    // « indisponible » — elle se demande, c'est tout.
+                    const onRequest = isOnRequest(ticket);
                     const highlighted = ticket.id === highlightedId;
                     const quantity = quantities[ticket.id] ?? 0;
                     const selected = quantity > 0;
@@ -462,16 +493,21 @@ export function TicketSelector({
                       <div
                         key={ticket.id}
                         className={`relative overflow-hidden rounded-3xl border transition-colors ${
-                          dimmed ? 'border-dashed' : ''
+                          dimmed && !onRequest ? 'border-dashed' : ''
                         } ${
                           selected
                             ? 'border-primary ring-1 ring-primary'
-                            : highlighted
-                              ? 'border-black dark:border-white'
-                              : 'border-stroke dark:border-strokedark'
+                            : onRequest
+                              ? // Bordure d'accent : une formule sur mesure est
+                                // une offre à part, pas un billet parmi
+                                // d'autres — elle se distingue avant d'être lue.
+                                'border-primary/45'
+                              : highlighted
+                                ? 'border-black dark:border-white'
+                                : 'border-stroke dark:border-strokedark'
                         }`}
                       >
-                        {soldOut && (
+                        {soldOut && !onRequest && (
                           // Tampon apposé EN TRAVERS de la carte, pas un ruban
                           // discret dans le coin : le refus doit être la
                           // première chose lue, avant le nom et le prix.
@@ -497,7 +533,7 @@ export function TicketSelector({
                           // l'affadir avec le reste effacerait le message qu'on
                           // veut justement rendre impossible à manquer.
                           className={`flex flex-wrap items-start gap-x-6 gap-y-4 p-6 md:flex-nowrap md:p-8 ${
-                            dimmed ? 'opacity-45' : ''
+                            dimmed && !onRequest ? 'opacity-45' : ''
                           }`}
                         >
                           {/* `basis-full` sous md : sans lui, `flex-wrap` garde
@@ -507,6 +543,16 @@ export function TicketSelector({
                               à un mot par ligne. Le forcer sur sa propre ligne
                               renvoie le prix en dessous, où il a la place. */}
                           <div className="min-w-0 flex-1 basis-full md:basis-0">
+                            {/* Pastille de qualification AU-DESSUS du nom :
+                                « uniquement pour les filles », « sur
+                                réservation » — c'est une condition d'accès, il
+                                faut la lire avant la formule, pas après. */}
+                            {onRequest && ticket.requestBadge && (
+                              <span className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-primary">
+                                <Sparkles className="size-3" />
+                                {ticket.requestBadge}
+                              </span>
+                            )}
                             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1.5">
                               <h3 className="font-event text-xl md:text-2xl">{ticket.name}</h3>
                               {hasPromo && !unavailable && (
@@ -534,7 +580,14 @@ export function TicketSelector({
                               l'autre pour trouver ce qui les distingue.
                             */}
                             {features.length > 0 && (
-                              <ul className="mt-3 grid gap-x-6 gap-y-1.5 sm:grid-cols-2">
+                              // `auto-fit` plutôt que `sm:grid-cols-2` : le
+                              // nombre de colonnes suit la place RÉELLEMENT
+                              // disponible, pas la largeur de la fenêtre. Sur
+                              // une carte « sur réservation », le bouton
+                              // WhatsApp élargit la colonne de droite et
+                              // deux colonnes fixes cassaient « Table réservée
+                              // 4 personnes » sur trois lignes.
+                              <ul className="mt-3 grid grid-cols-[repeat(auto-fit,minmax(12rem,1fr))] gap-x-6 gap-y-1.5">
                                 {features.map((feature) => (
                                   <li key={feature} className="flex items-start gap-2 text-sm">
                                     <Check className="mt-0.5 size-4 shrink-0 text-primary" />
@@ -545,7 +598,9 @@ export function TicketSelector({
                             )}
 
                             <p className="mt-3 text-xs font-medium text-waterloo dark:text-manatee">
-                              {soldOut
+                              {onRequest
+                                ? "Réservation directe auprès de l'organisateur"
+                                : soldOut
                                 ? 'Épuisé'
                                 : notYetOnSale
                                   ? `En vente à partir du ${formatSaleDate(ticket.saleStartDate!)}`
@@ -568,17 +623,45 @@ export function TicketSelector({
                                   plus comme une offre en cours. */}
                               <div
                                 className={`font-event text-2xl leading-none md:text-3xl ${
-                                  soldOut ? 'text-manatee line-through decoration-2' : ''
+                                  soldOut && !onRequest ? 'text-manatee line-through decoration-2' : ''
                                 }`}
                               >
                                 {formatCurrency(Number(ticket.price), ticket.currency)}
                               </div>
+                              {/* « Réservation sur mesure » et non « / personne » :
+                                  le montant affiché est un ordre de grandeur pour
+                                  la formule entière, rien n'est encaissé ici — le
+                                  présenter par personne serait un engagement de
+                                  prix que la plateforme ne tient pas. */}
                               <div className="mt-1 text-[11px] text-waterloo dark:text-manatee">
-                                / personne
+                                {onRequest ? 'Réservation sur mesure' : '/ personne'}
                               </div>
                             </div>
 
-                            {unavailable || !isPublished ? (
+                            {onRequest ? (
+                              whatsappNumber ? (
+                                <a
+                                  href={`https://wa.me/${whatsappNumber}?text=${encodeURIComponent(
+                                    `Bonjour, je souhaite réserver la formule « ${ticket.name} ».`,
+                                  )}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  // Vert WhatsApp assumé plutôt que la couleur de
+                                  // l'événement : ce bouton quitte le site pour une
+                                  // application précise, l'annoncer par sa couleur
+                                  // évite la surprise.
+                                  className="inline-flex shrink-0 items-center gap-2 rounded-full bg-[#25D366] px-5 py-3 text-sm font-semibold text-black transition-opacity hover:opacity-90"
+                                >
+                                  <MessageCircle className="size-4" /> Réserver via WhatsApp
+                                </a>
+                              ) : (
+                                // Sans numéro de contact renseigné, on n'invente
+                                // pas de canal : on dit ce qu'on sait.
+                                <span className="rounded-full border border-primary/40 px-4 py-2 text-xs font-semibold text-primary">
+                                  Sur réservation
+                                </span>
+                              )
+                            ) : unavailable || !isPublished ? (
                               // « Bientôt » se distingue des deux autres :
                               // c'est le seul état qui appelle un retour du
                               // visiteur, il porte donc la couleur de

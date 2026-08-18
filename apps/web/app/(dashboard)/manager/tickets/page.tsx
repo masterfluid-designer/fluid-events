@@ -1,6 +1,6 @@
 'use client';
 
-import { TicketPolicy } from '@saas-events/types';
+import { TicketPolicy, TicketSaleMode } from '@saas-events/types';
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
@@ -44,6 +44,8 @@ interface TicketRow {
   // par la page publique.
   category: string | null;
   features: string[];
+  saleMode: TicketSaleMode;
+  requestBadge: string | null;
   // Journée ouverte par ce billet en régime PER_DAY (2026-08-16).
   eventDayId: string | null;
 }
@@ -101,6 +103,10 @@ export default function ManagerTicketsPage() {
   // convertir à chaque frappe ferait sauter le curseur sur une ligne vide.
   const [category, setCategory] = useState('');
   const [features, setFeatures] = useState('');
+  // Mode de vente (2026-08-18) — `ON_REQUEST` sort le billet du tunnel d'achat,
+  // côté page publique ET côté API.
+  const [saleMode, setSaleMode] = useState<TicketSaleMode>(TicketSaleMode.ONLINE);
+  const [requestBadge, setRequestBadge] = useState('');
   const [compareAtPrice, setCompareAtPrice] = useState('');
   const [promoEndsAt, setPromoEndsAt] = useState('');
   // Fenêtre de vente (2026-08-18) : le serveur la fait déjà respecter
@@ -170,6 +176,8 @@ export default function ManagerTicketsPage() {
         price: Number(price),
         description: description || undefined,
         category: category.trim(),
+        saleMode,
+        requestBadge: requestBadge.trim(),
         // Le formulaire ré-affiche les bénéfices : un champ vidé veut donc
         // dire « retire-les », d'où un tableau vide plutôt qu'`undefined`.
         features: splitFeatures(features),
@@ -247,6 +255,8 @@ export default function ManagerTicketsPage() {
         maxPerOrder: maxPerOrder ? Number(maxPerOrder) : 10,
         description: description || undefined,
         category: category.trim() || undefined,
+        saleMode,
+        requestBadge: requestBadge.trim() || undefined,
         features: splitFeatures(features),
         compareAtPrice: compareAtPrice ? Number(compareAtPrice) : undefined,
         promoEndsAt: promoEndsAt ? new Date(promoEndsAt).toISOString() : undefined,
@@ -267,6 +277,8 @@ export default function ManagerTicketsPage() {
       setDescription('');
       setCategory('');
       setFeatures('');
+      setSaleMode(TicketSaleMode.ONLINE);
+      setRequestBadge('');
       setCompareAtPrice('');
       setPromoEndsAt('');
       setSaleStartDate('');
@@ -312,6 +324,8 @@ export default function ManagerTicketsPage() {
     setDescription('');
     setCategory('');
     setFeatures('');
+    setSaleMode(TicketSaleMode.ONLINE);
+    setRequestBadge('');
     setCompareAtPrice('');
     setPromoEndsAt('');
     setSaleStartDate('');
@@ -567,6 +581,45 @@ export default function ManagerTicketsPage() {
                 Les billets portant le même rang sont regroupés sous ce libellé.
               </span>
             </label>
+            {/* Mode de vente (2026-08-18) : les formules négociées — tables,
+                packages groupe — étaient jusqu'ici fabriquées en billets
+                fictifs, annulés à la main après chaque demande. */}
+            <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+              Mode de vente
+              <select
+                value={saleMode}
+                onChange={(e) => setSaleMode(e.target.value as TicketSaleMode)}
+                className="rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
+              >
+                <option value={TicketSaleMode.ONLINE}>Achat en ligne</option>
+                <option value={TicketSaleMode.ON_REQUEST}>Sur réservation (WhatsApp)</option>
+              </select>
+              {saleMode === TicketSaleMode.ON_REQUEST && (
+                <span className="text-[11px] leading-relaxed">
+                  La formule s&apos;affiche sur la page publique avec un bouton WhatsApp vers le
+                  numéro de l&apos;événement. Rien n&apos;est encaissé : le prix indiqué n&apos;est
+                  qu&apos;un ordre de grandeur, et le billet ne peut pas entrer dans un panier.
+                </span>
+              )}
+            </label>
+
+            {saleMode === TicketSaleMode.ON_REQUEST && (
+              <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+                Pastille de qualification (optionnel)
+                <input
+                  placeholder="Ex. Sur réservation"
+                  maxLength={60}
+                  value={requestBadge}
+                  onChange={(e) => setRequestBadge(e.target.value)}
+                  className="rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
+                />
+                <span className="text-[11px]">
+                  Affichée au-dessus du nom, avant la formule — c&apos;est une condition
+                  d&apos;accès, elle se lit en premier.
+                </span>
+              </label>
+            )}
+
             <label className="flex flex-col gap-1 text-xs text-muted-foreground">
               Ce que le billet inclut (optionnel)
               <textarea

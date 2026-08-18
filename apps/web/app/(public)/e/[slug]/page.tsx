@@ -62,6 +62,10 @@ interface EventDetail {
     // en base depuis l'origine mais n'avait jamais atteint la page publique.
     category: string | null;
     features: string[];
+    // Formule négociée hors ligne (2026-08-18) : affichée, jamais mise au
+    // panier — l'API la refuse à `POST /api/payments/init`.
+    saleMode: 'ONLINE' | 'ON_REQUEST';
+    requestBadge: string | null;
   }>;
   eventPage: { blocks: Block[]; theme: EventTheme | null } | null;
 }
@@ -199,7 +203,12 @@ export default async function EventPage({
                 : null
             }
           />
-          <TicketSelector tickets={event.tickets} slug={slug} isPublished={isPublished} />
+          <TicketSelector
+            tickets={event.tickets}
+            slug={slug}
+            isPublished={isPublished}
+            contactPhone={event.contactPhone}
+          />
         </>
       )}
 

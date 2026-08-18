@@ -236,6 +236,13 @@ model Ticket {
   /// une liste se BALAIE pour comparer deux formules, un paragraphe se lit.
   /// (décision produit 2026-08-18)
   features        String[] @default([])
+  /// Vente en ligne ou sur demande (2026-08-18). En ON_REQUEST, `price` reste
+  /// un ORDRE DE GRANDEUR affiché : rien n'est encaissé par la plateforme, le
+  /// montant réel se négocie hors ligne.
+  saleMode        TicketSaleMode @default(ONLINE)
+  /// Pastille de qualification affichée au-dessus d'une formule sur demande
+  /// (« Sur réservation », « Groupe de 6 »…). Texte libre de l'organisateur.
+  requestBadge    String?
   isActive        Boolean  @default(true)
   saleStartDate   DateTime?
   saleEndDate     DateTime?
@@ -477,6 +484,17 @@ model PlatformSettings {
 /// Régime de billetterie d'un événement (décision produit 2026-08-16).
 /// Le multi-jours est réservé aux Managers Premium ; un compte standard reste
 /// en SINGLE_DAY, qui est exactement le comportement d'avant cette notion.
+/// Comment ce billet se vend (décision produit 2026-08-18).
+enum TicketSaleMode {
+  /// Achat en ligne immédiat — comportement historique de tout billet.
+  ONLINE
+  /// Formule négociée (table, package groupe) : la page publique l'affiche et
+  /// renvoie vers WhatsApp, l'API refuse de la mettre au panier. Sans elle,
+  /// les organisateurs fabriquaient des billets fictifs qu'ils annulaient à la
+  /// main après chaque demande.
+  ON_REQUEST
+}
+
 enum TicketPolicy {
   /// Événement d'une seule journée — aucun `EventDay`, billet à usage unique.
   SINGLE_DAY

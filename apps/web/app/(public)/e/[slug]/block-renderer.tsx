@@ -235,7 +235,14 @@ function BlockItem({
   }
 
   if (block.type === 'tickets') {
-    return <TicketSelector tickets={tickets} slug={slug} isPublished={isPublished} />;
+    return (
+      <TicketSelector
+        tickets={tickets}
+        slug={slug}
+        isPublished={isPublished}
+        contactPhone={eventConfig.contactPhone}
+      />
+    );
   }
 
   if (block.type === 'countdown') {

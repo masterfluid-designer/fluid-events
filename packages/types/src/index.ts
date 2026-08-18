@@ -57,6 +57,20 @@ export const TicketPolicy = {
 
 export type TicketPolicy = (typeof TicketPolicy)[keyof typeof TicketPolicy];
 
+/**
+ * Mode de vente d'un billet (décision produit 2026-08-18). `ON_REQUEST` couvre
+ * les formules négociées — tables, packages groupe — que les organisateurs
+ * fabriquaient jusqu'ici en billets fictifs annulés à la main.
+ */
+export const TicketSaleMode = {
+  /** Achat en ligne immédiat — comportement historique. */
+  ONLINE: 'ONLINE',
+  /** Affichée sur la page publique, renvoyée vers l'organisateur, jamais au panier. */
+  ON_REQUEST: 'ON_REQUEST',
+} as const;
+
+export type TicketSaleMode = (typeof TicketSaleMode)[keyof typeof TicketSaleMode];
+
 export const OrderStatus = {
   PENDING: 'PENDING',
   PAID: 'PAID',
@@ -463,6 +477,9 @@ export const ErrorCodes = {
   TICKET_SALE_NOT_STARTED: 'TICKET_SALE_NOT_STARTED',
   TICKET_SALE_ENDED: 'TICKET_SALE_ENDED',
   TICKET_MAX_PER_ORDER_EXCEEDED: 'TICKET_MAX_PER_ORDER_EXCEEDED',
+  // Formule négociée hors ligne : elle s'affiche sur la page publique et
+  // renvoie vers l'organisateur, elle n'entre jamais dans un panier.
+  TICKET_ON_REQUEST_ONLY: 'TICKET_ON_REQUEST_ONLY',
   // Plafond par commande figé : des billets ont déjà été vendus sous la
   // règle en vigueur (décision produit 2026-08-18, comme pour le régime).
   TICKET_MAX_PER_ORDER_LOCKED: 'TICKET_MAX_PER_ORDER_LOCKED',

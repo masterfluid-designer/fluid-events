@@ -189,6 +189,8 @@ export class TicketsService {
         maxPerOrder: dto.maxPerOrder,
         category: dto.category,
         features: normalizeFeatures(dto.features),
+        saleMode: dto.saleMode,
+        requestBadge: dto.requestBadge,
         isActive: dto.isActive,
         saleStartDate: dto.saleStartDate ? new Date(dto.saleStartDate) : undefined,
         saleEndDate: dto.saleEndDate ? new Date(dto.saleEndDate) : undefined,

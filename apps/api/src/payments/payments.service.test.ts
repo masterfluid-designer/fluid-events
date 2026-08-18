@@ -4,6 +4,7 @@
  * (signature, idempotence, re-vérification serveur anti-fraude, rollback stock).
  */
 import { describe, it, expect, vi } from 'vitest';
+import { ErrorCodes } from '@saas-events/types';
 import {
   BadRequestException,
   ForbiddenException,
@@ -421,6 +422,33 @@ describe('PaymentsService.initPayment()', () => {
     await expect(
       service.initPayment(REQUEST_USER, singleItem('tk-1')),
     ).rejects.toThrow(BadRequestException);
+  });
+
+  // Formule négociée hors ligne : la page publique ne propose pas de l'ajouter
+  // au panier, mais c'est le serveur qui décide (RULES.md §1) — un appel direct
+  // à l'API doit se heurter au même refus.
+  it("refuse un billet en vente sur demande, même si le panier est par ailleurs valide", async () => {
+    const deps = makeDeps();
+    const prisma = makePrisma({
+      ticket: { ...ACTIVE_TICKET, saleMode: 'ON_REQUEST' },
+      providerConfig: PROVIDER_CONFIG,
+    });
+    const service = makeService(deps, prisma);
+
+    await expect(service.initPayment(REQUEST_USER, singleItem('tk-1'))).rejects.toMatchObject({
+      response: { code: ErrorCodes.TICKET_ON_REQUEST_ONLY },
+    });
+  });
+
+  it('laisse passer un billet en vente en ligne', async () => {
+    const deps = makeDeps();
+    const prisma = makePrisma({
+      ticket: { ...ACTIVE_TICKET, saleMode: 'ONLINE' },
+      providerConfig: PROVIDER_CONFIG,
+    });
+    const service = makeService(deps, prisma);
+
+    await expect(service.initPayment(REQUEST_USER, singleItem('tk-1'))).resolves.toBeDefined();
   });
 
   it('refuse si la vente est terminée', async () => {

@@ -131,6 +131,16 @@ export class PaymentsService {
     const now = new Date();
     for (const ticket of tickets) {
       const quantity = mergedQuantities.get(ticket.id)!;
+      // Formule sur demande : la page publique n'offre pas de l'ajouter au
+      // panier, mais c'est ICI que ça se décide (RULES.md §1). Rien n'est
+      // encaissé pour ce billet — son prix n'est qu'un ordre de grandeur
+      // affiché, le montant réel se négocie hors ligne.
+      if (ticket.saleMode === 'ON_REQUEST') {
+        throw new BadRequestException({
+          code: ErrorCodes.TICKET_ON_REQUEST_ONLY,
+          message: `"${ticket.name}" se réserve directement auprès de l'organisateur.`,
+        });
+      }
       if (ticket.saleStartDate && now < ticket.saleStartDate) {
         throw new BadRequestException({
           code: ErrorCodes.TICKET_SALE_NOT_STARTED,

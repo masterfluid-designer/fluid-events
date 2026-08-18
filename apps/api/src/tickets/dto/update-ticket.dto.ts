@@ -3,6 +3,7 @@ import {
   IsArray,
   IsBoolean,
   IsDateString,
+  IsIn,
   IsInt,
   IsNumber,
   IsOptional,
@@ -12,6 +13,7 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
+import { TicketSaleMode } from '@saas-events/types';
 
 const HEX_RE = /^#[0-9A-Fa-f]{6}$/;
 
@@ -70,6 +72,21 @@ export class UpdateTicketDto {
   @IsString({ each: true })
   @MaxLength(80, { each: true })
   features?: string[];
+
+  /**
+   * Vente en ligne ou sur demande (2026-08-18). En `ON_REQUEST`, l'API refuse
+   * le billet au panier (`payments.service.ts`) : la page publique renvoie
+   * vers l'organisateur au lieu de proposer un incrémenteur.
+   */
+  @IsOptional()
+  @IsIn(Object.values(TicketSaleMode))
+  saleMode?: TicketSaleMode;
+
+  /** Pastille de qualification d'une formule sur demande. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  requestBadge?: string;
 
   @IsOptional()
   @IsBoolean()
