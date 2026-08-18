@@ -57,6 +57,7 @@ export function EventHero({
   ticketsAnchorId,
   scheduleAnchorId,
   stat,
+  socialProof,
 }: {
   title: string;
   /** Mot du titre à passer en couleur d'accent — choisi, jamais deviné. */
@@ -72,6 +73,13 @@ export function EventHero({
   ticketsAnchorId?: string;
   scheduleAnchorId?: string;
   stat?: { value: string; label: string } | null;
+  /**
+   * Preuve sociale sous les boutons — « Rejoint par +40 créateurs lors de la
+   * dernière session » (décision produit 2026-08-18). Une phrase, pas de
+   * portraits : le chiffre porte la crédibilité, et des visages inventés ou
+   * pris ailleurs n'auraient rien prouvé.
+   */
+  socialProof?: string | null;
 }) {
   const media = mediaUrl || null;
   const mediaIsVideo = isVideoUrl(media);
@@ -158,6 +166,10 @@ export function EventHero({
               </a>
             )}
           </div>
+
+          {socialProof?.trim() && (
+            <p className="mt-5 text-sm text-white/75">{socialProof.trim()}</p>
+          )}
 
           {stat && (
             <div className="mt-10 w-fit rounded-2xl border border-white/20 bg-white/10 px-5 py-3.5 backdrop-blur-md">

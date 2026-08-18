@@ -68,9 +68,13 @@ export class BuilderService {
 
     const parsed = SaveBlocksDto.safeParse(body);
     if (!parsed.success) {
+      // On remonte le premier message de Zod plutôt qu'un « structure
+      // invalide » opaque : la règle d'unicité nomme le bloc fautif, et sans
+      // ça l'organisateur n'a aucun moyen de savoir quoi corriger.
+      const premier = parsed.error.issues[0]?.message;
       throw new BadRequestException({
         code: ErrorCodes.BUILDER_SCHEMA_INVALID,
-        message: 'Structure de blocs invalide.',
+        message: premier ? `Structure de blocs invalide — ${premier}` : 'Structure de blocs invalide.',
         issues: parsed.error.issues,
       });
     }

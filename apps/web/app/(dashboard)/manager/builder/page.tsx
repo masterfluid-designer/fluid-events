@@ -31,6 +31,7 @@ import {
   MapPin,
   Plus,
   Palette,
+  Check,
 } from 'lucide-react';
 import type { Block, BlockType, EventTheme, TestimonialEntry, TimelineEntry } from '@saas-events/types';
 import {
@@ -308,6 +309,40 @@ export default function EventBuilderPage() {
     insertBlockAt(type, blocks.length);
   }
 
+  /**
+   * Clic sur un bloc de la palette (décision produit 2026-08-18).
+   *
+   * Pour un bloc unique par page, le clic BASCULE : posé, un second clic le
+   * retire. Auparavant le bouton devenait inerte, ce qui n'apprenait rien et
+   * obligeait à retrouver le bloc dans l'aperçu pour le supprimer.
+   *
+   * Pour les blocs à contenu propre (text, image, video, html, timeline,
+   * testimonials), le clic ajoute toujours : en vouloir plusieurs est
+   * légitime, et « basculer » n'y voudrait rien dire — lequel retirerait-on ?
+   *
+   * Sans danger : les blocs restent en état local jusqu'au clic sur
+   * « Enregistrer », un retrait involontaire se défait en rechargeant.
+   */
+  function toggleBlockType(type: BlockType) {
+    const placed = SINGLETON_BLOCK_TYPES.has(type)
+      ? blocks.filter((b) => b.type === type)
+      : [];
+    if (placed.length === 0) {
+      addBlock(type);
+      return;
+    }
+    // TOUS les exemplaires partent, pas seulement le premier : une page
+    // construite avant la règle d'unicité peut en compter six, et il faudrait
+    // sinon six clics — sachant qu'aucun enregistrement ne passe tant qu'il en
+    // reste plus d'un. Un clic pour nettoyer, un second pour reposer un bloc
+    // neuf.
+    const doomed = new Set(placed.map((b) => b.id));
+    setBlocks((prev) =>
+      prev.filter((b) => !doomed.has(b.id)).map((b, i) => ({ ...b, order: i })),
+    );
+    setSelectedId((current) => (current && doomed.has(current) ? null : current));
+  }
+
   /** Déplace un bloc existant (glissé) vers l'index cible parmi les blocs triés. */
   function moveBlockToIndex(id: string, targetIndex: number) {
     setBlocks((prev) => {
@@ -501,22 +536,31 @@ export default function EventBuilderPage() {
                       <button
                         key={b.type}
                         type="button"
-                        disabled={alreadyPlaced}
+                        aria-pressed={alreadyPlaced}
+                        // Un bloc déjà posé ne se glisse plus : le glisser
+                        // n'aurait de sens que pour en ajouter un second.
                         draggable={!alreadyPlaced}
-                        title={alreadyPlaced ? 'Déjà ajouté — contenu unique par événement' : undefined}
+                        title={
+                          alreadyPlaced
+                            ? 'Sur la page — cliquez pour le retirer'
+                            : 'Cliquez ou glissez pour ajouter'
+                        }
                         onDragStart={(e) => {
                           e.dataTransfer.setData('application/x-block-type', b.type);
                           e.dataTransfer.effectAllowed = 'copy';
                         }}
-                        onClick={() => !alreadyPlaced && addBlock(b.type)}
-                        className={`flex items-center gap-2.5 rounded-lg border border-border px-2.5 py-2 text-left text-sm font-medium ${
+                        onClick={() => toggleBlockType(b.type)}
+                        className={`flex items-center gap-2.5 rounded-lg border px-2.5 py-2 text-left text-sm font-medium transition-colors ${
                           alreadyPlaced
-                            ? 'cursor-not-allowed opacity-40'
-                            : 'cursor-grab hover:bg-accent active:cursor-grabbing'
+                            ? 'border-primary bg-primary/10 text-primary'
+                            : 'cursor-grab border-border hover:bg-accent active:cursor-grabbing'
                         }`}
                       >
                         <b.icon className="size-4" />
-                        {b.label}
+                        <span className="min-w-0 flex-1 truncate">{b.label}</span>
+                        {alreadyPlaced && (
+                          <Check className="size-3.5 shrink-0" aria-hidden="true" />
+                        )}
                       </button>
                     );
                   })}
@@ -866,6 +910,24 @@ export default function EventBuilderPage() {
                     <p className="mt-1.5 text-[11px] text-muted-foreground">
                       Ce mot du titre prend la couleur d&apos;accent de votre thème. Laissez vide
                       pour un titre d&apos;une seule couleur.
+                    </p>
+                  </div>
+                  {/* Preuve sociale (2026-08-18) : une phrase sous les boutons,
+                      sans portraits — le chiffre porte la crédibilité, des
+                      visages inventés ne prouveraient rien. */}
+                  <div>
+                    <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                      Phrase de réassurance (optionnel)
+                    </label>
+                    <Input
+                      placeholder="Rejoint par +40 créateurs lors de la dernière session"
+                      value={(selected.props.socialProof as string) ?? ''}
+                      onChange={(e) => updateSelectedProps({ socialProof: e.target.value })}
+                    />
+                    <p className="mt-1.5 text-[11px] text-muted-foreground">
+                      Affichée sous les boutons du hero. Annoncez ce qui rassure : un nombre de
+                      participants passés, une édition précédente. Laissez vide pour ne rien
+                      afficher.
                     </p>
                   </div>
                   <TextAlignPicker
