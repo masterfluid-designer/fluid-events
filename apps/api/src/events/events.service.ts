@@ -185,8 +185,25 @@ export class EventsService {
     const normalized = nextDays.map((d, index) => ({
       label: d.label,
       date: new Date(`${d.date.slice(0, 10)}T00:00:00.000Z`),
+      // Lieu et horaires par journée (2026-08-18). Une chaîne vide vaut
+      // « pas de valeur » et non « valeur vide » : le formulaire envoie
+      // toujours les trois champs, c'est ici qu'on décide qu'ils sont absents.
+      location: d.location?.trim() || null,
+      startTime: d.startTime || null,
+      endTime: d.endTime || null,
       order: d.order ?? index,
     }));
+
+    // Une journée qui finirait avant de commencer n'est pas une journée.
+    const backwards = normalized.find(
+      (d) => d.startTime && d.endTime && d.endTime <= d.startTime,
+    );
+    if (backwards) {
+      throw new BadRequestException({
+        code: ErrorCodes.EVENT_DAYS_INVALID,
+        message: `« ${backwards.label} » : l'heure de fin doit suivre l'heure de début.`,
+      });
+    }
     const keys = new Set(normalized.map((d) => d.date.toISOString()));
     if (keys.size !== normalized.length) {
       throw new BadRequestException({
@@ -227,7 +244,13 @@ export class EventsService {
         await tx.eventDay.upsert({
           where: { eventId_date: { eventId, date: day.date } },
           create: { eventId, ...day },
-          update: { label: day.label, order: day.order },
+          update: {
+            label: day.label,
+            location: day.location,
+            startTime: day.startTime,
+            endTime: day.endTime,
+            order: day.order,
+          },
         });
       }
     });
@@ -264,6 +287,10 @@ export class EventsService {
           where: { isActive: true },
           orderBy: { price: 'asc' },
         },
+        // Journées déclarées (2026-08-18) : elles portent le lieu et les
+        // horaires propres à chaque jour. Sans elles ici, l'organisateur
+        // pouvait saisir un lieu par journée qu'aucun acheteur ne verrait.
+        days: { orderBy: { order: 'asc' } },
         // Blocs Builder (CDC §11) — le frontend retombe sur le template
         // statique si `blocks` est vide (page jamais construite). `theme`
         // porte la personnalisation (police/couleurs) de l'organisateur.

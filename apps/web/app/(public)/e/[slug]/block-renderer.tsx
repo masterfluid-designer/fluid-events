@@ -7,7 +7,7 @@ import { EventFaq } from './event-faq';
 import type { Block, FaqEntry, MediaEntry, ScheduleEntry, SpeakerEntry, TestimonialEntry, TimelineEntry } from '@saas-events/types';
 import { Countdown } from './countdown';
 import { SponsorsCarousel } from './sponsors-carousel';
-import { TicketSelector, type PublicTicket } from './ticket-selector';
+import { TicketSelector, type PublicEventDay, type PublicTicket } from './ticket-selector';
 import { SpeakersGrid } from './speakers-grid';
 import { TimelineStrip } from './timeline-strip';
 import { SectionShell, SectionHeading } from './section-shell';
@@ -132,6 +132,7 @@ export function BlockRenderer({
   slug,
   eventConfig,
   navItems,
+  eventDays = [],
 }: {
   blocks: Block[];
   tickets: PublicTicket[];
@@ -139,6 +140,7 @@ export function BlockRenderer({
   slug: string;
   eventConfig: EventConfigData;
   navItems: NavItem[];
+  eventDays?: PublicEventDay[];
 }) {
   const sorted = [...blocks].sort((a, b) => a.order - b.order);
 
@@ -157,6 +159,7 @@ export function BlockRenderer({
             slug={slug}
             eventConfig={eventConfig}
             navItems={navItems}
+            eventDays={eventDays}
           />
         </div>
       ))}
@@ -171,11 +174,13 @@ function BlockItem({
   slug,
   eventConfig,
   navItems,
+  eventDays,
 }: {
   block: Block;
   tickets: PublicTicket[];
   isPublished: boolean;
   slug: string;
+  eventDays: PublicEventDay[];
   eventConfig: EventConfigData;
   navItems: NavItem[];
 }) {
@@ -242,6 +247,7 @@ function BlockItem({
         slug={slug}
         isPublished={isPublished}
         contactPhone={eventConfig.contactPhone}
+        eventDays={eventDays}
       />
     );
   }

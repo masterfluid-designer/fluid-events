@@ -520,6 +520,15 @@ model EventDay {
   /// Date civile de la journée, sans heure : le scanner compare une date du
   /// calendrier, pas un instant.
   date    DateTime @db.Date
+  /// Lieu propre à cette journée (décision produit 2026-08-18) : un festival
+  /// change souvent de scène d'un jour à l'autre. Vide = le lieu de
+  /// l'événement s'applique — on ne duplique pas ce qui ne varie pas.
+  location  String?
+  /// Heures civiles « HH:mm », comme la date juste au-dessus est une date
+  /// civile : la journée se tient à 20h SUR PLACE, pas à un instant UTC. Un
+  /// DateTime rouvrirait l'ambiguïté de fuseau que @db.Date ferme ici.
+  startTime String?
+  endTime   String?
   order   Int      @default(0)
 
   tickets Ticket[]

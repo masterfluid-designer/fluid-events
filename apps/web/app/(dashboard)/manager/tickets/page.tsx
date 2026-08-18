@@ -4,7 +4,7 @@ import { TicketPolicy, TicketSaleMode } from '@saas-events/types';
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { CalendarDays, Eye, EyeOff, Plus, Settings2, Trash2, X } from 'lucide-react';
+import { CalendarDays, Eye, EyeOff, MapPin, Plus, Settings2, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
@@ -40,6 +40,7 @@ interface TicketRow {
   saleEndDate: string | null;
   designImageUrl: string | null;
   designBgColor: string | null;
+  designTextColor: string | null;
   // Rang d'affichage et bénéfices inclus (2026-08-18) — édités ici, rendus
   // par la page publique.
   category: string | null;
@@ -56,7 +57,16 @@ interface EventWithTickets {
   // Régime et journées (2026-08-16) — pilotent le champ « journée » du
   // formulaire : radio contraint en PER_DAY, texte libre sinon.
   ticketPolicy: TicketPolicy;
-  days: Array<{ id: string; label: string; date: string }>;
+  days: Array<{
+    id: string;
+    label: string;
+    date: string;
+    // Lieu et horaires propres à la journée (2026-08-18) — affichés sur la
+    // carte de journée à la création du billet.
+    location: string | null;
+    startTime: string | null;
+    endTime: string | null;
+  }>;
 }
 
 /**
@@ -118,6 +128,9 @@ export default function ManagerTicketsPage() {
   const [eventDayId, setEventDayId] = useState<string | null>(null);
   const [designImageUrl, setDesignImageUrl] = useState<string | undefined>(undefined);
   const [designBgColor, setDesignBgColor] = useState<string | undefined>(undefined);
+  // Pendant de designBgColor (2026-08-18) : le fond était réglable sans son
+  // encre, ce qui permettait déjà de fabriquer un billet illisible.
+  const [designTextColor, setDesignTextColor] = useState<string | undefined>(undefined);
 
   const { data: event, isLoading, isError } = useQuery({
     queryKey: ['manager-event'],
@@ -147,7 +160,17 @@ export default function ManagerTicketsPage() {
   useEffect(() => {
     if (!event || regimeLoaded) return;
     setPolicy(event.ticketPolicy ?? TicketPolicy.SINGLE_DAY);
-    setDays((event.days ?? []).map((d) => ({ label: d.label, date: d.date.slice(0, 10) })));
+    setDays(
+      (event.days ?? []).map((d) => ({
+        label: d.label,
+        date: d.date.slice(0, 10),
+        // Sans ces trois lignes, ré-enregistrer les journées depuis cet écran
+        // effacerait le lieu et les horaires saisis dans le Builder.
+        location: d.location ?? '',
+        startTime: d.startTime ?? '',
+        endTime: d.endTime ?? '',
+      })),
+    );
     setRegimeLoaded(true);
   }, [event, regimeLoaded]);
 
@@ -189,6 +212,7 @@ export default function ManagerTicketsPage() {
         saleEndDate: toIsoOrNull(saleEndDate),
         designImageUrl,
         designBgColor,
+        designTextColor,
         // Figé dès la première vente (décision produit 2026-08-18) : le champ
         // est en lecture seule, et on ne le renvoie pas — le serveur refuse.
         maxPerOrder:
@@ -266,6 +290,7 @@ export default function ManagerTicketsPage() {
         eventDayId: eventDayId ?? undefined,
         designImageUrl,
         designBgColor,
+        designTextColor,
       }),
     onSuccess: () => {
       toast.success('Billet créé');
@@ -286,6 +311,8 @@ export default function ManagerTicketsPage() {
       setDayLabel('');
       setDesignImageUrl(undefined);
       setDesignBgColor(undefined);
+    setDesignTextColor(undefined);
+      setDesignTextColor(undefined);
       queryClient.invalidateQueries({ queryKey: ['manager-event'] });
     },
     onError: (err) => {
@@ -334,6 +361,7 @@ export default function ManagerTicketsPage() {
     setEventDayId(null);
     setDesignImageUrl(undefined);
     setDesignBgColor(undefined);
+    setDesignTextColor(undefined);
   }
 
   function startEdit(t: TicketRow) {
@@ -353,6 +381,7 @@ export default function ManagerTicketsPage() {
     setSaleEndDate(toLocalInput(t.saleEndDate));
     setDesignImageUrl(t.designImageUrl ?? undefined);
     setDesignBgColor(t.designBgColor ?? undefined);
+    setDesignTextColor(t.designTextColor ?? undefined);
     setShowForm(true);
   }
 
@@ -722,6 +751,17 @@ export default function ManagerTicketsPage() {
                             {new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long' }).format(
                               new Date(d.date),
                             )}
+                            {d.startTime && ` · ${d.startTime}${d.endTime ? `–${d.endTime}` : ''}`}
+                          </span>
+                          {/* Choisir la journée, c'est choisir un lieu et une
+                              heure (2026-08-18). Les afficher ici évite au
+                              manager d'aller les vérifier ailleurs — et rend
+                              visible la journée dont le lieu manque encore. */}
+                          <span className="mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground">
+                            <MapPin className="size-3 shrink-0" />
+                            <span className="truncate">
+                              {d.location || 'Lieu de l’événement'}
+                            </span>
                           </span>
                         </span>
                       </label>
@@ -748,7 +788,7 @@ export default function ManagerTicketsPage() {
                 className="rounded-md border border-input bg-background px-3 py-2 text-sm"
               />
             )}
-            <div className="md:col-span-4 grid gap-3 md:grid-cols-2">
+            <div className="md:col-span-4 grid gap-3 md:grid-cols-3">
               <ImageUploadField
                 label="Image de design du billet (optionnel)"
                 value={designImageUrl}
@@ -758,6 +798,13 @@ export default function ManagerTicketsPage() {
                 label="Couleur de fond du billet (optionnel)"
                 value={designBgColor}
                 onChange={setDesignBgColor}
+              />
+              {/* Le fond sans l'encre laissait fabriquer un billet illisible
+                  (texte sombre sur fond sombre) sans aucun recours. */}
+              <ColorField
+                label="Couleur du texte du billet (optionnel)"
+                value={designTextColor}
+                onChange={setDesignTextColor}
               />
             </div>
             <div className="md:col-span-4 flex flex-wrap items-center gap-3">

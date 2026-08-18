@@ -1,4 +1,16 @@
-import { IsDateString, IsInt, IsOptional, IsString, IsUrl, MaxLength, Min } from 'class-validator';
+import {
+  IsDateString,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUrl,
+  Matches,
+  MaxLength,
+  Min,
+} from 'class-validator';
+
+/** Heure civile « HH:mm » — voir EventDay.startTime dans le schéma. */
+const HHMM_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 /**
  * Sous-DTOs — contenu centralisé de l'événement (décision produit
@@ -93,6 +105,25 @@ export class EventDayDto {
   /** Date civile (YYYY-MM-DD) — le scanner compare un jour du calendrier. */
   @IsDateString()
   date!: string;
+
+  /**
+   * Lieu et horaires PROPRES à cette journée (décision produit 2026-08-18).
+   * Facultatifs : vide, le lieu de l'événement s'applique. `null` autorisé —
+   * les journées sont réécrites en bloc à chaque enregistrement, une valeur
+   * retirée doit donc pouvoir revenir à vide.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  location?: string | null;
+
+  @IsOptional()
+  @Matches(HHMM_RE, { message: "L'heure de début doit être au format HH:mm." })
+  startTime?: string | null;
+
+  @IsOptional()
+  @Matches(HHMM_RE, { message: "L'heure de fin doit être au format HH:mm." })
+  endTime?: string | null;
 
   @IsOptional()
   @IsInt()

@@ -52,6 +52,13 @@ export interface PublicTicket {
   saleStartDate?: string | null;
   saleEndDate?: string | null;
   dayLabel?: string | null;
+  /**
+   * Journée RÉELLEMENT rattachée au billet en régime « billet par jour ».
+   * `dayLabel` n'est qu'un texte décoratif hérité, et le formulaire ne
+   * l'envoie plus dans ce régime : se fier à lui seul faisait disparaître
+   * tous les onglets d'un événement multi-jours (2026-08-18).
+   */
+  eventDayId?: string | null;
   /** Rang d'affichage (« Pass individuel », « Pass groupe »…). */
   category?: string | null;
   /** Bénéfices inclus, affichés en puces cochées (2026-08-18). */
@@ -173,17 +180,45 @@ function CheckoutStepper() {
   );
 }
 
+/**
+ * Journée déclarée par l'organisateur, avec son lieu et ses horaires propres
+ * (2026-08-18). Les onglets restent construits sur `Ticket.dayLabel` — c'est
+ * lui qui regroupe les billets — et l'on retrouve la journée par son libellé.
+ */
+export interface PublicEventDay {
+  id: string;
+  label: string;
+  location: string | null;
+  startTime: string | null;
+  endTime: string | null;
+}
+
+/**
+ * Sous quel onglet ranger ce billet. La journée rattachée fait foi ; à défaut
+ * on retombe sur `dayLabel`, qui reste le seul repère des événements créés
+ * avant l'existence des journées.
+ */
+function dayKeyOf(ticket: PublicTicket, eventDays: PublicEventDay[]): string | null {
+  if (ticket.eventDayId) {
+    const day = eventDays.find((d) => d.id === ticket.eventDayId);
+    if (day) return day.label;
+  }
+  return ticket.dayLabel || null;
+}
+
 export function TicketSelector({
   tickets,
   slug,
   isPublished,
   contactPhone,
+  eventDays = [],
 }: {
   tickets: PublicTicket[];
   slug: string;
   isPublished: boolean;
   /** Numéro de l'événement — seul canal des formules sur demande. */
   contactPhone?: string | null;
+  eventDays?: PublicEventDay[];
 }) {
   // wa.me attend le numéro international SANS « + » ni séparateurs. Le champ
   // est validé en E.164 à l'écriture, mais on nettoie quand même : un espace
@@ -192,10 +227,16 @@ export function TicketSelector({
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [authPending, setAuthPending] = useState(false);
 
-  const days = useMemo(
-    () => Array.from(new Set(tickets.map((t) => t.dayLabel).filter((d): d is string => Boolean(d)))),
-    [tickets],
-  );
+  // Les journées déclarées donnent l'ORDRE (elles sont triées côté serveur) ;
+  // les libellés libres des événements plus anciens viennent ensuite.
+  const days = useMemo(() => {
+    const used = new Set(
+      tickets.map((t) => dayKeyOf(t, eventDays)).filter((d): d is string => Boolean(d)),
+    );
+    const ordered = eventDays.map((d) => d.label).filter((label) => used.has(label));
+    const rest = [...used].filter((label) => !ordered.includes(label));
+    return [...ordered, ...rest];
+  }, [tickets, eventDays]);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const activeDay = selectedDay ?? days[0] ?? null;
   // Un billet SANS journée n'appartient à aucun onglet — il ne doit pas pour
@@ -205,7 +246,12 @@ export function TicketSelector({
   // signal à l'organisateur). Ces billets restent donc visibles sous chaque
   // onglet : mieux vaut les montrer partout que les perdre.
   const visibleTickets =
-    days.length > 0 ? tickets.filter((t) => !t.dayLabel || t.dayLabel === activeDay) : tickets;
+    days.length > 0
+      ? tickets.filter((t) => {
+          const key = dayKeyOf(t, eventDays);
+          return !key || key === activeDay;
+        })
+      : tickets;
 
   /**
    * Une journée est épuisée quand TOUS ses billets datés le sont. Les billets
@@ -216,11 +262,11 @@ export function TicketSelector({
   const soldOutDays = useMemo(() => {
     const result = new Set<string>();
     for (const day of days) {
-      const ofDay = tickets.filter((t) => t.dayLabel === day && !isOnRequest(t));
+      const ofDay = tickets.filter((t) => dayKeyOf(t, eventDays) === day && !isOnRequest(t));
       if (ofDay.length > 0 && ofDay.every(isSoldOut)) result.add(day);
     }
     return result;
-  }, [days, tickets]);
+  }, [days, tickets, eventDays]);
 
   // Le bandeau d'épuisement annonce ce que le visiteur a SOUS LES YEUX : la
   // journée ouverte s'il y a des onglets, sinon la billetterie entière.
@@ -412,6 +458,26 @@ export function TicketSelector({
               })}
             </div>
           )}
+
+          {/* Lieu et horaires de la journée ouverte (2026-08-18). Un festival
+              change de scène d'un jour à l'autre : l'acheteur doit le lire
+              AVANT de choisir son billet, pas sur son billet après coup. */}
+          {(() => {
+            const day = activeDay ? eventDays.find((d) => d.label === activeDay) : undefined;
+            if (!day || (!day.location && !day.startTime)) return null;
+            return (
+              <p className="mb-6 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-waterloo dark:text-manatee">
+                {day.location && <span className="font-semibold">{day.location}</span>}
+                {day.location && day.startTime && <span aria-hidden="true">·</span>}
+                {day.startTime && (
+                  <span>
+                    {day.startTime}
+                    {day.endTime ? ` – ${day.endTime}` : ''}
+                  </span>
+                )}
+              </p>
+            );
+          })()}
 
           {/*
             Bandeau d'épuisement — niveau intermédiaire entre l'onglet et la

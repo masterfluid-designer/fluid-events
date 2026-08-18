@@ -28,6 +28,14 @@ export interface EventDayDraft {
   label: string;
   /** Format YYYY-MM-DD — ce que rend un <input type="date">. */
   date: string;
+  /**
+   * Lieu et horaires propres à la journée (2026-08-18). Un festival change
+   * souvent de scène d'un jour à l'autre ; laissés vides, le lieu de
+   * l'événement s'applique. Heures civiles « HH:mm ».
+   */
+  location?: string;
+  startTime?: string;
+  endTime?: string;
 }
 
 const POLICY_CARDS = [
@@ -74,7 +82,10 @@ export function TicketingPanel({
   const multiDay = policy !== TicketPolicy.SINGLE_DAY;
 
   function addDay() {
-    onDaysChange([...days, { label: `Jour ${days.length + 1}`, date: '' }]);
+    onDaysChange([
+      ...days,
+      { label: `Jour ${days.length + 1}`, date: '', location: '', startTime: '', endTime: '' },
+    ]);
   }
 
   function updateDay(index: number, patch: Partial<EventDayDraft>) {
@@ -168,28 +179,61 @@ export function TicketingPanel({
             // Index en clé : les journées n'ont pas d'identifiant tant qu'elles
             // ne sont pas enregistrées, et la liste est réordonnée uniquement
             // par ajout/suppression en fin — pas de réordonnancement interne.
-            <div key={index} className="grid grid-cols-[1fr_auto_auto] items-center gap-2">
-              <Input
-                value={day.label}
-                onChange={(e) => updateDay(index, { label: e.target.value })}
-                placeholder={`Jour ${index + 1}`}
-                aria-label={`Libellé de la journée ${index + 1}`}
-              />
-              <Input
-                type="date"
-                value={day.date}
-                onChange={(e) => updateDay(index, { date: e.target.value })}
-                aria-label={`Date de la journée ${index + 1}`}
-                className="w-[9.5rem]"
-              />
-              <button
-                type="button"
-                onClick={() => removeDay(index)}
-                aria-label={`Supprimer la journée ${index + 1}`}
-                className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-              >
-                <Trash2 className="size-3.5" />
-              </button>
+            <div key={index} className="rounded-lg border border-border p-2.5">
+              <div className="grid grid-cols-[1fr_auto_auto] items-center gap-2">
+                <Input
+                  value={day.label}
+                  onChange={(e) => updateDay(index, { label: e.target.value })}
+                  placeholder={`Jour ${index + 1}`}
+                  aria-label={`Libellé de la journée ${index + 1}`}
+                />
+                <Input
+                  type="date"
+                  value={day.date}
+                  onChange={(e) => updateDay(index, { date: e.target.value })}
+                  aria-label={`Date de la journée ${index + 1}`}
+                  className="w-[9.5rem]"
+                />
+                <button
+                  type="button"
+                  onClick={() => removeDay(index)}
+                  aria-label={`Supprimer la journée ${index + 1}`}
+                  className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                >
+                  <Trash2 className="size-3.5" />
+                </button>
+              </div>
+              {/* Lieu et horaires de CETTE journée (2026-08-18) : c'est ce que
+                  le billet reprendra, et ce que l'acheteur lira sur la page
+                  publique. Laissés vides, le lieu de l'événement s'applique —
+                  on ne fait pas ressaisir ce qui ne change pas. */}
+              <div className="mt-2 grid grid-cols-[1fr_auto_auto] items-center gap-2">
+                <Input
+                  value={day.location ?? ''}
+                  onChange={(e) => updateDay(index, { location: e.target.value })}
+                  placeholder="Lieu de cette journée (optionnel)"
+                  aria-label={`Lieu de la journée ${index + 1}`}
+                />
+                <Input
+                  type="time"
+                  value={day.startTime ?? ''}
+                  onChange={(e) => updateDay(index, { startTime: e.target.value })}
+                  aria-label={`Heure de début de la journée ${index + 1}`}
+                  className="w-[7rem]"
+                />
+                <Input
+                  type="time"
+                  value={day.endTime ?? ''}
+                  onChange={(e) => updateDay(index, { endTime: e.target.value })}
+                  aria-label={`Heure de fin de la journée ${index + 1}`}
+                  className="w-[7rem]"
+                />
+              </div>
+              {day.startTime && day.endTime && day.endTime <= day.startTime && (
+                <p className="mt-1.5 text-[11px] text-amber-600 dark:text-amber-500">
+                  L&apos;heure de fin doit suivre l&apos;heure de début.
+                </p>
+              )}
             </div>
           ))}
 

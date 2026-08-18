@@ -509,6 +509,54 @@ l'événement.
 FAQ parcourue et question ouverte en clair comme en sombre, hero et carte
 recapturés après correction.
 
+### Chaque journée avec son lieu et ses horaires (2026-08-18)
+
+Demande produit : sur un événement multi-jours, chaque journée se tient
+souvent ailleurs. `EventDay` gagne `location`, `startTime` et `endTime`.
+
+- **Heures civiles « HH:mm » en `String`**, pas en `DateTime` : `date` est
+  déjà `@db.Date` pour que le scanner compare un jour du calendrier et non un
+  instant. Un `DateTime` aurait rouvert exactement l’ambiguïté de fuseau que
+  ce choix ferme. La journée commence à 20h SUR PLACE.
+- **Lieu facultatif** : vide, celui de l’événement s’applique — on ne fait pas
+  ressaisir ce qui ne change pas.
+- **Le piège de l’`upsert`** : il ne mettait à jour que `label` et `order`. Sans
+  y ajouter les trois champs, le lieu aurait été saisissable une fois puis figé
+  — le défaut même corrigé toute la journée. Idem côté web : `setDays()` ne
+  relisait que `label`/`date`, donc ré-enregistrer depuis l’écran Billetterie
+  aurait effacé ce qui venait d’être saisi.
+- **Garde de cohérence** : une journée qui finit avant de commencer est
+  refusée (400 `EVENT_DAYS_INVALID`), et signalée dans le panneau avant l’envoi.
+
+**Un bug de fond découvert en vérifiant** : la page publique construisait ses
+onglets de journée sur `Ticket.dayLabel`, le champ décoratif hérité. Or en
+régime `PER_DAY` le formulaire ne l’envoie plus — il rattache le billet par
+`eventDayId`. Conséquence : **un événement multi-jours n’affichait AUCUN onglet
+de journée**, tous ses billets étant fondus dans une seule liste. Vérifié sur
+des billets réels : `dayLabel` NULL, `eventDayId` renseigné. Le regroupement
+passe désormais par `dayKeyOf()` — la journée rattachée fait foi, `dayLabel`
+ne sert plus que de repli pour les événements créés avant les journées.
+
+Les journées manquaient aussi à `getPublicEventBySlug` : sans elles, le lieu
+par journée aurait été un champ que personne ne voit.
+
+**Vérifié en conditions réelles** (`conference-tech-2026`, deux journées, deux
+lieux) : saisie → base ; modification du lieu et des horaires → persistée
+(l’`upsert` corrigé) ; lieu vidé → `NULL` ; horaire inversé → 400. Panneau des
+journées pré-rempli des cinq champs, cartes de journée du formulaire de billet
+affichant date, horaires et lieu, et page publique basculant
+« Palais des Congrès · 09:00–18:00 » ↔ « Campus INP-HB · 10:00–17:30 » selon
+l’onglet. 483 tests API au vert, typechecks web et API propres.
+
+### `designTextColor` exposé (2026-08-18)
+
+Dernier champ mort de l’audit du 2026-08-17 : la couleur de FOND du billet
+était réglable, pas celle du texte — on pouvait donc déjà fabriquer un billet
+illisible sans aucun recours. Les deux sélecteurs sont désormais côte à côte.
+
+`currency` reste volontairement non exposé : le panier somme sans conversion,
+le multi-devises est hors périmètre V1.
+
 ## 4. Priorités immédiates (à date)
 
 | Module | Priorité | Référence CDC |

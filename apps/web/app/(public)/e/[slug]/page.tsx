@@ -58,6 +58,9 @@ interface EventDetail {
     saleStartDate: string | null;
     saleEndDate: string | null;
     dayLabel: string | null;
+    // Journée rattachée — c'est elle qui regroupe les billets d'un événement
+    // multi-jours, `dayLabel` n'étant qu'un texte hérité (2026-08-18).
+    eventDayId: string | null;
     // Rang d'affichage et bénéfices inclus (2026-08-18). `category` existait
     // en base depuis l'origine mais n'avait jamais atteint la page publique.
     category: string | null;
@@ -66,6 +69,15 @@ interface EventDetail {
     // panier — l'API la refuse à `POST /api/payments/init`.
     saleMode: 'ONLINE' | 'ON_REQUEST';
     requestBadge: string | null;
+  }>;
+  // Journées déclarées, avec leur lieu et leurs horaires propres (2026-08-18).
+  days: Array<{
+    id: string;
+    label: string;
+    date: string;
+    location: string | null;
+    startTime: string | null;
+    endTime: string | null;
   }>;
   eventPage: { blocks: Block[]; theme: EventTheme | null } | null;
 }
@@ -186,6 +198,7 @@ export default async function EventPage({
           slug={slug}
           eventConfig={eventConfig}
           navItems={navItems}
+          eventDays={event.days}
         />
       ) : (
         <>
@@ -208,6 +221,7 @@ export default async function EventPage({
             slug={slug}
             isPublished={isPublished}
             contactPhone={event.contactPhone}
+            eventDays={event.days}
           />
         </>
       )}
