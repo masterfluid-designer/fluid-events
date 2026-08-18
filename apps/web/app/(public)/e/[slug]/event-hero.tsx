@@ -89,11 +89,20 @@ export function EventHero({
    */
   lead?: string | null;
 }) {
-  const media = mediaUrl || null;
+  /**
+   * L'affiche de droite retombe sur l'IMAGE OFFICIELLE de l'événement quand
+   * aucun média dédié n'est posé (2026-08-18).
+   *
+   * Auparavant seul `mediaUrl` alimentait cette colonne : un organisateur qui
+   * avait pourtant chargé son affiche voyait un cadre vide, alors que la même
+   * image servait déjà de fond. Le média dédié reste prioritaire — c'est lui
+   * qu'on choisit pour mettre une vidéo à cet endroit précis.
+   */
+  const media = mediaUrl || imageUrl || null;
   const mediaIsVideo = isVideoUrl(media);
-  // Le fond retombe sur l'image de couverture quand aucun média d'affiche
-  // n'est posé — comportement d'avant cette refonte.
-  const backgroundImage = mediaIsVideo ? null : media || imageUrl || null;
+  // Le fond reprend le MÊME visuel : une image floutée et assombrie derrière
+  // le texte, une vidéo jouée en cover muet.
+  const backgroundImage = mediaIsVideo ? null : media;
 
   return (
     <section id="top" className="relative isolate overflow-hidden">
