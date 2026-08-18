@@ -40,6 +40,10 @@ interface TicketRow {
   saleEndDate: string | null;
   designImageUrl: string | null;
   designBgColor: string | null;
+  // Rang d'affichage et bénéfices inclus (2026-08-18) — édités ici, rendus
+  // par la page publique.
+  category: string | null;
+  features: string[];
   // Journée ouverte par ce billet en régime PER_DAY (2026-08-16).
   eventDayId: string | null;
 }
@@ -70,6 +74,19 @@ function toIsoOrNull(local: string): string | null {
   return local ? new Date(local).toISOString() : null;
 }
 
+/**
+ * Zone de texte multiligne → tableau de bénéfices. Les lignes vides sont
+ * écartées ici pour ne pas envoyer de bruit au serveur, mais c'est lui qui
+ * fait autorité : il renettoie et tronque de son côté (RULES.md — le client
+ * n'est jamais la garantie).
+ */
+function splitFeatures(raw: string): string[] {
+  return raw
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+}
+
 export default function ManagerTicketsPage() {
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
@@ -78,6 +95,12 @@ export default function ManagerTicketsPage() {
   const [stock, setStock] = useState('');
   const [maxPerOrder, setMaxPerOrder] = useState('');
   const [description, setDescription] = useState('');
+  // Rang et bénéfices (2026-08-18) — voir la page publique, qui les regroupe
+  // et les affiche en liste cochée. `features` est tenu comme UN texte
+  // multiligne, pas comme un tableau : c'est ce que l'organisateur édite, et
+  // convertir à chaque frappe ferait sauter le curseur sur une ligne vide.
+  const [category, setCategory] = useState('');
+  const [features, setFeatures] = useState('');
   const [compareAtPrice, setCompareAtPrice] = useState('');
   const [promoEndsAt, setPromoEndsAt] = useState('');
   // Fenêtre de vente (2026-08-18) : le serveur la fait déjà respecter
@@ -146,6 +169,10 @@ export default function ManagerTicketsPage() {
         name,
         price: Number(price),
         description: description || undefined,
+        category: category.trim(),
+        // Le formulaire ré-affiche les bénéfices : un champ vidé veut donc
+        // dire « retire-les », d'où un tableau vide plutôt qu'`undefined`.
+        features: splitFeatures(features),
         compareAtPrice: compareAtPrice ? Number(compareAtPrice) : undefined,
         // Le formulaire ré-affiche ces dates, donc une case vide veut bien
         // dire « retire-la » — d'où `null` et non `undefined`.
@@ -219,6 +246,8 @@ export default function ManagerTicketsPage() {
         // multiple, ce qui n’est presque jamais l’intention d’un organisateur.
         maxPerOrder: maxPerOrder ? Number(maxPerOrder) : 10,
         description: description || undefined,
+        category: category.trim() || undefined,
+        features: splitFeatures(features),
         compareAtPrice: compareAtPrice ? Number(compareAtPrice) : undefined,
         promoEndsAt: promoEndsAt ? new Date(promoEndsAt).toISOString() : undefined,
         saleStartDate: saleStartDate ? new Date(saleStartDate).toISOString() : undefined,
@@ -236,6 +265,8 @@ export default function ManagerTicketsPage() {
       setStock('');
       setMaxPerOrder('');
       setDescription('');
+      setCategory('');
+      setFeatures('');
       setCompareAtPrice('');
       setPromoEndsAt('');
       setSaleStartDate('');
@@ -279,6 +310,8 @@ export default function ManagerTicketsPage() {
     setStock('');
     setMaxPerOrder('');
     setDescription('');
+    setCategory('');
+    setFeatures('');
     setCompareAtPrice('');
     setPromoEndsAt('');
     setSaleStartDate('');
@@ -296,6 +329,8 @@ export default function ManagerTicketsPage() {
     setStock(String(t.stock));
     setMaxPerOrder(String(t.maxPerOrder));
     setDescription(t.description ?? '');
+    setCategory(t.category ?? '');
+    setFeatures((t.features ?? []).join('\n'));
     // Tout ce que le formulaire réémet doit être ré-affiché, sinon
     // enregistrer sans y toucher effacerait la valeur existante.
     setCompareAtPrice(t.compareAtPrice ?? '');
@@ -517,6 +552,36 @@ export default function ManagerTicketsPage() {
               onChange={(e) => setDescription(e.target.value)}
               className="rounded-md border border-input bg-background px-3 py-2 text-sm"
             />
+            {/* Rang d'affichage : la colonne existait en base depuis l'origine
+                mais n'était saisissable nulle part — donc jamais remplie, donc
+                invisible sur la page publique (2026-08-18). */}
+            <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+              Rang sur la page publique (optionnel)
+              <input
+                placeholder="Ex. Pass individuel"
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                className="rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
+              />
+              <span className="text-[11px]">
+                Les billets portant le même rang sont regroupés sous ce libellé.
+              </span>
+            </label>
+            <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+              Ce que le billet inclut (optionnel)
+              <textarea
+                rows={4}
+                placeholder={'Une ligne par élément\nEx. Accès Jour 1\nEx. Espace food & bar'}
+                value={features}
+                onChange={(e) => setFeatures(e.target.value)}
+                className="rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
+              />
+              <span className="text-[11px]">
+                Affiché en liste cochée sur la page publique — 12 lignes maximum, 80 caractères
+                chacune. C&apos;est ce qui permet à un acheteur de comparer deux formules d&apos;un
+                coup d&apos;œil.
+              </span>
+            </label>
             <input
               type="number"
               min="0"

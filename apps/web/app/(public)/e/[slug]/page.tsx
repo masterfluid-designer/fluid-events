@@ -57,6 +57,10 @@ interface EventDetail {
     saleStartDate: string | null;
     saleEndDate: string | null;
     dayLabel: string | null;
+    // Rang d'affichage et bénéfices inclus (2026-08-18). `category` existait
+    // en base depuis l'origine mais n'avait jamais atteint la page publique.
+    category: string | null;
+    features: string[];
   }>;
   eventPage: { blocks: Block[]; theme: EventTheme | null } | null;
 }

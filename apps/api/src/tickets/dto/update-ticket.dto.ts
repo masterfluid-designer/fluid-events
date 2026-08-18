@@ -1,4 +1,6 @@
 import {
+  ArrayMaxSize,
+  IsArray,
   IsBoolean,
   IsDateString,
   IsInt,
@@ -7,6 +9,7 @@ import {
   IsString,
   IsUrl,
   Matches,
+  MaxLength,
   Min,
 } from 'class-validator';
 
@@ -59,6 +62,14 @@ export class UpdateTicketDto {
   @IsOptional()
   @IsString()
   category?: string;
+
+  /** Voir CreateTicketDto — un tableau vide efface les bénéfices. */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(12)
+  @IsString({ each: true })
+  @MaxLength(80, { each: true })
+  features?: string[];
 
   @IsOptional()
   @IsBoolean()

@@ -382,6 +382,53 @@ describe('TicketsService', () => {
       expect((data.saleStartDate as Date).toISOString()).toBe('2026-09-01T10:00:00.000Z');
     });
 
+    // ─── Bénéfices inclus (`features`) ──────────────────────────────────────
+
+    it('updateTicket() élague les lignes vides et les blancs de bord des bénéfices', async () => {
+      prisma.ticket.findUnique.mockResolvedValue({ ...ownedTicket, stockSold: 0, maxPerOrder: 1 });
+      prisma.ticket.update.mockResolvedValue({ id: 'tk-1' });
+
+      await service.updateTicket('tk-1', 'mgr-1', {
+        features: ['  Accès Jour 1 ', '', '   ', 'Espace food & bar'],
+      } as any);
+
+      expect(prisma.ticket.update.mock.calls[0][0].data.features).toEqual([
+        'Accès Jour 1',
+        'Espace food & bar',
+      ]);
+    });
+
+    it('updateTicket() plafonne les bénéfices même si le DTO a été contourné', async () => {
+      prisma.ticket.findUnique.mockResolvedValue({ ...ownedTicket, stockSold: 0, maxPerOrder: 1 });
+      prisma.ticket.update.mockResolvedValue({ id: 'tk-1' });
+
+      await service.updateTicket('tk-1', 'mgr-1', {
+        features: [...Array(20)].map((_, i) => `Ligne ${i}`.padEnd(120, '!')),
+      } as any);
+
+      const features = prisma.ticket.update.mock.calls[0][0].data.features as string[];
+      expect(features).toHaveLength(12);
+      expect(features.every((f) => f.length <= 80)).toBe(true);
+    });
+
+    it('updateTicket() ne touche pas aux bénéfices absents du DTO', async () => {
+      prisma.ticket.findUnique.mockResolvedValue({ ...ownedTicket, stockSold: 0, maxPerOrder: 1 });
+      prisma.ticket.update.mockResolvedValue({ id: 'tk-1' });
+
+      await service.updateTicket('tk-1', 'mgr-1', { name: 'VIP Or' } as any);
+
+      expect(prisma.ticket.update.mock.calls[0][0].data.features).toBeUndefined();
+    });
+
+    it('updateTicket() efface les bénéfices avec un tableau vide', async () => {
+      prisma.ticket.findUnique.mockResolvedValue({ ...ownedTicket, stockSold: 0, maxPerOrder: 1 });
+      prisma.ticket.update.mockResolvedValue({ id: 'tk-1' });
+
+      await service.updateTicket('tk-1', 'mgr-1', { features: [] } as any);
+
+      expect(prisma.ticket.update.mock.calls[0][0].data.features).toEqual([]);
+    });
+
     it("updateTicket() refuse si le manager n'est pas propriétaire", async () => {
       prisma.ticket.findUnique.mockResolvedValue(foreignTicket);
       await expect(

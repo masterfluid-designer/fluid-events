@@ -188,6 +188,7 @@ export class TicketsService {
         stock: dto.stock,
         maxPerOrder: dto.maxPerOrder,
         category: dto.category,
+        features: normalizeFeatures(dto.features),
         isActive: dto.isActive,
         saleStartDate: dto.saleStartDate ? new Date(dto.saleStartDate) : undefined,
         saleEndDate: dto.saleEndDate ? new Date(dto.saleEndDate) : undefined,
@@ -245,6 +246,7 @@ export class TicketsService {
         saleStartDate: toNullableDate(dto.saleStartDate),
         saleEndDate: toNullableDate(dto.saleEndDate),
         promoEndsAt: toNullableDate(dto.promoEndsAt),
+        features: normalizeFeatures(dto.features),
       },
     });
   }
@@ -278,4 +280,22 @@ function toNullableDate(value: string | null | undefined): Date | null | undefin
   if (value === undefined) return undefined;
   if (value === null || value === '') return null;
   return new Date(value);
+}
+
+/**
+ * Nettoie la liste de bénéfices (2026-08-18) : les entrées arrivent d'un
+ * `<textarea>` ligne à ligne, donc avec des blancs de bord et, presque
+ * toujours, une ligne vide finale. Les stocker telles quelles ferait rendre
+ * des puces cochées vides sur la page publique.
+ *
+ * Le plafond du DTO (12 entrées, 80 caractères) est une VALIDATION, pas une
+ * garantie : on retronque ici, côté service, parce que c'est lui qui écrit en
+ * base — un appel qui contournerait le DTO ne doit pas pouvoir déborder.
+ */
+function normalizeFeatures(value: string[] | undefined): string[] | undefined {
+  if (value === undefined) return undefined;
+  return value
+    .map((line) => line.trim().slice(0, 80))
+    .filter((line) => line.length > 0)
+    .slice(0, 12);
 }

@@ -227,7 +227,15 @@ model Ticket {
   /// QR. Le défaut 1 est donc un plafond restrictif, pas une contrainte
   /// technique — le formulaire propose 10 à la création (2026-08-17).
   maxPerOrder     Int      @default(1)
+  /// Rang d'affichage sur la page publique (« Pass individuel », « Pass
+  /// groupe »…). Texte libre : c'est l'organisateur qui nomme ses familles de
+  /// billets, pas nous. Vide = le billet s'affiche hors de tout rang.
   category        String?
+  /// Bénéfices inclus, une ligne par entrée (« Accès Jour 1 », « Espace food
+  /// & bar »…). Distinct de `description`, qui est une phrase de présentation :
+  /// une liste se BALAIE pour comparer deux formules, un paragraphe se lit.
+  /// (décision produit 2026-08-18)
+  features        String[] @default([])
   isActive        Boolean  @default(true)
   saleStartDate   DateTime?
   saleEndDate     DateTime?

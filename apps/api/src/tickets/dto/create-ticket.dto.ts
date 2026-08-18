@@ -1,4 +1,6 @@
 import {
+  ArrayMaxSize,
+  IsArray,
   IsBoolean,
   IsDateString,
   IsInt,
@@ -7,6 +9,7 @@ import {
   IsString,
   IsUrl,
   Matches,
+  MaxLength,
   Min,
 } from 'class-validator';
 
@@ -68,6 +71,20 @@ export class CreateTicketDto {
   @IsOptional()
   @IsString()
   category?: string;
+
+  /**
+   * Bénéfices inclus (2026-08-18) — une entrée par ligne affichée en puce
+   * cochée sur la page publique. Bornes volontairement basses : ces lignes
+   * doivent rester balayables d'un regard, pas devenir une seconde
+   * description. Le service tronque et nettoie, il ne fait pas confiance
+   * à ces bornes seules.
+   */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(12)
+  @IsString({ each: true })
+  @MaxLength(80, { each: true })
+  features?: string[];
 
   @IsOptional()
   @IsBoolean()

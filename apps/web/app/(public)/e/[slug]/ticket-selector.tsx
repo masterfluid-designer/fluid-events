@@ -22,6 +22,14 @@ import { SectionShell, SectionHeading } from './section-shell';
  * des onglets par jour apparaissent — la sélection reste cumulée sur TOUS les
  * jours (changer d'onglet ne vide pas le panier), un seul paiement couvre
  * l'ensemble.
+ *
+ * Mise en page (refonte 2026-08-18) : DEUX colonnes sur grand écran, la liste
+ * à gauche et le récapitulatif à droite — ce dernier étant visible dès l'état
+ * vide. Il portait auparavant le seul bouton d'achat ET la seule mention de
+ * sécurité du paiement, mais n'apparaissait qu'APRÈS une première sélection :
+ * la réassurance arrivait donc après la décision, quand elle ne sert plus à
+ * rien. Sous `lg`, la grille s'empile et le récapitulatif redevient une barre
+ * collante en bas d'écran, où une colonne latérale n'aurait aucun sens.
  */
 
 export interface PublicTicket {
@@ -43,6 +51,10 @@ export interface PublicTicket {
   saleStartDate?: string | null;
   saleEndDate?: string | null;
   dayLabel?: string | null;
+  /** Rang d'affichage (« Pass individuel », « Pass groupe »…). */
+  category?: string | null;
+  /** Bénéfices inclus, affichés en puces cochées (2026-08-18). */
+  features?: string[] | null;
 }
 
 function formatCurrency(amount: number, currency: string): string {
@@ -71,6 +83,76 @@ function splitDayLabel(label: string): { title: string; subtitle: string | null 
 /** Un billet est épuisé quand il ne reste aucune place. */
 function isSoldOut(ticket: PublicTicket): boolean {
   return ticket.stock - ticket.stockSold <= 0;
+}
+
+/**
+ * Regroupe les billets par `category` en conservant l'ordre d'apparition —
+ * c'est-à-dire l'ordre de prix décidé par l'API, pas un tri alphabétique qui
+ * mettrait « Pass groupe » avant « Pass individuel » sans raison.
+ *
+ * Les billets sans catégorie forment un rang anonyme, rendu SANS en-tête :
+ * inventer un libellé (« Autres ») pour un organisateur qui n'a rien saisi
+ * reviendrait à écrire à sa place sur sa propre page.
+ */
+function groupByCategory(tickets: PublicTicket[]): Array<{ label: string | null; tickets: PublicTicket[] }> {
+  const groups: Array<{ label: string | null; tickets: PublicTicket[] }> = [];
+  for (const ticket of tickets) {
+    const label = ticket.category?.trim() || null;
+    const existing = groups.find((g) => g.label === label);
+    if (existing) existing.tickets.push(ticket);
+    else groups.push({ label, tickets: [ticket] });
+  }
+  return groups;
+}
+
+/**
+ * Frise des quatre étapes du tunnel. Purement indicative ici : la section
+ * billetterie est toujours l'étape 1, les suivantes se déroulent dans la
+ * pop-up d'authentification puis chez le prestataire de paiement.
+ *
+ * Elle ne décore pas : elle répond aux deux questions que se pose tout
+ * acheteur avant de cliquer — combien d'étapes, et est-ce que je paie
+ * maintenant. Sans elle, on passait d'une carte de billet à une pop-up Google
+ * sans le moindre préavis.
+ */
+const CHECKOUT_STEPS = ['Billets', 'Vos infos', 'Paiement', 'Confirmation'];
+
+function CheckoutStepper() {
+  return (
+    <ol className="mb-8 flex flex-wrap items-center gap-x-3 gap-y-2 md:mb-10 md:gap-x-4">
+      {CHECKOUT_STEPS.map((label, index) => {
+        const current = index === 0;
+        return (
+          <li key={label} className="flex items-center gap-3 md:gap-4">
+            <span className="flex items-center gap-2">
+              <span
+                className={`flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-bold tabular-nums ${
+                  current
+                    ? 'bg-primary text-primary-foreground'
+                    : 'border border-stroke text-manatee dark:border-strokedark'
+                }`}
+              >
+                {index + 1}
+              </span>
+              <span
+                className={`text-sm ${
+                  current ? 'font-bold' : 'font-medium text-waterloo dark:text-manatee'
+                }`}
+              >
+                {label}
+              </span>
+            </span>
+            {/* Le trait de liaison appartient à l'étape qui le précède, et
+                disparaît après la dernière — un trait orphelin en fin de frise
+                laisserait croire à une cinquième étape masquée. */}
+            {index < CHECKOUT_STEPS.length - 1 && (
+              <span aria-hidden="true" className="hidden h-px w-8 bg-stroke dark:bg-strokedark sm:block" />
+            )}
+          </li>
+        );
+      })}
+    </ol>
+  );
 }
 
 export function TicketSelector({
@@ -122,6 +204,8 @@ export function TicketSelector({
       ? activeDay !== null && soldOutDays.has(activeDay)
       : tickets.length > 0 && tickets.every(isSoldOut);
 
+  const groups = useMemo(() => groupByCategory(visibleTickets), [visibleTickets]);
+
   // Un seul instant de référence pour le composant : bannière promo ET
   // fenêtres de vente des cartes.
   const now = Date.now();
@@ -133,15 +217,15 @@ export function TicketSelector({
       Number(t.compareAtPrice) > Number(t.price),
   );
 
-  /**
-   * Bascule la sélection d’un billet (décision produit 2026-08-17) : premier
-   * clic = une place et l’incrémenteur apparaît, second clic = retour à zéro
-   * et il disparaît. Déselectionner remet bien la quantité à 0 : garder des
-   * places dans un panier dont le compteur est masqué serait un piège.
-   */
-  function toggleTicket(ticketId: string, max: number) {
-    setQuantities((prev) => ({ ...prev, [ticketId]: (prev[ticketId] ?? 0) > 0 ? 0 : Math.min(1, max) }));
-  }
+  // Le badge « Le plus choisi » se pose sur le premier billet RÉELLEMENT
+  // achetable, et non sur le premier de la liste : le coller sur un billet
+  // épuisé le transformerait en regret.
+  const highlightedId =
+    visibleTickets.find((t) => {
+      const notYet = t.saleStartDate && now < new Date(t.saleStartDate).getTime();
+      const over = t.saleEndDate && now > new Date(t.saleEndDate).getTime();
+      return !isSoldOut(t) && !notYet && !over;
+    })?.id ?? null;
 
   function updateQuantity(ticketId: string, delta: number, max: number) {
     setQuantities((prev) => {
@@ -186,6 +270,53 @@ export function TicketSelector({
     }
   }
 
+  /** Corps du récapitulatif — même contenu en colonne (lg) et en barre (mobile). */
+  const summaryLines =
+    cartLines.length === 0 ? (
+      // L'état vide est nommé, pas laissé blanc : un panneau vide sans phrase
+      // ressemble à un chargement qui n'a pas abouti.
+      <p className="text-sm text-waterloo dark:text-manatee">
+        Aucun billet sélectionné pour le moment.
+      </p>
+    ) : (
+      // Plafonné en hauteur : un panier de nombreux types de billets ne doit
+      // pas pousser le bouton de paiement hors de l’écran.
+      <ul className="max-h-44 space-y-2 overflow-y-auto md:max-h-56">
+        {cartLines.map(({ ticket, quantity, subtotal }) => (
+          <li key={ticket.id} className="flex items-baseline justify-between gap-3 text-sm">
+            <span className="min-w-0 truncate">
+              <span className="font-semibold tabular-nums">{quantity}×</span> {ticket.name}
+              {ticket.dayLabel && (
+                <span className="ml-1.5 text-xs text-waterloo dark:text-manatee">
+                  ({splitDayLabel(ticket.dayLabel).title})
+                </span>
+              )}
+            </span>
+            <span className="shrink-0 tabular-nums">{formatCurrency(subtotal, currency)}</span>
+          </li>
+        ))}
+      </ul>
+    );
+
+  const payButton = (
+    <button
+      type="button"
+      onClick={handleContinue}
+      // Désactivé plutôt qu'absent : voir le bouton éteint apprend qu'il
+      // existe et ce qu'il faut faire pour l'allumer.
+      disabled={authPending || totalQuantity === 0 || !isPublished}
+      className="inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primaryho disabled:cursor-not-allowed disabled:opacity-45"
+    >
+      {authPending ? 'Connexion…' : 'Continuer'} <Ticket className="size-4" />
+    </button>
+  );
+
+  const reassurance = (
+    <p className="mt-3 text-center text-[11px] leading-relaxed text-waterloo dark:text-manatee">
+      Paiement sécurisé par mobile money &amp; carte, sans quitter le site.
+    </p>
+  );
+
   return (
     <SectionShell>
       <SectionHeading
@@ -194,326 +325,371 @@ export function TicketSelector({
         description="Réservation 100% en ligne, billet numérique à présenter à l'entrée."
       />
 
-      {activePromo && (
-        <div className="mb-6 rounded-2xl border border-accent-terracotta/40 bg-accent-terracotta/10 px-5 py-3.5 text-center text-xs font-bold uppercase tracking-wide text-accent-terracotta dark:border-accent-terracotta-dark/40 dark:text-accent-terracotta-dark md:text-sm">
-          Prévente : réductions jusqu&apos;au{' '}
-          {new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long' }).format(new Date(activePromo.promoEndsAt!))}
-        </div>
-      )}
+      <CheckoutStepper />
 
-      {days.length > 0 && (
-        <div className="mb-6 flex flex-wrap gap-2.5">
-          {days.map((day) => {
-            const { title, subtitle } = splitDayLabel(day);
-            const active = day === activeDay;
-            const daySoldOut = soldOutDays.has(day);
-            return (
-              <button
-                key={day}
-                type="button"
-                onClick={() => setSelectedDay(day)}
-                // L'état d'épuisement est porté par l'onglet LUI-MÊME, pas
-                // seulement par les cartes en dessous : le visiteur doit
-                // pouvoir renoncer à une journée sans avoir à la parcourir.
-                className={`rounded-2xl px-5 py-2.5 text-left transition-colors ${
-                  daySoldOut
-                    ? active
-                      ? 'bg-soldout text-white'
-                      : 'border border-soldout/40 text-soldout hover:border-soldout'
-                    : active
-                      ? 'bg-primary text-primary-foreground'
-                      : 'border border-stroke text-manatee hover:border-black dark:border-strokedark dark:text-manatee dark:hover:border-white'
-                }`}
-              >
-                <span className="block text-sm font-bold leading-tight">{title}</span>
-                {daySoldOut ? (
-                  <span
-                    className={`mt-0.5 block text-[11px] font-bold uppercase tracking-[0.12em] ${
-                      active ? 'opacity-90' : ''
+      {/* `items-start` : sans lui, la colonne de droite s'étire sur toute la
+          hauteur de la liste et `sticky` n'a plus rien à faire coller. */}
+      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
+        <div className="min-w-0">
+          {activePromo && (
+            <div className="mb-6 rounded-2xl border border-accent-terracotta/40 bg-accent-terracotta/10 px-5 py-3.5 text-center text-xs font-bold uppercase tracking-wide text-accent-terracotta dark:border-accent-terracotta-dark/40 dark:text-accent-terracotta-dark md:text-sm">
+              Prévente : réductions jusqu&apos;au{' '}
+              {new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long' }).format(
+                new Date(activePromo.promoEndsAt!),
+              )}
+            </div>
+          )}
+
+          {days.length > 0 && (
+            <div className="mb-6 flex flex-wrap gap-2.5">
+              {days.map((day) => {
+                const { title, subtitle } = splitDayLabel(day);
+                const active = day === activeDay;
+                const daySoldOut = soldOutDays.has(day);
+                return (
+                  <button
+                    key={day}
+                    type="button"
+                    onClick={() => setSelectedDay(day)}
+                    // L'état d'épuisement est porté par l'onglet LUI-MÊME, pas
+                    // seulement par les cartes en dessous : le visiteur doit
+                    // pouvoir renoncer à une journée sans avoir à la parcourir.
+                    className={`rounded-2xl px-5 py-2.5 text-left transition-colors ${
+                      daySoldOut
+                        ? active
+                          ? 'bg-soldout text-white'
+                          : 'border border-soldout/40 text-soldout hover:border-soldout'
+                        : active
+                          ? 'bg-primary text-primary-foreground'
+                          : 'border border-stroke text-manatee hover:border-black dark:border-strokedark dark:text-manatee dark:hover:border-white'
                     }`}
                   >
-                    Sold out
-                  </span>
-                ) : (
-                  subtitle && (
-                    <span className="mt-0.5 block text-[11px] font-medium opacity-70">
-                      {subtitle}
-                    </span>
-                  )
-                )}
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {/*
-        Bandeau d'épuisement — niveau intermédiaire entre l'onglet et la carte.
-        Sans lui, un visiteur qui arrive directement sur une journée complète ne
-        comprend l'échec qu'après avoir lu chaque carte une par une.
-      */}
-      {currentIsSoldOut && (
-        // Fond SOMBRE et non un voile rouge : le rouge doit rester l'encre du
-        // message, pas la couleur du panneau. Un panneau rose pâle avec du
-        // texte rouge dessus perd le contraste qui fait tout l'effet.
-        <div className="mb-6 rounded-3xl border-2 border-soldout bg-black/85 px-6 py-8 text-center [box-shadow:0_0_28px_-6px_var(--color-soldout)]">
-          <div className="animate-sold-out-blink font-event text-4xl font-black uppercase leading-none tracking-[0.18em] text-soldout [text-shadow:0_0_26px_color-mix(in_oklab,var(--color-soldout)_65%,transparent)] md:text-6xl">
-            Sold out
-          </div>
-          {/* La phrase reste en blanc : c'est elle qui doit se lire vite, et
-              du rouge sur rouge la rendrait plus décorative qu'informative. */}
-          <p className="mt-3 text-sm font-semibold text-white md:text-base">
-            {days.length > 0 && activeDay
-              ? `Plus aucune place pour ${splitDayLabel(activeDay).title} — la vente est terminée.`
-              : 'Toutes les places ont trouvé preneur — la vente est terminée.'}
-          </p>
-        </div>
-      )}
-
-      {tickets.length === 0 ? (
-        <div className="rounded-2xl border border-stroke p-10 text-center text-sm text-muted-foreground dark:border-strokedark">
-          Aucun billet en vente pour le moment.
-        </div>
-      ) : (
-        <div className="flex flex-col gap-4">
-          {visibleTickets.map((ticket, index) => {
-            const available = ticket.stock - ticket.stockSold;
-            const soldOut = available <= 0;
-            const notYetOnSale = Boolean(
-              ticket.saleStartDate && now < new Date(ticket.saleStartDate).getTime(),
-            );
-            const saleOver = Boolean(
-              ticket.saleEndDate && now > new Date(ticket.saleEndDate).getTime(),
-            );
-            // Épuisé, pas encore ouvert, clôturé : trois raisons distinctes de
-            // ne pas pouvoir acheter, un seul comportement d'interaction.
-            const unavailable = soldOut || notYetOnSale || saleOver;
-            // …mais pas un seul traitement visuel. Un billet épuisé ou clôturé
-            // est un reliquat : on l'éteint. Un billet pas encore ouvert est
-            // une PROMESSE — l'éteindre le fait passer pour un déchet alors
-            // qu'il faut au contraire donner envie d'y revenir. Il garde donc
-            // son contraste plein, et c'est son badge qui porte l'état.
-            const dimmed = soldOut || saleOver;
-            const highlighted = index === 0 && !unavailable;
-            const quantity = quantities[ticket.id] ?? 0;
-            // Sélectionné == au moins une place : pas d’état parallèle à tenir
-            // synchronisé avec le panier, donc pas de désynchronisation possible.
-            const selected = quantity > 0;
-            const maxSelectable = Math.min(available, ticket.maxPerOrder || available);
-            const hasPromo =
-              ticket.compareAtPrice != null && Number(ticket.compareAtPrice) > Number(ticket.price);
-
-            return (
-              <div
-                key={ticket.id}
-                className={`relative overflow-hidden rounded-3xl border transition-colors ${
-                  dimmed ? 'border-dashed' : ''
-                } ${
-                  selected
-                    ? 'border-primary ring-1 ring-primary'
-                    : highlighted
-                      ? 'border-black dark:border-white'
-                      : 'border-stroke dark:border-strokedark'
-                }`}
-              >
-                {soldOut && (
-                  // Tampon apposé EN TRAVERS de la carte, pas un ruban discret
-                  // dans le coin : le refus doit être la première chose lue,
-                  // avant le nom et avant le prix. `pointer-events-none` pour
-                  // qu'il ne mange pas les clics de la carte en dessous.
-                  <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
-                    <span className="animate-stamp-bounce -rotate-12 rounded-xl border-[3px] border-soldout px-6 py-2 text-3xl font-black uppercase tracking-[0.2em] text-soldout [box-shadow:0_0_30px_-4px_var(--color-soldout)] [text-shadow:0_0_22px_color-mix(in_oklab,var(--color-soldout)_70%,transparent)] md:px-12 md:py-3 md:text-5xl">
-                      Sold out
-                    </span>
-                  </div>
-                )}
-
-                {/*
-                  La carte entière sélectionne le billet (décision produit
-                  2026-08-17) : un clic ajoute une place et dévoile
-                  l'incrémenteur, un second clic déselectionne et le referme.
-                  Plusieurs billets peuvent être sélectionnés en même temps.
-
-                  L'en-tête est un <button> et l'incrémenteur vit EN DEHORS :
-                  imbriquer des boutons dans un bouton est invalide, et casse
-                  la navigation clavier.
-                */}
-                <button
-                  type="button"
-                  onClick={() => toggleTicket(ticket.id, maxSelectable)}
-                  disabled={unavailable || !isPublished}
-                  aria-pressed={selected}
-                  aria-expanded={selected}
-                  // L'atténuation porte sur le CONTENU, jamais sur le
-                  // conteneur : le tampon « Sold out » est son frère, l'affadir
-                  // avec le reste reviendrait à effacer le message qu'on veut
-                  // justement rendre impossible à manquer.
-                  className={`flex w-full flex-wrap items-center gap-x-6 gap-y-2 p-6 text-left disabled:cursor-not-allowed md:flex-nowrap md:p-8 ${
-                    dimmed ? 'opacity-45' : ''
-                  }`}
-                >
-                  <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-1.5">
-                    <h3 className="font-event text-xl md:text-2xl">{ticket.name}</h3>
-                    {hasPromo && !unavailable && (
-                      <span className="rounded-full bg-accent-terracotta px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white dark:bg-accent-terracotta-dark dark:text-black">
-                        Promo
-                      </span>
-                    )}
-                    {highlighted && !hasPromo && (
-                      <span className="rounded-full border border-stroke px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-manatee dark:border-strokedark dark:text-manatee">
-                        Le plus choisi
-                      </span>
-                    )}
-                    {/* Indications sur la même ligne que le nom : description
-                        puis places restantes, tronquées plutôt que de pousser
-                        le prix à la ligne. */}
-                    {ticket.description && (
-                      <span className="min-w-0 truncate text-sm text-waterloo dark:text-manatee">
-                        {ticket.description}
-                      </span>
-                    )}
-                    <span className="text-xs font-medium text-waterloo dark:text-manatee">
-                      {soldOut
-                        ? 'Épuisé'
-                        : notYetOnSale
-                          ? `En vente à partir du ${formatSaleDate(ticket.saleStartDate!)}`
-                          : saleOver
-                            ? 'Ventes clôturées'
-                            : `${available} place${available > 1 ? 's' : ''} restante${available > 1 ? 's' : ''}`}
-                    </span>
-                  </div>
-
-                  <div className="flex shrink-0 items-center gap-4">
-                    <div className="text-right">
-                      {hasPromo && (
-                        <div className="text-sm font-medium text-manatee line-through dark:text-manatee">
-                          {formatCurrency(Number(ticket.compareAtPrice), ticket.currency)}
-                        </div>
-                      )}
-                      {/* Prix barré quand il n'y a plus rien à vendre : le
-                          montant reste lisible (il informe encore sur le
-                          niveau de gamme du billet) mais ne se présente plus
-                          comme une offre en cours. */}
-                      <div
-                        className={`font-event text-2xl leading-none md:text-3xl ${
-                          soldOut ? 'text-manatee line-through decoration-2' : ''
-                        }`}
-                      >
-                        {formatCurrency(Number(ticket.price), ticket.currency)}
-                      </div>
-                      <div className="mt-1 text-[11px] text-waterloo dark:text-manatee">/ personne</div>
-                    </div>
-
-                    {unavailable || !isPublished ? (
-                      // « Bientôt » se distingue des deux autres : c'est le
-                      // seul état qui appelle un retour du visiteur, il porte
-                      // donc la couleur de l'événement plutôt que le gris des
-                      // billets morts.
+                    <span className="block text-sm font-bold leading-tight">{title}</span>
+                    {daySoldOut ? (
                       <span
-                        className={`rounded-full px-4 py-2 text-xs font-semibold ${
-                          notYetOnSale
-                            ? 'border border-primary/40 bg-primary/10 text-primary'
-                            : 'border border-stroke text-manatee dark:border-strokedark'
+                        className={`mt-0.5 block text-[11px] font-bold uppercase tracking-[0.12em] ${
+                          active ? 'opacity-90' : ''
                         }`}
                       >
-                        {notYetOnSale ? 'Bientôt' : saleOver ? 'Terminé' : 'Indisponible'}
+                        Sold out
                       </span>
                     ) : (
-                      // Pastille d'état : indique que la carte est cliquable et
-                      // si elle est retenue, sans occuper la place d'un bouton.
-                      <span
-                        className={`flex size-9 shrink-0 items-center justify-center rounded-full border transition-colors ${
+                      subtitle && (
+                        <span className="mt-0.5 block text-[11px] font-medium opacity-70">
+                          {subtitle}
+                        </span>
+                      )
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/*
+            Bandeau d'épuisement — niveau intermédiaire entre l'onglet et la
+            carte. Sans lui, un visiteur qui arrive directement sur une journée
+            complète ne comprend l'échec qu'après avoir lu chaque carte.
+          */}
+          {currentIsSoldOut && (
+            // Fond SOMBRE et non un voile rouge : le rouge doit rester l'encre
+            // du message, pas la couleur du panneau. Un panneau rose pâle avec
+            // du texte rouge dessus perd le contraste qui fait tout l'effet.
+            <div className="mb-6 rounded-3xl border-2 border-soldout bg-black/85 px-6 py-8 text-center [box-shadow:0_0_28px_-6px_var(--color-soldout)]">
+              <div className="animate-sold-out-blink font-event text-4xl font-black uppercase leading-none tracking-[0.18em] text-soldout [text-shadow:0_0_26px_color-mix(in_oklab,var(--color-soldout)_65%,transparent)] md:text-6xl">
+                Sold out
+              </div>
+              {/* La phrase reste en blanc : c'est elle qui doit se lire vite,
+                  et du rouge sur rouge la rendrait décorative. */}
+              <p className="mt-3 text-sm font-semibold text-white md:text-base">
+                {days.length > 0 && activeDay
+                  ? `Plus aucune place pour ${splitDayLabel(activeDay).title} — la vente est terminée.`
+                  : 'Toutes les places ont trouvé preneur — la vente est terminée.'}
+              </p>
+            </div>
+          )}
+
+          {tickets.length === 0 ? (
+            <div className="rounded-2xl border border-stroke p-10 text-center text-sm text-muted-foreground dark:border-strokedark">
+              Aucun billet en vente pour le moment.
+            </div>
+          ) : (
+            <div className="flex flex-col gap-8">
+              {groups.map((group) => (
+                <div key={group.label ?? '__sans_rang__'} className="flex flex-col gap-4">
+                  {group.label && (
+                    // Libellé de rang + filet qui occupe la largeur restante :
+                    // il sépare deux familles de billets sans ajouter un titre
+                    // de plus dans la hiérarchie de la page.
+                    <div className="flex items-center gap-4">
+                      <span className="text-xs font-bold uppercase tracking-[0.12em] text-waterloo dark:text-manatee">
+                        {group.label}
+                      </span>
+                      <span aria-hidden="true" className="h-px flex-1 bg-stroke dark:bg-strokedark" />
+                    </div>
+                  )}
+
+                  {group.tickets.map((ticket) => {
+                    const available = ticket.stock - ticket.stockSold;
+                    const soldOut = available <= 0;
+                    const notYetOnSale = Boolean(
+                      ticket.saleStartDate && now < new Date(ticket.saleStartDate).getTime(),
+                    );
+                    const saleOver = Boolean(
+                      ticket.saleEndDate && now > new Date(ticket.saleEndDate).getTime(),
+                    );
+                    // Épuisé, pas encore ouvert, clôturé : trois raisons
+                    // distinctes de ne pas pouvoir acheter, un seul
+                    // comportement d'interaction.
+                    const unavailable = soldOut || notYetOnSale || saleOver;
+                    // …mais pas un seul traitement visuel. Un billet épuisé ou
+                    // clôturé est un reliquat : on l'éteint. Un billet pas
+                    // encore ouvert est une PROMESSE — l'éteindre le fait
+                    // passer pour un déchet alors qu'il faut au contraire
+                    // donner envie d'y revenir. Il garde son contraste plein,
+                    // et c'est son badge qui porte l'état.
+                    const dimmed = soldOut || saleOver;
+                    const highlighted = ticket.id === highlightedId;
+                    const quantity = quantities[ticket.id] ?? 0;
+                    const selected = quantity > 0;
+                    const maxSelectable = Math.min(available, ticket.maxPerOrder || available);
+                    const hasPromo =
+                      ticket.compareAtPrice != null &&
+                      Number(ticket.compareAtPrice) > Number(ticket.price);
+                    const features = (ticket.features ?? []).filter((f) => f.trim().length > 0);
+
+                    return (
+                      <div
+                        key={ticket.id}
+                        className={`relative overflow-hidden rounded-3xl border transition-colors ${
+                          dimmed ? 'border-dashed' : ''
+                        } ${
                           selected
-                            ? 'border-primary bg-primary text-primary-foreground'
-                            : 'border-stroke text-manatee dark:border-strokedark dark:text-manatee'
+                            ? 'border-primary ring-1 ring-primary'
+                            : highlighted
+                              ? 'border-black dark:border-white'
+                              : 'border-stroke dark:border-strokedark'
                         }`}
                       >
-                        {selected ? <Check className="size-4" /> : <Plus className="size-4" />}
-                      </span>
-                    )}
-                  </div>
-                </button>
+                        {soldOut && (
+                          // Tampon apposé EN TRAVERS de la carte, pas un ruban
+                          // discret dans le coin : le refus doit être la
+                          // première chose lue, avant le nom et le prix.
+                          <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
+                            <span className="animate-stamp-bounce -rotate-12 rounded-xl border-[3px] border-soldout px-6 py-2 text-3xl font-black uppercase tracking-[0.2em] text-soldout [box-shadow:0_0_30px_-4px_var(--color-soldout)] [text-shadow:0_0_22px_color-mix(in_oklab,var(--color-soldout)_70%,transparent)] md:px-12 md:py-3 md:text-5xl">
+                              Sold out
+                            </span>
+                          </div>
+                        )}
 
-                {selected && !unavailable && isPublished && (
-                  <div className="flex items-center justify-between gap-4 border-t border-stroke px-6 py-4 dark:border-strokedark md:px-8">
-                    <span className="text-xs font-medium text-waterloo dark:text-manatee">
-                      {maxSelectable > 1
-                        ? "Combien de places ?"
-                        : "Une place par commande pour ce billet"}
-                    </span>
-                    {maxSelectable > 1 && (
-                    <div className="flex items-center gap-1 rounded-full border border-stroke dark:border-strokedark">
-                      <button
-                        type="button"
-                        aria-label={`Retirer un billet ${ticket.name}`}
-                        onClick={() => updateQuantity(ticket.id, -1, maxSelectable)}
-                        className="flex size-10 items-center justify-center rounded-full text-manatee transition-colors hover:text-black dark:text-manatee dark:hover:text-white"
-                      >
-                        <Minus className="size-4" />
-                      </button>
-                      <span className="w-6 text-center font-semibold tabular-nums">{quantity}</span>
-                      <button
-                        type="button"
-                        aria-label={`Ajouter un billet ${ticket.name}`}
-                        onClick={() => updateQuantity(ticket.id, 1, maxSelectable)}
-                        disabled={quantity >= maxSelectable}
-                        className="flex size-10 items-center justify-center rounded-full bg-primary text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-30"
-                      >
-                        <Plus className="size-4" />
-                      </button>
-                    </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+                        {/*
+                          L'incrémenteur est désormais TOUJOURS visible
+                          (2026-08-18). Auparavant il fallait d'abord cliquer la
+                          carte pour la « sélectionner », ce qui ajoutait un
+                          clic et un état à comprendre avant de pouvoir
+                          seulement choisir une quantité — pour aucun gain. La
+                          carte n'est donc plus un bouton : elle n'a plus qu'un
+                          seul point d'interaction, celui qui compte.
+                        */}
+                        <div
+                          // L'atténuation porte sur le CONTENU, jamais sur le
+                          // conteneur : le tampon « Sold out » est son frère,
+                          // l'affadir avec le reste effacerait le message qu'on
+                          // veut justement rendre impossible à manquer.
+                          className={`flex flex-wrap items-start gap-x-6 gap-y-4 p-6 md:flex-nowrap md:p-8 ${
+                            dimmed ? 'opacity-45' : ''
+                          }`}
+                        >
+                          {/* `basis-full` sous md : sans lui, `flex-wrap` garde
+                              le texte et le bloc prix sur la MÊME ligne et se
+                              contente de comprimer le premier — sur un écran
+                              de 375 px, « Table réservée 6 personnes » tombait
+                              à un mot par ligne. Le forcer sur sa propre ligne
+                              renvoie le prix en dessous, où il a la place. */}
+                          <div className="min-w-0 flex-1 basis-full md:basis-0">
+                            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1.5">
+                              <h3 className="font-event text-xl md:text-2xl">{ticket.name}</h3>
+                              {hasPromo && !unavailable && (
+                                <span className="rounded-full bg-accent-terracotta px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white dark:bg-accent-terracotta-dark dark:text-black">
+                                  Promo
+                                </span>
+                              )}
+                              {highlighted && !hasPromo && (
+                                <span className="rounded-full border border-stroke px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-manatee dark:border-strokedark dark:text-manatee">
+                                  Le plus choisi
+                                </span>
+                              )}
+                            </div>
+
+                            {ticket.description && (
+                              <p className="mt-1.5 text-sm leading-relaxed text-waterloo dark:text-manatee">
+                                {ticket.description}
+                              </p>
+                            )}
+
+                            {/*
+                              Bénéfices en puces cochées sur deux colonnes : on
+                              compare deux formules d'un balayage, là où deux
+                              paragraphes obligent à les lire l'une après
+                              l'autre pour trouver ce qui les distingue.
+                            */}
+                            {features.length > 0 && (
+                              <ul className="mt-3 grid gap-x-6 gap-y-1.5 sm:grid-cols-2">
+                                {features.map((feature) => (
+                                  <li key={feature} className="flex items-start gap-2 text-sm">
+                                    <Check className="mt-0.5 size-4 shrink-0 text-primary" />
+                                    <span className="min-w-0">{feature}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+
+                            <p className="mt-3 text-xs font-medium text-waterloo dark:text-manatee">
+                              {soldOut
+                                ? 'Épuisé'
+                                : notYetOnSale
+                                  ? `En vente à partir du ${formatSaleDate(ticket.saleStartDate!)}`
+                                  : saleOver
+                                    ? 'Ventes clôturées'
+                                    : `${available} place${available > 1 ? 's' : ''} restante${available > 1 ? 's' : ''}`}
+                            </p>
+                          </div>
+
+                          <div className="flex shrink-0 items-center gap-4">
+                            <div className="text-right">
+                              {hasPromo && (
+                                <div className="text-sm font-medium text-manatee line-through dark:text-manatee">
+                                  {formatCurrency(Number(ticket.compareAtPrice), ticket.currency)}
+                                </div>
+                              )}
+                              {/* Prix barré quand il n'y a plus rien à vendre :
+                                  le montant reste lisible (il informe encore
+                                  sur le niveau de gamme) mais ne se présente
+                                  plus comme une offre en cours. */}
+                              <div
+                                className={`font-event text-2xl leading-none md:text-3xl ${
+                                  soldOut ? 'text-manatee line-through decoration-2' : ''
+                                }`}
+                              >
+                                {formatCurrency(Number(ticket.price), ticket.currency)}
+                              </div>
+                              <div className="mt-1 text-[11px] text-waterloo dark:text-manatee">
+                                / personne
+                              </div>
+                            </div>
+
+                            {unavailable || !isPublished ? (
+                              // « Bientôt » se distingue des deux autres :
+                              // c'est le seul état qui appelle un retour du
+                              // visiteur, il porte donc la couleur de
+                              // l'événement plutôt que le gris des billets
+                              // morts.
+                              <span
+                                className={`rounded-full px-4 py-2 text-xs font-semibold ${
+                                  notYetOnSale
+                                    ? 'border border-primary/40 bg-primary/10 text-primary'
+                                    : 'border border-stroke text-manatee dark:border-strokedark'
+                                }`}
+                              >
+                                {notYetOnSale ? 'Bientôt' : saleOver ? 'Terminé' : 'Indisponible'}
+                              </span>
+                            ) : (
+                              <div className="flex items-center gap-1 rounded-full border border-stroke dark:border-strokedark">
+                                <button
+                                  type="button"
+                                  aria-label={`Retirer une place — ${ticket.name}`}
+                                  onClick={() => updateQuantity(ticket.id, -1, maxSelectable)}
+                                  disabled={quantity === 0}
+                                  className="flex size-10 items-center justify-center rounded-full text-manatee transition-colors hover:text-black disabled:opacity-30 dark:text-manatee dark:hover:text-white"
+                                >
+                                  <Minus className="size-4" />
+                                </button>
+                                <span
+                                  aria-live="polite"
+                                  className="w-6 text-center font-semibold tabular-nums"
+                                >
+                                  {quantity}
+                                </span>
+                                <button
+                                  type="button"
+                                  aria-label={`Ajouter une place — ${ticket.name}`}
+                                  onClick={() => updateQuantity(ticket.id, 1, maxSelectable)}
+                                  disabled={quantity >= maxSelectable}
+                                  className="flex size-10 items-center justify-center rounded-full bg-primary text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-30"
+                                >
+                                  <Plus className="size-4" />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Le plafond ne se dit qu'une fois atteint : l'annoncer
+                            d'avance sur chaque carte parasiterait la lecture
+                            pour une règle que presque personne ne touche. */}
+                        {selected && quantity >= maxSelectable && maxSelectable > 0 && (
+                          <div className="border-t border-stroke px-6 py-3 text-xs font-medium text-waterloo dark:border-strokedark dark:text-manatee md:px-8">
+                            {maxSelectable === 1
+                              ? 'Une place par commande pour ce billet.'
+                              : `Maximum ${maxSelectable} places par commande pour ce billet.`}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-      )}
 
+        {/*
+          Récapitulatif — colonne de droite sur grand écran uniquement. Sous
+          `lg`, c'est la barre collante en bas de section qui prend le relais :
+          une colonne latérale devenue pleine largeur, poussée sous une liste
+          de billets, ne serait plus un récapitulatif mais un pied de page.
+        */}
+        <aside className="hidden lg:sticky lg:top-24 lg:block">
+          <div className="rounded-3xl border border-stroke p-6 dark:border-strokedark">
+            <h3 className="font-event text-xl">Récapitulatif</h3>
+            <div className="mt-4">{summaryLines}</div>
+
+            <div className="mt-5 flex items-baseline justify-between gap-3 border-t border-stroke pt-4 dark:border-strokedark">
+              <span className="text-sm font-medium">Total</span>
+              <span className="font-event text-2xl leading-none">
+                {formatCurrency(totalAmount, currency)}
+              </span>
+            </div>
+
+            <div className="mt-5">{payButton}</div>
+            {reassurance}
+          </div>
+        </aside>
+      </div>
+
+      {/* Barre collante — mobile et tablette. Elle n'apparaît qu'une fois un
+          billet retenu : présente en permanence, elle mangerait une bande
+          d'écran déjà étroite pour n'annoncer qu'un total à zéro. */}
       {totalQuantity > 0 && (
-        <div className="sticky bottom-4 z-30 mt-6 rounded-3xl border border-stroke bg-white/95 p-5 shadow-solid-2 backdrop-blur dark:border-strokedark dark:bg-blacksection/95 md:p-6">
-          <div className="text-[11px] font-bold uppercase tracking-wide text-waterloo dark:text-manatee md:text-xs">
+        <div className="sticky bottom-4 z-30 mt-6 rounded-3xl border border-stroke bg-white/95 p-5 shadow-solid-2 backdrop-blur dark:border-strokedark dark:bg-blacksection/95 lg:hidden">
+          <div className="text-[11px] font-bold uppercase tracking-wide text-waterloo dark:text-manatee">
             Récapitulatif
           </div>
-
-          {/* Plafonné en hauteur : un panier de nombreux types de billets ne
-              doit pas pousser le bouton Payer hors de l’écran sur mobile. */}
-          <ul className="mt-3 max-h-44 space-y-2 overflow-y-auto md:max-h-56">
-            {cartLines.map(({ ticket, quantity, subtotal }) => (
-              <li key={ticket.id} className="flex items-baseline justify-between gap-3 text-sm">
-                <span className="min-w-0 truncate">
-                  <span className="font-semibold tabular-nums">{quantity}×</span> {ticket.name}
-                  {ticket.dayLabel && (
-                    <span className="ml-1.5 text-xs text-waterloo dark:text-manatee">
-                      ({ticket.dayLabel})
-                    </span>
-                  )}
-                </span>
-                <span className="shrink-0 tabular-nums">{formatCurrency(subtotal, currency)}</span>
-              </li>
-            ))}
-          </ul>
+          <div className="mt-3">{summaryLines}</div>
 
           <div className="mt-4 flex items-center justify-between gap-4 border-t border-stroke pt-4 dark:border-strokedark">
             <div className="min-w-0">
-              <div className="font-event text-lg leading-none md:text-2xl">
+              <div className="font-event text-lg leading-none">
                 {formatCurrency(totalAmount, currency)}
               </div>
-              <div className="mt-1 text-[11px] text-waterloo dark:text-manatee md:text-xs">
+              <div className="mt-1 text-[11px] text-waterloo dark:text-manatee">
                 {totalQuantity} billet{totalQuantity > 1 ? 's' : ''} sélectionné
                 {totalQuantity > 1 ? 's' : ''}
               </div>
             </div>
-            <button
-              type="button"
-              onClick={handleContinue}
-              disabled={authPending}
-              className="inline-flex shrink-0 items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primaryho disabled:opacity-60 md:px-8"
-            >
-              {authPending ? 'Connexion...' : 'Payer'} <Ticket className="size-4" />
-            </button>
+            <div className="w-40 shrink-0">{payButton}</div>
           </div>
+          {reassurance}
         </div>
       )}
     </SectionShell>
