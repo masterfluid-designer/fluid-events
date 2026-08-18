@@ -421,6 +421,39 @@ en clair comme en sombre, tuiles et attribution comprises.
 le voir. Vérifier `docker ps` avant de conclure quoi que ce soit d'une session
 de vérification.
 
+### Image de fond de la page publique (2026-08-18)
+
+`EventTheme` gagne `backgroundImageUrl`, `backgroundOverlay` et
+`backgroundBlur` — l'affiche de l'organisateur derrière TOUTE la page, à ne pas
+confondre avec `Event.coverImageUrl`, qui n'illustre que le hero et les
+partages. Édition dans l'onglet Thème du Builder (dépôt, curseur
+d'assombrissement, flou, retrait).
+
+- **Plancher de voile à 35 %, appliqué au RENDU** (`MIN_BACKGROUND_OVERLAY`,
+  partagé backend/frontend) — pas seulement à la saisie : un thème écrit avant
+  cette règle ne doit pas pouvoir produire une page illisible.
+  `readableForeground` sait juger une couleur, pas une photo.
+- **Le voile suit l'encre** : blanc en mode clair, noir en mode sombre. La
+  première version le mettait en noir dans les deux cas — la page claire
+  devenait illisible, du texte sombre sur une photo assombrie.
+- **Les gris secondaires sont resserrés** (`--color-waterloo`/`--color-manatee`)
+  dès qu'une image est posée : ils sont calibrés contre un aplat connu, or le
+  voile borne le fond sans le fixer.
+- **Sections « muted » en verre dépoli** : leur voile à 3,5 % ne produit que du
+  gris sale au-dessus d'une photo, c'est le flou qui rend au texte un fond calme
+  (classe stable `section-tone-muted`, ciblée par `.event-has-backdrop`).
+- **Sûreté** : URL soumise à `isAllowedImageUrl` à l'écriture (même garde que
+  `props.imageUrl`), puis REVALIDÉE au rendu (protocole http(s), aucun caractère
+  capable de sortir du `url('…')`) — une donnée qui part dans une propriété CSS
+  ne se relit jamais sur parole. Chaîne vide = geste « retirer ».
+- **`position: fixed` et non `background-attachment: fixed`**, ignorée par
+  Safari iOS. L'image l'emporte sur la couleur de fond du thème : cette couleur,
+  opaque sur le conteneur, repeindrait par-dessus une couche à z-index négatif.
+
+**Vérifié en conditions réelles** : 481 tests API au vert, image servie depuis
+MinIO et rendue en clair comme en sombre, panneau Thème piloté dans le
+navigateur (curseur borné à 35–90, flou, retrait).
+
 ## 4. Priorités immédiates (à date)
 
 | Module | Priorité | Référence CDC |
