@@ -4,7 +4,7 @@ import { TicketPolicy } from '@saas-events/types';
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { CalendarDays, Plus, Settings2, Trash2, X } from 'lucide-react';
+import { CalendarDays, Eye, EyeOff, Plus, Settings2, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
@@ -173,6 +173,26 @@ export default function ManagerTicketsPage() {
     },
     onError: (err) => {
       toast.error(err instanceof ApiError ? err.message : "Impossible de modifier le billet");
+    },
+  });
+
+  /**
+   * Retrait / remise en vente (2026-08-18). `isActive` existait au modèle et
+   * aux deux DTO, la liste affichait même un badge « Inactif » — mais rien ne
+   * pouvait le produire. C'était pourtant la réponse que l'API conseille
+   * elle-même quand la suppression est refusée faute de ventes.
+   *
+   * PATCH d'un seul champ : les dates absentes du corps restent inchangées
+   * (voir `toNullableDate` côté service), il n'y a donc rien à ré-émettre.
+   */
+  const toggleActive = useMutation({
+    mutationFn: (t: TicketRow) => apiPatch(`/api/tickets/${t.id}`, { isActive: !t.isActive }),
+    onSuccess: (_data, t) => {
+      toast.success(t.isActive ? `« ${t.name} » retiré de la vente` : `« ${t.name} » remis en vente`);
+      queryClient.invalidateQueries({ queryKey: ['manager-event'] });
+    },
+    onError: (err) => {
+      toast.error(err instanceof ApiError ? err.message : 'Impossible de changer la disponibilité');
     },
   });
 
@@ -700,6 +720,25 @@ export default function ManagerTicketsPage() {
                     seule, sans aucun moyen de corriger un prix ou de retirer
                     une ligne créée par erreur. */}
                 <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => toggleActive.mutate(t)}
+                    disabled={toggleActive.isPending}
+                    aria-label={t.isActive ? `Retirer ${t.name} de la vente` : `Remettre ${t.name} en vente`}
+                    aria-pressed={!t.isActive}
+                    title={
+                      t.isActive
+                        ? 'Retirer de la vente — le billet disparaît de la page publique, rien n’est supprimé'
+                        : 'Remettre en vente'
+                    }
+                    className={`rounded-md p-2 transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                      t.isActive
+                        ? 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                        : 'text-amber-600 hover:bg-amber-500/10 dark:text-amber-500'
+                    }`}
+                  >
+                    {t.isActive ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
+                  </button>
                   <button
                     type="button"
                     onClick={() => startEdit(t)}

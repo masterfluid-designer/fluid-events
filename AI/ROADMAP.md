@@ -318,6 +318,39 @@ reconstruction complète. Toujours vérifier
 `grep <symbole nouveau> apps/api/dist/...` avant de conclure quoi que ce soit
 d'un test HTTP après une modification côté API.
 
+### Retirer un billet de la vente sans le supprimer (2026-08-18)
+
+Troisième et dernier champ du même défaut : `isActive` existait au modèle et
+aux deux DTO, la page publique le respectait (`where: { isActive: true }`),
+l'achat le refusait (`payments.service.ts`), et la liste affichait même un
+badge « Inactif » — mais **aucune action ne pouvait le produire**. C'était
+pourtant la réponse que l'API conseille elle-même quand la suppression est
+refusée : le bouton Supprimer d'un billet vendu affiche « Billet déjà vendu —
+désactivez-le plutôt », conseil jusqu'ici inapplicable.
+
+- **Un bouton par ligne** (œil / œil barré) en tête du groupe d'actions, à
+  côté de celui qui y renvoie. Action réversible et immédiate : pas un champ
+  de formulaire, parce que ce n'est pas un attribut qu'on édite, c'est un
+  geste qu'on fait.
+- **PATCH d'un seul champ** : les dates absentes du corps restent inchangées
+  (`toNullableDate`), et le verrou de `maxPerOrder` ne se déclenche pas
+  (`dto.maxPerOrder === undefined`) — vérifié sur `Standard`, 696 ventes :
+  retrait accepté, plafond intact à 10.
+- **Pas de champ à la création** : un billet naît actif, et préparer une vente
+  à l'avance relève désormais de la fenêtre de vente, pas d'un billet caché.
+
+**Vérifié en conditions réelles** : retrait de « Test Design OK » → `isActive`
+à `false` en base, disparition de `/api/events/public/:slug`, badge « Inactif »
+affiché, bouton inversé en « Remettre en vente » ; remise en vente → retour à
+l'état initial. « Early Bird », inactif depuis le seed, propose bien « Remettre
+en vente ».
+
+**Point de sûreté vérifié par lecture du code** : le scan ne lit JAMAIS
+`ticket.isActive` (`scanner.service.ts` ne sélectionne que `name` et
+`eventDayId` du billet ; le `isActive` qu'on y trouve est celui du COMPTE
+SCANNER). Retirer de la vente un billet déjà vendu ne bloque donc pas l'entrée
+de ceux qui l'ont acheté — c'est bien un retrait de vitrine, pas une annulation.
+
 ## 4. Priorités immédiates (à date)
 
 | Module | Priorité | Référence CDC |
