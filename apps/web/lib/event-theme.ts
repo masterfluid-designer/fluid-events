@@ -1,5 +1,9 @@
 import type { CSSProperties } from 'react';
-import type { EventTheme } from '@saas-events/types';
+import {
+  MAX_BACKGROUND_OVERLAY,
+  MIN_BACKGROUND_OVERLAY,
+  type EventTheme,
+} from '@saas-events/types';
 import { ALL_EVENT_FONT_CLASSNAMES, resolveEventFont } from '@/lib/event-fonts';
 
 /**
@@ -52,6 +56,12 @@ export interface ResolvedEventTheme {
   style: CSSProperties;
   /** true si l'organisateur a défini un fond personnalisé. */
   hasCustomBackground: boolean;
+  /**
+   * Image de fond validée, prête à rendre — `null` s'il n'y en a pas. Le
+   * voile est déjà borné à son plancher : l'appelant n'a plus de décision de
+   * lisibilité à prendre.
+   */
+  backdrop: { imageUrl: string; overlay: number; blur: boolean } | null;
 }
 
 export function resolveEventTheme(theme: EventTheme | null | undefined): ResolvedEventTheme {
@@ -90,7 +100,15 @@ export function resolveEventTheme(theme: EventTheme | null | undefined): Resolve
     style['--color-accent-terracotta-dark'] = accent;
   }
 
-  if (background) {
+  const backdrop = resolveBackdrop(theme);
+
+  // Une image de fond L'EMPORTE sur la couleur de fond : les deux sont posées
+  // au même endroit, et une couleur opaque sur le conteneur repeindrait
+  // par-dessus la couche fixe de l'image (un élément à z-index négatif est
+  // peint avant les fonds des descendants en flux — l'image aurait
+  // simplement disparu). L'encre suit alors le mode clair/sombre habituel,
+  // comme le voile qui la protège.
+  if (background && !backdrop) {
     style.backgroundColor = background;
     style.color = readableForeground(background);
   }
@@ -98,6 +116,41 @@ export function resolveEventTheme(theme: EventTheme | null | undefined): Resolve
   return {
     fontClassName: ALL_EVENT_FONT_CLASSNAMES,
     style: style as CSSProperties,
-    hasCustomBackground: Boolean(background),
+    hasCustomBackground: Boolean(background) || Boolean(backdrop),
+    backdrop,
   };
+}
+
+/**
+ * Image de fond de page. L'URL vient de la BDD, où elle a été validée contre
+ * la whitelist de stockage à l'écriture — mais elle part ici dans un `url()`
+ * CSS, et une donnée non revalidée ne doit jamais y atterrir (RULES.md, même
+ * principe que les couleurs HEX ci-dessus). On revérifie donc que c'est bien
+ * une URL http(s) analysable, et on refuse tout le reste.
+ */
+function resolveBackdrop(theme: EventTheme | null | undefined) {
+  const raw = theme?.backgroundImageUrl?.trim();
+  if (!raw) return null;
+
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
+  // Une apostrophe, une parenthèse ou un blanc permettrait de sortir du
+  // `url('…')` qui l'enveloppe. Aucune URL de stockage légitime n'en contient.
+  if (/["'()\s\\]/.test(raw)) return null;
+
+  // Le plancher s'applique ICI, pas seulement à la saisie : un thème
+  // enregistré avant cette règle, ou écrit par un autre chemin, ne doit pas
+  // pouvoir produire une page dont le texte est illisible sur la photo.
+  const requested = theme?.backgroundOverlay;
+  const overlay = Math.min(
+    MAX_BACKGROUND_OVERLAY,
+    Math.max(MIN_BACKGROUND_OVERLAY, typeof requested === 'number' ? requested : 55),
+  );
+
+  return { imageUrl: raw, overlay, blur: theme?.backgroundBlur === true };
 }

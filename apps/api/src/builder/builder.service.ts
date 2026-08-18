@@ -100,6 +100,20 @@ export class BuilderService {
       }
     }
 
+    // L'image de FOND de la page (thème, 2026-08-18) passe exactement la même
+    // garde que les images de blocs : elle part dans un `url()` CSS chez chaque
+    // visiteur, une origine externe y serait à la fois une fuite de référent et
+    // un vecteur d'injection. Une chaîne vide est le geste « retirer l'image »,
+    // et n'a donc rien à valider.
+    const backgroundImageUrl = parsed.data.theme?.backgroundImageUrl;
+    if (backgroundImageUrl && !isAllowedImageUrl(backgroundImageUrl)) {
+      throw new BadRequestException({
+        code: ErrorCodes.BUILDER_SCHEMA_INVALID,
+        message:
+          "Image de fond : URL non autorisée — utilisez POST /api/storage/upload.",
+      });
+    }
+
     const existingPage = await this.prisma.eventPage.findUnique({
       where: { eventId },
       select: { updatedAt: true },

@@ -277,7 +277,33 @@ export interface EventTheme {
   backgroundColor?: string;
   /** Police des titres de la page publique. */
   fontFamily?: EventFontKey;
+  /**
+   * Image de couverture affichée en fond de TOUTE la page publique
+   * (décision produit 2026-08-18) — distincte de `Event.coverImageUrl`, qui
+   * illustre le hero et les partages sociaux. URL de stockage whitelistée,
+   * validée à l'écriture comme n'importe quelle image de bloc : cette chaîne
+   * finit dans une propriété CSS `url()`.
+   */
+  backgroundImageUrl?: string;
+  /**
+   * Assombrissement du fond, en pourcentage (0–90). Un PLANCHER est imposé
+   * dès qu'une image est posée : `readableForeground` sait juger une couleur,
+   * pas une photo — sans voile, la première affiche claire rend toute la page
+   * illisible.
+   */
+  backgroundOverlay?: number;
+  /** Flou du fond — laisse respirer le texte par-dessus une image chargée. */
+  backgroundBlur?: boolean;
 }
+
+/**
+ * Voile minimal appliqué dès qu'une image de fond existe, quoi qu'ait choisi
+ * l'organisateur. Partagé backend/frontend : le premier borne l'écriture, le
+ * second applique le plancher au rendu — une valeur écrite avant cette règle
+ * ne doit pas produire une page illisible.
+ */
+export const MIN_BACKGROUND_OVERLAY = 35;
+export const MAX_BACKGROUND_OVERLAY = 90;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Contenu centralisé de l'événement (décision produit 2026-07-13)

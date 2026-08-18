@@ -247,6 +247,54 @@ describe('BuilderService', () => {
         expect(prisma.eventPage.upsert).not.toHaveBeenCalled();
       });
 
+      // L'image de fond de page (thème) part dans un `url()` CSS chez chaque
+      // visiteur : elle doit passer la même garde que les images de blocs.
+      it("400 si l'image de fond du thème pointe hors whitelist", async () => {
+        prisma.event.findUnique.mockResolvedValue(OWNED_EVENT);
+
+        await expect(
+          service.saveBlocks('ev-1', 'mgr-1', {
+            blocks: [],
+            theme: { backgroundImageUrl: 'https://evil.com/fond.jpg' },
+            lastKnownUpdatedAt: null,
+          } as any),
+        ).rejects.toThrow(BadRequestException);
+        expect(prisma.eventPage.upsert).not.toHaveBeenCalled();
+      });
+
+      it("sauvegarde quand l'image de fond du thème vient du stockage whitelisté", async () => {
+        prisma.event.findUnique.mockResolvedValue(OWNED_EVENT);
+        prisma.eventPage.findUnique.mockResolvedValue(null);
+        prisma.eventPage.upsert.mockResolvedValue({ eventId: 'ev-1' });
+
+        await service.saveBlocks('ev-1', 'mgr-1', {
+          blocks: [],
+          theme: {
+            backgroundImageUrl: 'http://localhost:9000/fluid-events/uploads/mgr-1/fond.jpg',
+            backgroundOverlay: 55,
+          },
+          lastKnownUpdatedAt: null,
+        } as any);
+
+        expect(prisma.eventPage.upsert).toHaveBeenCalled();
+      });
+
+      // Retirer l'image se fait en renvoyant une chaîne vide : rien à valider,
+      // et surtout pas un refus qui empêcherait de défaire son propre choix.
+      it("accepte une image de fond vide (geste « retirer »)", async () => {
+        prisma.event.findUnique.mockResolvedValue(OWNED_EVENT);
+        prisma.eventPage.findUnique.mockResolvedValue(null);
+        prisma.eventPage.upsert.mockResolvedValue({ eventId: 'ev-1' });
+
+        await service.saveBlocks('ev-1', 'mgr-1', {
+          blocks: [],
+          theme: { backgroundImageUrl: '' },
+          lastKnownUpdatedAt: null,
+        } as any);
+
+        expect(prisma.eventPage.upsert).toHaveBeenCalled();
+      });
+
       it('sauvegarde quand props.imageUrl pointe vers le stockage whitelisté', async () => {
         prisma.event.findUnique.mockResolvedValue(OWNED_EVENT);
         prisma.eventPage.findUnique.mockResolvedValue(null);

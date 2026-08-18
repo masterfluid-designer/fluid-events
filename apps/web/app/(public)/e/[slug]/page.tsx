@@ -7,6 +7,7 @@ import { BlockRenderer, getVisibleNavItems, type EventConfigData, type NavItem }
 import { TicketSelector } from './ticket-selector';
 import { EventHeader } from './event-header';
 import { EventHero } from './event-hero';
+import { EventBackdrop } from './event-backdrop';
 import { CtaBand } from './cta-band';
 import { EventFooter } from './event-footer';
 
@@ -158,9 +159,14 @@ export default async function EventPage({
       // `public-surface` : la palette de base, jamais celle choisie dans un
       // tableau de bord (2026-08-17). Le thème de l’organisateur, lui, passe
       // par `style` et l’emporte sur cette classe.
-      className={`public-surface min-h-svh ${theme.hasCustomBackground ? '' : 'bg-white dark:bg-blackho'} ${theme.fontClassName}`}
+      className={`public-surface min-h-svh ${theme.hasCustomBackground ? '' : 'bg-white dark:bg-blackho'} ${theme.backdrop ? 'event-has-backdrop' : ''} ${theme.fontClassName}`}
       style={theme.style}
     >
+      {/* Avant tout le reste : la couche est `fixed`, sa position dans le
+          balisage ne change rien à l'écran, mais elle se lit ici comme ce
+          qu'elle est — le décor sur lequel la page est posée. */}
+      {theme.backdrop && <EventBackdrop backdrop={theme.backdrop} />}
+
       <EventHeader
         eventTitle={event.title}
         logoUrl={event.logoUrl}

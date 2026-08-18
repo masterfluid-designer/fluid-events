@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { EVENT_FONT_KEYS } from '@saas-events/types';
+import { EVENT_FONT_KEYS, MAX_BACKGROUND_OVERLAY } from '@saas-events/types';
 
 /**
  * Schéma Zod — Validation des blocs Event Builder côté backend (CDC §11.2).
@@ -67,6 +67,13 @@ export const ThemeSchema = z.object({
   accentColor: HexColor.optional(),
   backgroundColor: HexColor.optional(),
   fontFamily: z.enum(EVENT_FONT_KEYS).optional(),
+  // Image de fond (2026-08-18). L'URL n'est PAS validée ici : le schéma ne
+  // vérifie que la forme, l'origine est contrôlée dans le service contre la
+  // whitelist de stockage — même traitement que `props.imageUrl` d'un bloc.
+  // Une chaîne vide efface l'image (le panneau la renvoie ainsi).
+  backgroundImageUrl: z.string().max(2048).optional(),
+  backgroundOverlay: z.number().int().min(0).max(MAX_BACKGROUND_OVERLAY).optional(),
+  backgroundBlur: z.boolean().optional(),
 });
 
 /**

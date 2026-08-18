@@ -700,3 +700,37 @@
     animation: none !important;
   }
 }
+
+/* Page publique portant une image de fond (thème, 2026-08-18).
+
+   Les sections « muted » alternent grâce à un voile à 3,5 % : parfait sur un
+   aplat, illisible au-dessus d'une photo, où il ne fait qu'ajouter un gris
+   sale sans jamais séparer quoi que ce soit. On le remplace par un verre
+   dépoli — c'est le FLOU, pas l'opacité, qui redonne au texte un fond calme
+   sans masquer l'image choisie par l'organisateur. */
+.event-has-backdrop .section-tone-muted {
+  background-color: color-mix(in oklab, var(--color-white) 55%, transparent);
+  backdrop-filter: blur(14px);
+}
+.dark .event-has-backdrop .section-tone-muted,
+.event-has-backdrop.dark .section-tone-muted {
+  background-color: color-mix(in oklab, var(--color-blackho) 55%, transparent);
+}
+
+/* Encre secondaire au-dessus d'une image de fond.
+
+   `--color-waterloo`/`--color-manatee` sont calibrés contre un aplat connu
+   (blanc ou #141312). Derrière une photo quelconque, ce calibrage ne veut plus
+   rien dire : le voile borne le fond, il ne le fixe pas. On resserre donc les
+   deux gris vers l'encre de la page — « 10 places restantes » et les
+   sous-titres d'onglet doivent rester lisibles quelle que soit l'affiche
+   déposée par l'organisateur, pas seulement sur celles qui arrangent. */
+.event-has-backdrop {
+  --color-waterloo: #45433e;
+  --color-manatee: #5a574f;
+}
+.dark .event-has-backdrop,
+.event-has-backdrop.dark {
+  --color-waterloo: #cfcbc2;
+  --color-manatee: #cfcbc2;
+}

@@ -26,9 +26,14 @@ export function SectionShell({
   // peut choisir son fond de page (thème), un `bg-alabaster` en dur jurerait
   // avec. Un voile se contente d'assombrir/éclaircir ce qui est dessous,
   // quelle que soit la couleur choisie.
+  // `section-tone-muted` : classe STABLE, sans style propre, qui sert de prise
+  // au CSS quand la page porte une image de fond (voir `.event-has-backdrop`
+  // dans globals.css). Ce voile à 3,5 % suffit à démarquer deux sections sur
+  // un aplat, mais au-dessus d'une photo il ne produit que de la boue — il y
+  // est remplacé par un verre dépoli, qui sépare vraiment.
   const toneClass =
     tone === 'muted'
-      ? 'bg-black/[0.035] dark:bg-white/[0.035]'
+      ? 'section-tone-muted bg-black/[0.035] dark:bg-white/[0.035]'
       : tone === 'accent'
         ? 'bg-primary text-primary-foreground'
         : '';
