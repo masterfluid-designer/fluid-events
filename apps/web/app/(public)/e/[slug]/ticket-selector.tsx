@@ -307,6 +307,19 @@ export function TicketSelector({
     });
   }
 
+  /**
+   * Bascule la sélection d'un billet (demande produit, redemandée le
+   * 2026-08-18). Premier clic sur la carte : une place, l'incrémenteur
+   * apparaît. Second clic : retour à zéro, il disparaît.
+   *
+   * Déselectionner remet bien la quantité à 0 — garder des places dans un
+   * panier dont le compteur est masqué serait un piège. Plusieurs billets
+   * restent sélectionnables en même temps.
+   */
+  function toggleTicket(ticketId: string, max: number) {
+    setQuantities((prev) => ({ ...prev, [ticketId]: (prev[ticketId] ?? 0) > 0 ? 0 : Math.min(1, max) }));
+  }
+
   const cartItems = Object.entries(quantities)
     .filter(([, quantity]) => quantity > 0)
     .map(([ticketId, quantity]) => ({ ticketId, quantity }));
@@ -573,6 +586,20 @@ export function TicketSelector({
                                 : 'border-stroke dark:border-strokedark'
                         }`}
                       >
+                        {!onRequest && !unavailable && isPublished && (
+                          <button
+                            type="button"
+                            onClick={() => toggleTicket(ticket.id, maxSelectable)}
+                            aria-pressed={selected}
+                            aria-label={
+                              selected
+                                ? `Retirer ${ticket.name} de la sélection`
+                                : `Sélectionner ${ticket.name}`
+                            }
+                            className="absolute inset-0 z-[5] cursor-pointer rounded-3xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                          />
+                        )}
+
                         {soldOut && !onRequest && (
                           // Tampon apposé EN TRAVERS de la carte, pas un ruban
                           // discret dans le coin : le refus doit être la
@@ -585,13 +612,23 @@ export function TicketSelector({
                         )}
 
                         {/*
-                          L'incrémenteur est désormais TOUJOURS visible
-                          (2026-08-18). Auparavant il fallait d'abord cliquer la
-                          carte pour la « sélectionner », ce qui ajoutait un
-                          clic et un état à comprendre avant de pouvoir
-                          seulement choisir une quantité — pour aucun gain. La
-                          carte n'est donc plus un bouton : elle n'a plus qu'un
-                          seul point d'interaction, celui qui compte.
+                          L'incrémenteur se dévoile au clic sur la carte et se
+                          referme au second clic (demande produit, redemandée le
+                          2026-08-18 après avoir été retirée le matin même au
+                          motif d'un clic superflu).
+
+                          Ce qu'un compteur toujours visible coûtait : sur une
+                          billetterie de plusieurs formules, autant de « 0 »
+                          alignés que de cartes, et aucun état lisible disant
+                          lesquelles sont retenues. La sélection porte
+                          maintenant cette information.
+
+                          La bascule ne peut pas ENVELOPPER la carte dans un
+                          <button> : elle contient une liste de bénéfices, et
+                          l'incrémenteur est lui-même fait de boutons. C'est
+                          donc une surface transparente superposée, au-dessus de
+                          laquelle on remonte les seuls éléments qui gardent
+                          leur propre action.
                         */}
                         <div
                           // L'atténuation porte sur le CONTENU, jamais sur le
@@ -716,7 +753,7 @@ export function TicketSelector({
                                   // l'événement : ce bouton quitte le site pour une
                                   // application précise, l'annoncer par sa couleur
                                   // évite la surprise.
-                                  className="inline-flex shrink-0 items-center gap-2 rounded-full bg-[#25D366] px-5 py-3 text-sm font-semibold text-black transition-opacity hover:opacity-90"
+                                  className="relative z-10 inline-flex shrink-0 items-center gap-2 rounded-full bg-[#25D366] px-5 py-3 text-sm font-semibold text-black transition-opacity hover:opacity-90"
                                 >
                                   <MessageCircle className="size-4" /> Réserver via WhatsApp
                                 </a>
@@ -742,8 +779,15 @@ export function TicketSelector({
                               >
                                 {notYetOnSale ? 'Bientôt' : saleOver ? 'Terminé' : 'Indisponible'}
                               </span>
+                            ) : !selected ? (
+                              // Tant que rien n'est retenu, la carte annonce ce
+                              // qu'un clic va faire, plutôt que d'exposer un
+                              // compteur à zéro que personne n'a demandé.
+                              <span className="pointer-events-none flex size-11 shrink-0 items-center justify-center rounded-full border border-stroke text-manatee transition-colors dark:border-strokedark dark:text-manatee">
+                                <Plus className="size-4" />
+                              </span>
                             ) : (
-                              <div className="flex items-center gap-1 rounded-full border border-stroke dark:border-strokedark">
+                              <div className="relative z-10 flex items-center gap-1 rounded-full border border-primary bg-white/90 dark:bg-blacksection/90">
                                 <button
                                   type="button"
                                   aria-label={`Retirer une place — ${ticket.name}`}

@@ -592,6 +592,38 @@ billet sur cet événement. Ce n’est pas une régression — la donnée de see
 née hors contrainte — mais elle rend l’écran de création intestable sur cet
 événement.
 
+### L'incrémenteur de billet redevient une bascule (2026-08-18)
+
+Le matin même, la sélection au clic avait été retirée au motif qu’elle ajoutait
+« un clic et un état à comprendre pour aucun gain », l’incrémenteur devenant
+toujours visible. La demande produit a été reformulée : elle est rétablie.
+
+Ce que le compteur permanent coûtait, et qui justifie le retour : sur une
+billetterie de plusieurs formules, autant de « 0 » alignés que de cartes, et
+aucun état lisible disant lesquelles sont retenues. La sélection porte
+désormais cette information.
+
+- **La bascule n’enveloppe pas la carte dans un `<button>`** : celle-ci contient
+  une liste de bénéfices (contenu de flux) et l’incrémenteur est lui-même fait
+  de boutons — imbriquer des boutons est invalide et casse la navigation
+  clavier. C’est donc une surface transparente superposée (`absolute inset-0`),
+  au-dessus de laquelle on remonte les seuls éléments qui gardent leur propre
+  action : l’incrémenteur et le lien WhatsApp des formules sur mesure.
+- **Ni les billets épuisés, ni les formules sur demande, ni les billets hors
+  fenêtre de vente ne reçoivent de surface de bascule** — rien à sélectionner.
+- **Déselectionner remet la quantité à 0** : garder des places dans un panier
+  dont le compteur est masqué serait un piège.
+
+**Vérifié à l’écran** : état initial sans incrémenteur ; premier clic → 1 place,
+incrémenteur dévoilé, `aria-pressed=true` ; montée à 3 ; second clic → tout se
+referme, panier vide, aucune place résiduelle. Deux billets sélectionnés
+simultanément → « 2 billets sélectionnés » au récapitulatif.
+
+⚠️ **Coordination** : ce comportement a été ajouté puis retiré puis rétabli dans
+la même journée, par deux sessions différentes. Le commentaire du composant
+porte maintenant l’historique et la raison, pour qu’il ne soit pas retiré une
+troisième fois par bonne intention.
+
 ## 4. Priorités immédiates (à date)
 
 | Module | Priorité | Référence CDC |
