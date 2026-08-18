@@ -484,6 +484,31 @@ discute est un piège pour l'acheteur autant qu'une corvée pour l'organisateur.
 et cadrées en clair comme en sombre, lien WhatsApp construit sur le numéro de
 l'événement.
 
+### FAQ deux colonnes et finitions du hero (2026-08-18)
+
+- **FAQ** — l'ancienne version empilait titre puis accordéon étroit : le titre
+  disparaissait dès la première question ouverte, et le visiteur déroulait une
+  liste sans plus savoir de quoi elle traitait ni à qui s'adresser si sa
+  question n'y était pas. Titre, intro et bouton de contact tiennent maintenant
+  dans une colonne gauche COLLANTE (`event-faq.tsx`). Accordéon dédié plutôt que
+  `ui/accordion`, qui sert aussi le Builder : ici un « + » pivote de 45° pour
+  devenir une croix — la même forme dit « ouvrir » puis « fermer ».
+- **Hero** — mot d'accent coloré, CHOISI par l'organisateur (champ dans le
+  Builder, `props.accentWord`) et jamais deviné : colorer d'office le dernier
+  mot mettrait « 2026 » en avant sur « Concert FESTA 2026 ». Sans choix, le
+  titre reste d'une seule encre. Ajout d'un indicateur de défilement, masqué
+  sous `md` où le pouce trouve le défilement tout seul.
+- **Bug de la carte corrigé** (visible en capture) : en mode sombre elle
+  s'affichait en damier de tuiles claires et sombres. Deux causes — l'état du
+  thème démarrait à « clair » et n'était lu qu'APRÈS la première peinture
+  (`useState` initialisé par lecture directe, le composant ne tournant jamais
+  côté serveur), et Leaflet conservait ses tuiles au changement d'URL (`key` sur
+  le thème pour remonter la couche).
+
+**Vérifié en conditions réelles** : 483 tests API au vert, typecheck web propre,
+FAQ parcourue et question ouverte en clair comme en sombre, hero et carte
+recapturés après correction.
+
 ## 4. Priorités immédiates (à date)
 
 | Module | Priorité | Référence CDC |
