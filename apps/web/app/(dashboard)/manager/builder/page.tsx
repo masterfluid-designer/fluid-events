@@ -846,6 +846,23 @@ export default function EventBuilderPage() {
                       onChange={(e) => updateSelectedProps({ title: e.target.value })}
                     />
                   </div>
+                  {/* Mot d'accent (2026-08-18) — choisi par l'organisateur et
+                      jamais deviné : colorer d'office le dernier mot mettrait
+                      en avant « 2026 » sur « Concert FESTA 2026 ». */}
+                  <div>
+                    <label className="mb-1.5 block text-xs font-semibold">
+                      Mot mis en couleur (optionnel)
+                    </label>
+                    <Input
+                      placeholder="Un mot du titre"
+                      value={(selected.props.accentWord as string) ?? ''}
+                      onChange={(e) => updateSelectedProps({ accentWord: e.target.value })}
+                    />
+                    <p className="mt-1.5 text-[11px] text-muted-foreground">
+                      Ce mot du titre prend la couleur d&apos;accent de votre thème. Laissez vide
+                      pour un titre d&apos;une seule couleur.
+                    </p>
+                  </div>
                   <TextAlignPicker
                     value={selected.styles?.textAlign}
                     onChange={(textAlign) => updateSelectedStyles({ textAlign })}

@@ -3,8 +3,8 @@ import type { MediaAspect } from './media-showcase';
 import { TestimonialsCarousel } from './testimonials-carousel';
 import { formatEventAddress } from '@saas-events/utils';
 import { EventLocation } from './event-location';
+import { EventFaq } from './event-faq';
 import type { Block, FaqEntry, MediaEntry, ScheduleEntry, SpeakerEntry, TestimonialEntry, TimelineEntry } from '@saas-events/types';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Countdown } from './countdown';
 import { SponsorsCarousel } from './sponsors-carousel';
 import { TicketSelector, type PublicTicket } from './ticket-selector';
@@ -185,6 +185,7 @@ function BlockItem({
     return (
       <EventHero
         title={(block.props.title as string) || eventConfig.title}
+        accentWord={(block.props.accentWord as string) || null}
         description={eventConfig.description}
         imageUrl={(block.props.imageUrl as string) || eventConfig.coverImageUrl}
         mediaUrl={(block.props.mediaUrl as string) || null}
@@ -250,26 +251,7 @@ function BlockItem({
   }
 
   if (block.type === 'faq') {
-    if (eventConfig.faqs.length === 0) return null;
-    return (
-      <SectionShell tone="muted">
-        <SectionHeading
-          eyebrow="Bon à savoir"
-          title="Infos pratiques & FAQ"
-          description="Les réponses aux questions les plus fréquentes avant votre venue."
-        />
-        <div className="max-w-3xl">
-          <Accordion type="single" collapsible>
-            {eventConfig.faqs.map((faq) => (
-              <AccordionItem key={faq.id} value={faq.id}>
-                <AccordionTrigger className="text-left text-base">{faq.question}</AccordionTrigger>
-                <AccordionContent className="text-sm leading-relaxed">{faq.answer}</AccordionContent>
-              </AccordionItem>
-            ))}
-          </Accordion>
-        </div>
-      </SectionShell>
-    );
+    return <EventFaq faqs={eventConfig.faqs} contactPhone={eventConfig.contactPhone} />;
   }
 
   if (block.type === 'location') {

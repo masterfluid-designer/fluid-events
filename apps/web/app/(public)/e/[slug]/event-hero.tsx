@@ -19,8 +19,34 @@ import { isVideoUrl, type MediaAspect } from '@/lib/media';
  * Utilisé par les DEUX chemins de rendu : le bloc Builder `hero` (qui peut
  * surcharger titre/image/média via ses props) et le rendu de repli de page.tsx.
  */
+/**
+ * Titre du hero avec UN mot mis en couleur d'accent (2026-08-18).
+ *
+ * Le mot est choisi par l'organisateur, jamais deviné : colorer
+ * automatiquement le dernier mot mettrait « 2026 » en avant sur « Concert
+ * FESTA 2026 », c'est-à-dire précisément le mot qui compte le moins. Sans
+ * choix explicite, le titre reste d'une seule encre.
+ *
+ * La recherche ignore la casse mais ne porte que sur la PREMIÈRE occurrence :
+ * un mot répété trois fois et colorié trois fois ne met plus rien en avant.
+ */
+function renderTitle(title: string, accentWord?: string | null) {
+  const needle = accentWord?.trim();
+  if (!needle) return title;
+  const at = title.toLowerCase().indexOf(needle.toLowerCase());
+  if (at === -1) return title;
+  return (
+    <>
+      {title.slice(0, at)}
+      <span className="text-primary">{title.slice(at, at + needle.length)}</span>
+      {title.slice(at + needle.length)}
+    </>
+  );
+}
+
 export function EventHero({
   title,
+  accentWord,
   description,
   imageUrl,
   mediaUrl,
@@ -33,6 +59,8 @@ export function EventHero({
   stat,
 }: {
   title: string;
+  /** Mot du titre à passer en couleur d'accent — choisi, jamais deviné. */
+  accentWord?: string | null;
   description?: string | null;
   imageUrl?: string | null;
   /** Affiche ou vidéo mise en avant à droite (2026-08-17). */
@@ -92,7 +120,7 @@ export function EventHero({
           </span>
 
           <h1 className="mt-6 font-event text-5xl leading-[0.9] tracking-[-0.02em] sm:text-6xl md:text-7xl">
-            {title}
+            {renderTitle(title, accentWord)}
           </h1>
 
           <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm font-semibold md:text-base">
@@ -139,6 +167,24 @@ export function EventHero({
               </div>
             </div>
           )}
+        </div>
+
+        {/*
+          Indicateur de défilement — le hero occupe 78svh, un visiteur peut
+          croire la page finie. Masqué sous `md` : sur mobile le pouce trouve
+          le défilement tout seul, et cette bande y coûterait de la hauteur.
+
+          `aria-hidden` : il n'y a rien à annoncer, la page défile de toute
+          façon. Décoratif au sens strict.
+        */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 bottom-6 hidden flex-col items-center gap-2 md:flex"
+        >
+          <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-white/60">
+            Scroll
+          </span>
+          <span className="h-10 w-px bg-gradient-to-b from-white/60 to-transparent" />
         </div>
 
         {media && (

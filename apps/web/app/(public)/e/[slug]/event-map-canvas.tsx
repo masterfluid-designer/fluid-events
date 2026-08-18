@@ -46,7 +46,14 @@ function venueIcon() {
 
 /** Suit le thème réel de la page — la classe `dark` posée sur <html>. */
 function useIsDark(): boolean {
-  const [isDark, setIsDark] = useState(false);
+  // Lu AVANT la première peinture, et non dans un effet après coup. Ce
+  // composant ne s'exécute jamais côté serveur (`ssr: false`), `document` est
+  // donc toujours là. Démarrer à `false` faisait peindre la carte en clair
+  // puis basculer : le fond clair du conteneur restait visible entre les
+  // tuiles sombres encore en vol, en damier (constaté le 2026-08-18).
+  const [isDark, setIsDark] = useState(
+    () => typeof document !== 'undefined' && document.documentElement.classList.contains('dark'),
+  );
   useEffect(() => {
     const root = document.documentElement;
     const read = () => setIsDark(root.classList.contains('dark'));
@@ -85,6 +92,11 @@ export default function EventMapCanvas({ venues }: { venues: MapVenue[] }) {
       style={{ background: isDark ? '#1b1a18' : '#f3f1ec' }}
     >
       <TileLayer
+        // `key` sur le thème : au basculement clair/sombre, Leaflet garde ses
+        // tuiles déjà chargées et ne remplace que celles qui reviennent — on
+        // obtenait donc un damier des deux jeux pendant plusieurs secondes.
+        // Remonter la couche jette l'ancienne d'un coup.
+        key={isDark ? 'dark' : 'light'}
         // Tuiles CARTO (dérivées d'OpenStreetMap) — libres, sans clé.
         url={
           isDark
