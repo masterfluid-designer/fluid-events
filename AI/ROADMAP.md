@@ -351,6 +351,76 @@ en vente ».
 SCANNER). Retirer de la vente un billet déjà vendu ne bloque donc pas l'entrée
 de ceux qui l'ont acheté — c'est bien un retrait de vitrine, pas une annulation.
 
+### Refonte haute fidélité de la billetterie publique (2026-08-18)
+
+Refonte menée à partir des captures d'une page concurrente rassemblées par le
+client dans `docs/model ui/` — on en reprend la **disposition, l'architecture
+d'interface et les patterns d'interaction**, jamais les contenus textuels.
+
+**Épuisement dit à trois niveaux.** Un billet épuisé se signalait par une
+opacité et le mot « Épuisé » en gris clair : à l'écran, ça ressemble à un
+chargement raté. Désormais l'onglet de la journée porte « Sold out », un
+bandeau s'intercale au-dessus de la liste, et un tampon barre la carte (prix
+barré). Tampon qui rebondit, bandeau qui clignote — deux rythmes différents et
+lents, coupés sous `prefers-reduced-motion`. Nouveau token `--color-soldout`,
+distinct de `--color-destructive` : l'un est une enseigne, l'autre un
+avertissement, les mélanger tirait l'un des deux hors de son rôle.
+
+**Trois indisponibilités, trois traitements.** Épuisé et clôturé s'éteignent ;
+« pas encore en vente » garde son contraste plein et un badge à la couleur de
+l'événement — c'est une promesse, pas un reliquat.
+
+**Récapitulatif persistant.** Il n'apparaissait qu'après une première
+sélection alors qu'il portait le seul bouton d'achat ET la seule mention de
+sécurité du paiement : la réassurance arrivait après la décision. Colonne de
+droite visible dès l'état vide (total à zéro, bouton éteint), barre collante
+sous `lg`.
+
+**Frise de quatre étapes** (Billets → Vos infos → Paiement → Confirmation) :
+on passait d'une carte de billet à une pop-up d'authentification sans préavis.
+
+**Incrémenteur toujours visible** — il fallait d'abord cliquer la carte pour la
+« sélectionner ». La carte n'est plus un bouton.
+
+**Deux champs pour alimenter tout ça.** `category` existait en base depuis
+l'origine, saisissable nulle part et jamais transmise à la page publique : elle
+regroupe maintenant les billets sous un libellé de rang. `features` est nouveau
+(migration `20260818090000_add_ticket_features`) : les bénéfices inclus, en
+puces cochées sur deux colonnes — une liste se balaie pour comparer deux
+formules, un paragraphe se lit. Les deux s'éditent depuis la page Billets. Le
+service élague les lignes vides et retronque à 12 × 80 caractères : les bornes
+du DTO sont une validation, pas une garantie.
+
+**Carte OpenStreetMap.** Le bloc « Où ça se passe » s'en privait au motif,
+écrit dans son propre en-tête, qu'elle « imposerait une clé d'API facturée ».
+C'était faux : Leaflet est libre et les tuiles OSM/CARTO ne demandent ni compte
+ni clé — seule l'attribution est obligatoire, et elle est affichée. La carte
+suit le thème clair/sombre sans rechargement (MutationObserver sur `<html>`),
+et le lien d'itinéraire reste à côté d'elle : la carte situe, l'itinéraire fait
+partir.
+
+**Trois défauts trouvés en vérifiant :**
+
+- un billet **sans `dayLabel` disparaissait purement et simplement** dès qu'un
+  seul autre billet en portait un — le filtre par onglet ne gardait que la
+  journée active. Un pass « toutes journées » ou un backstage n'était donc
+  jamais proposé, sans le moindre signal à l'organisateur ;
+- le bouton WhatsApp du bloc Accès remontait sur la ligne du numéro et le
+  recouvrait (`inline-block` → `block`) ;
+- sur 375 px, `flex-wrap` gardait le texte et le bloc prix sur la même ligne et
+  comprimait le premier jusqu'à un mot par ligne (`basis-full md:basis-0`).
+
+**Vérifié en conditions réelles** : 478 tests API au vert, typechecks web et
+API propres, section parcourue en 1451 px et en 375 px — rangs, bénéfices,
+frise, sélection, total, bascule colonne/barre, et les trois états d'un billet
+en clair comme en sombre, tuiles et attribution comprises.
+
+**Piège d'environnement rencontré** : le conteneur Docker `fluid-events-api`
+(build figé) occupait le port 4000, le serveur NestJS local échouait en
+`EADDRINUSE` — on testait donc le nouveau frontend contre l'ancienne API sans
+le voir. Vérifier `docker ps` avant de conclure quoi que ce soit d'une session
+de vérification.
+
 ## 4. Priorités immédiates (à date)
 
 | Module | Priorité | Référence CDC |
