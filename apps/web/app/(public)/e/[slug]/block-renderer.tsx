@@ -192,6 +192,7 @@ function BlockItem({
         title={(block.props.title as string) || eventConfig.title}
         accentWord={(block.props.accentWord as string) || null}
         socialProof={(block.props.socialProof as string) || null}
+        lead={(block.props.lead as string) || null}
         description={eventConfig.description}
         imageUrl={(block.props.imageUrl as string) || eventConfig.coverImageUrl}
         mediaUrl={(block.props.mediaUrl as string) || null}

@@ -58,6 +58,7 @@ export function EventHero({
   scheduleAnchorId,
   stat,
   socialProof,
+  lead,
 }: {
   title: string;
   /** Mot du titre à passer en couleur d'accent — choisi, jamais deviné. */
@@ -80,6 +81,13 @@ export function EventHero({
    * pris ailleurs n'auraient rien prouvé.
    */
   socialProof?: string | null;
+  /**
+   * Accroche (2026-08-18) — la phrase qui VEND, au-dessus de la description.
+   * Le modèle de l'organisateur pose deux niveaux de texte : une accroche
+   * dense en gras, puis un paragraphe plus discret qui développe. Un seul
+   * bloc de texte aplatissait les deux et ne hiérarchisait rien.
+   */
+  lead?: string | null;
 }) {
   const media = mediaUrl || null;
   const mediaIsVideo = isVideoUrl(media);
@@ -142,8 +150,14 @@ export function EventHero({
             )}
           </div>
 
+          {lead?.trim() && (
+            <p className="mt-5 max-w-xl text-base font-semibold leading-snug text-white md:text-lg">
+              {lead.trim()}
+            </p>
+          )}
+
           {description && (
-            <p className="mt-5 max-w-xl text-sm leading-relaxed text-white/80 md:text-base">
+            <p className="mt-3 max-w-xl text-sm leading-relaxed text-white/70 md:text-base">
               {description}
             </p>
           )}
@@ -167,17 +181,17 @@ export function EventHero({
             )}
           </div>
 
-          {socialProof?.trim() && (
+          {socialProof?.trim() ? (
             <p className="mt-5 text-sm text-white/75">{socialProof.trim()}</p>
-          )}
-
-          {stat && (
-            <div className="mt-10 w-fit rounded-2xl border border-white/20 bg-white/10 px-5 py-3.5 backdrop-blur-md">
-              <div className="font-event text-2xl leading-none md:text-3xl">{stat.value}</div>
-              <div className="mt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/70">
-                {stat.label}
+          ) : (
+            stat && (
+              <div className="mt-10 w-fit rounded-2xl border border-white/20 bg-white/10 px-5 py-3.5 backdrop-blur-md">
+                <div className="font-event text-2xl leading-none md:text-3xl">{stat.value}</div>
+                <div className="mt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/70">
+                  {stat.label}
+                </div>
               </div>
-            </div>
+            )
           )}
         </div>
 

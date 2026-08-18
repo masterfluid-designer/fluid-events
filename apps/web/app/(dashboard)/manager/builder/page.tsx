@@ -912,6 +912,23 @@ export default function EventBuilderPage() {
                       pour un titre d&apos;une seule couleur.
                     </p>
                   </div>
+                  {/* Accroche (2026-08-18) : la phrase qui vend, au-dessus de la
+                      description. Deux niveaux de texte plutôt qu'un seul
+                      bloc, qui n'hiérarchisait rien. */}
+                  <div>
+                    <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                      Accroche (optionnel)
+                    </label>
+                    <Input
+                      placeholder="Formation intensive : domptez la création de contenu"
+                      value={(selected.props.lead as string) ?? ''}
+                      onChange={(e) => updateSelectedProps({ lead: e.target.value })}
+                    />
+                    <p className="mt-1.5 text-[11px] text-muted-foreground">
+                      Affichée en gras juste sous le titre, avant la description de
+                      l&apos;événement. Une phrase courte qui donne envie.
+                    </p>
+                  </div>
                   {/* Preuve sociale (2026-08-18) : une phrase sous les boutons,
                       sans portraits — le chiffre porte la crédibilité, des
                       visages inventés ne prouveraient rien. */}
