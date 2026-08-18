@@ -454,6 +454,36 @@ d'assombrissement, flou, retrait).
 MinIO et rendue en clair comme en sombre, panneau Thème piloté dans le
 navigateur (curseur borné à 35–90, flou, retrait).
 
+### Formules sur réservation (2026-08-18)
+
+Les tables et packages groupe n'existaient pas dans le modèle : les
+organisateurs les fabriquaient en billets ordinaires, annulés à la main après
+chaque demande. Un billet payable en ligne pour une formule dont le prix se
+discute est un piège pour l'acheteur autant qu'une corvée pour l'organisateur.
+
+- **`Ticket.saleMode`** (`ONLINE` | `ON_REQUEST`, migration
+  `20260818100000_add_ticket_sale_mode`) + `requestBadge`, pastille de
+  qualification libre affichée AU-DESSUS du nom : c'est une condition d'accès,
+  elle se lit avant la formule.
+- **Bouton WhatsApp** vers `Event.contactPhone` au lieu de l'incrémenteur, et
+  « Réservation sur mesure » au lieu de « / personne » — rien n'est encaissé
+  ici, le montant affiché n'est qu'un ordre de grandeur. Sans numéro renseigné,
+  la carte dit « Sur réservation » plutôt que d'inventer un canal.
+- **Le refus vit dans `payments.service.ts`** (`TICKET_ON_REQUEST_ONLY`), pas
+  dans l'affichage : un appel direct à `POST /api/payments/init` se heurte au
+  même mur (RULES.md §1). Deux tests le verrouillent, dont le cas passant.
+- **Exclues des calculs d'épuisement** : une table créée à stock zéro — cas
+  courant, le stock n'ayant pas de sens pour elle — aurait sinon déclaré toute
+  une journée complète, bandeau « Sold out » compris.
+- **Corrigé au rendu** : les bénéfices passaient à trois lignes par puce sur ces
+  cartes, le bouton WhatsApp élargissant la colonne de droite. La grille suit
+  désormais la place réellement disponible (`auto-fit`) et non la largeur de la
+  fenêtre.
+
+**Vérifié en conditions réelles** : 483 tests API au vert, deux formules rendues
+et cadrées en clair comme en sombre, lien WhatsApp construit sur le numéro de
+l'événement.
+
 ## 4. Priorités immédiates (à date)
 
 | Module | Priorité | Référence CDC |
