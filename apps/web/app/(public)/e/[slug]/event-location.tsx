@@ -1,4 +1,4 @@
-import { MapPin, Phone, Navigation, Info, MessageCircle } from 'lucide-react';
+import { MapPin, Phone, Navigation, MessageCircle } from 'lucide-react';
 import { buildMapsUrl, formatEventAddress, type EventLocationFields } from '@saas-events/utils';
 import { SectionShell, SectionHeading } from './section-shell';
 import { EventMap, type MapVenue } from './event-map';
@@ -51,7 +51,10 @@ export function EventLocation({
   const mapsUrl = buildMapsUrl(fields);
 
   // Rien à montrer : on ne rend pas une section vide avec un titre orphelin.
-  if (!address && !accessNotes && !contactPhone) return null;
+  // `accessNotes` ne compte plus ici : ces indications sont passées à
+  // l'espace client (2026-08-18). Une section « Accès » qui n'aurait plus
+  // qu'elles à montrer ne doit donc pas s'ouvrir.
+  if (!address && !contactPhone) return null;
 
   // La carte n'apparaît que si l'organisateur a réellement géolocalisé son
   // lieu. Sans coordonnées, on ne devine pas : une carte centrée au hasard
@@ -166,27 +169,12 @@ export function EventLocation({
           </div>
         )}
 
-        {(accessNotes || contactPhone) && (
+        {/* Les indications d'accès ont quitté cette page (2026-08-18) :
+            « présentez votre QR à l'accueil » ne parle qu'à qui a déjà
+            acheté. Elles s'affichent désormais sur le billet, dans l'espace
+            client. Le contact, lui, sert AVANT l'achat — il reste ici. */}
+        {contactPhone && (
           <div className="flex flex-col gap-4">
-            {accessNotes && (
-              <div className="flex flex-1 flex-col rounded-2xl border border-stroke p-6 dark:border-strokedark">
-                <div className="flex items-start gap-3">
-                  <Info className="mt-0.5 size-5 shrink-0 text-primary" />
-                  <div className="min-w-0">
-                    <div className="text-xs font-bold uppercase tracking-wide text-waterloo dark:text-manatee">
-                      Accès
-                    </div>
-                    {/* whitespace-pre-line : l'organisateur saisit ses
-                        indications sur plusieurs lignes, elles doivent le
-                        rester à l'affichage. */}
-                    <p className="mt-1.5 whitespace-pre-line text-sm leading-relaxed">
-                      {accessNotes}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-
             {contactPhone && (
               <div className="flex flex-1 flex-col rounded-2xl border border-stroke p-6 dark:border-strokedark">
                 <div className="flex items-start gap-3">

@@ -4,7 +4,7 @@ import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import QRCode from 'qrcode';
-import { Calendar, MapPin, QrCode, X } from 'lucide-react';
+import { Calendar, Info, MapPin, QrCode, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Spinner } from '@/components/ui/spinner';
@@ -31,7 +31,14 @@ interface ClientOrder {
   totalAmount: number;
   currency: string;
   paidAt: string | null;
-  event: { slug: string; title: string; startDate: string; location: string | null };
+  event: {
+    slug: string;
+    title: string;
+    startDate: string;
+    location: string | null;
+    /** Indications d'accès — réservées aux porteurs de billet (2026-08-18). */
+    accessNotes: string | null;
+  };
   items: Array<{ id: string; ticketName: string; hasTicket: boolean; isScanned: boolean }>;
 }
 
@@ -193,6 +200,26 @@ function TicketCard({
             )}
             <div className="font-mono">Réf : {order.orderNumber}</div>
           </div>
+
+          {/* Indications d'accès (2026-08-18) — retirées de la page publique :
+              « entrée côté nord », « présentez votre QR à l'accueil » ne
+              parlent qu'à qui a déjà son billet. Conditionnées au paiement
+              RÉEL, pas à la simple existence d'une commande. */}
+          {order.status === 'PAID' && order.event.accessNotes?.trim() && (
+            <div className="mt-3 flex items-start gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2.5">
+              <Info className="mt-0.5 size-3.5 shrink-0 text-primary" />
+              <div className="min-w-0">
+                <div className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+                  Accès
+                </div>
+                {/* whitespace-pre-line : l'organisateur saisit ses indications
+                    sur plusieurs lignes, elles doivent le rester. */}
+                <p className="mt-0.5 whitespace-pre-line text-xs leading-relaxed">
+                  {order.event.accessNotes.trim()}
+                </p>
+              </div>
+            </div>
+          )}
           {usable && (
             <div className="mt-3 flex gap-2">
               <Button size="sm" variant="outline" onClick={onViewQr}>

@@ -7,6 +7,7 @@ import { EventFaq } from './event-faq';
 import type { Block, FaqEntry, MediaEntry, ScheduleEntry, SpeakerEntry, TestimonialEntry, TimelineEntry } from '@saas-events/types';
 import { Countdown } from './countdown';
 import { SponsorsCarousel } from './sponsors-carousel';
+import { Clock } from 'lucide-react';
 import { TicketSelector, type PublicEventDay, type PublicTicket } from './ticket-selector';
 import { SpeakersGrid } from './speakers-grid';
 import { TimelineStrip } from './timeline-strip';
@@ -68,17 +69,23 @@ export interface EventConfigData {
  * multi-pages Accueil/Programme/Line-up/Billetterie/.../Infos&FAQ d'orncity —
  * décision produit "condenser en une seule landing page").
  */
+/**
+ * Entrées de l'en-tête — quatre, pas une de plus (décision produit
+ * 2026-08-18).
+ *
+ * Toutes les sections y figuraient : sur une page complète, l'en-tête
+ * comptait sept liens et débordait, chacun devenant illisible et aucun ne
+ * ressortant. Un visiteur cherche à acheter, à voir qui joue, à savoir quand
+ * et où — le reste se trouve en faisant défiler.
+ *
+ * L'ordre suit celui de la page, pas cette liste : une navigation par ancres
+ * qui ne suivrait pas le document désorienterait au lieu de guider.
+ */
 export const BLOCK_NAV_LABELS: Partial<Record<Block['type'], string>> = {
   tickets: 'Billetterie',
-  schedule: 'Programme',
   speakers: 'Line-up',
-  sponsors: 'Partenaires',
-  faq: 'Infos & FAQ',
-  gallery: 'Galerie',
-  timeline: 'Notre histoire',
+  schedule: 'Programme',
   location: 'Accès',
-  testimonials: 'Témoignages',
-  video: 'Vidéo',
 };
 
 export interface NavItem {
@@ -101,17 +108,12 @@ export function getVisibleNavItems(
   for (const block of [...blocks].sort((a, b) => a.order - b.order)) {
     const label = BLOCK_NAV_LABELS[block.type];
     if (!label || seen.has(block.type)) continue;
+    // Une entrée ne s'affiche que si sa section a du contenu, sinon le lien
+    // mènerait à du vide.
     const hasContent =
       (block.type === 'tickets' && tickets.length > 0) ||
-      (block.type === 'schedule' && eventConfig.schedule.length > 0) ||
       (block.type === 'speakers' && eventConfig.speakers.length > 0) ||
-      (block.type === 'sponsors' && eventConfig.sponsorImages.length > 0) ||
-      (block.type === 'faq' && eventConfig.faqs.length > 0) ||
-      (block.type === 'gallery' && eventConfig.galleryImages.length > 0) ||
-      (block.type === 'timeline' && ((block.props.entries as unknown[] | undefined)?.length ?? 0) > 0) ||
-      (block.type === 'testimonials' &&
-        ((block.props.entries as unknown[] | undefined)?.length ?? 0) > 0) ||
-      (block.type === 'video' && Boolean(block.props.mediaUrl)) ||
+      block.type === 'schedule' ||
       // Mêmes conditions de « vide » que EventLocation, sinon la nav
       // pointerait vers une section qui ne rend rien.
       (block.type === 'location' &&
@@ -274,17 +276,42 @@ function BlockItem({
   }
 
   if (block.type === 'schedule') {
-    if (eventConfig.schedule.length === 0) return null;
     const sortedSchedule = [...eventConfig.schedule].sort(
       (a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime(),
     );
+    // Les journées déclarées nomment le programme au lieu d'un « Deux jours,
+    // deux scènes » écrit en dur, faux dès qu'un événement tient sur un jour.
+    const jours = eventDays.map((d) => d.label).filter(Boolean);
+    const eyebrow =
+      jours.length > 1 ? `${jours.length} journées` : 'Le déroulé';
+    const quand =
+      jours.length > 0
+        ? `Le déroulé heure par heure — ${jours.join(', ')}.`
+        : 'Le déroulé heure par heure de l’événement.';
+
     return (
       <SectionShell>
-        <SectionHeading
-          eyebrow="Deux jours, deux scènes"
-          title="Le programme"
-          description="Le déroulé heure par heure de l'événement."
-        />
+        <SectionHeading eyebrow={eyebrow} title="Le programme" description={quand} />
+        {/*
+          La section reste visible même sans horaire saisi (2026-08-18).
+          Auparavant elle disparaissait : un visiteur qui suivait le lien
+          « Programme » de l'en-tête atterrissait ailleurs, et rien ne lui
+          disait que le déroulé arrivait. Mieux vaut l'annoncer que se taire.
+        */}
+        {sortedSchedule.length === 0 ? (
+          <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-stroke px-6 py-10 text-center dark:border-strokedark">
+            <span className="flex size-12 items-center justify-center rounded-full border border-primary/40 text-primary">
+              <Clock className="size-5" />
+            </span>
+            <p className="text-base font-semibold">Programme bientôt disponible</p>
+            <p className="max-w-md text-sm text-waterloo dark:text-manatee">
+              {jours.length > 0
+                ? `Le déroulé heure par heure — ${jours.join(', ')} — est en cours de finalisation.`
+                : 'Le déroulé heure par heure est en cours de finalisation.'}{' '}
+              Revenez très vite.
+            </p>
+          </div>
+        ) : (
         <div className="flex flex-col gap-3">
           {sortedSchedule.map((entry) => (
             <div
@@ -305,6 +332,7 @@ function BlockItem({
             </div>
           ))}
         </div>
+        )}
       </SectionShell>
     );
   }

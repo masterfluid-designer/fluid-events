@@ -423,7 +423,12 @@ export class PaymentsService {
         currency: true,
         paidAt: true,
         createdAt: true,
-        event: { select: { slug: true, title: true, startDate: true, location: true } },
+        // `accessNotes` (2026-08-18) : « entrée côté nord », « présentez votre
+        // QR à l'accueil » ne servent qu'à qui a déjà son billet. Ces
+        // indications ont quitté la page publique pour cet écran.
+        event: {
+          select: { slug: true, title: true, startDate: true, location: true, accessNotes: true },
+        },
         items: {
           select: {
             id: true,
