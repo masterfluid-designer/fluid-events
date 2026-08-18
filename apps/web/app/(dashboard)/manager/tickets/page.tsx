@@ -4,7 +4,7 @@ import { TicketPolicy, TicketSaleMode } from '@saas-events/types';
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { CalendarDays, Eye, EyeOff, MapPin, Plus, Settings2, Trash2, X } from 'lucide-react';
+import { CalendarDays, Eye, EyeOff, MapPin, Plus, Settings2, Trash2, User, Users, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
@@ -105,7 +105,10 @@ export default function ManagerTicketsPage() {
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
   const [stock, setStock] = useState('');
-  const [maxPerOrder, setMaxPerOrder] = useState('');
+  // Défaut « plusieurs places, 10 » : le plafond 1 du schéma n'est presque
+  // jamais l'intention d'un organisateur, et une case vide laisserait le
+  // serveur trancher sans le dire.
+  const [maxPerOrder, setMaxPerOrder] = useState('10');
   const [description, setDescription] = useState('');
   // Rang et bénéfices (2026-08-18) — voir la page publique, qui les regroupe
   // et les affiche en liste cochée. `features` est tenu comme UN texte
@@ -298,7 +301,7 @@ export default function ManagerTicketsPage() {
       setName('');
       setPrice('');
       setStock('');
-      setMaxPerOrder('');
+      setMaxPerOrder('10');
       setDescription('');
       setCategory('');
       setFeatures('');
@@ -347,7 +350,7 @@ export default function ManagerTicketsPage() {
     setName('');
     setPrice('');
     setStock('');
-    setMaxPerOrder('');
+    setMaxPerOrder('10');
     setDescription('');
     setCategory('');
     setFeatures('');
@@ -390,6 +393,7 @@ export default function ManagerTicketsPage() {
   // lisible (décision produit 2026-08-18, alignée sur le stock).
   const editingTicket = editingId ? event.tickets.find((t) => t.id === editingId) : undefined;
   const maxPerOrderLocked = (editingTicket?.stockSold ?? 0) > 0;
+  const singleSeat = maxPerOrder === '1';
   // Une fenêtre inversée ne serait jamais ouverte : l'avertir ne suffit pas,
   // il faut empêcher d'enregistrer un billet invendable.
   const saleWindowInverted =
@@ -564,31 +568,98 @@ export default function ManagerTicketsPage() {
               onChange={(e) => setStock(e.target.value)}
               className="rounded-md border border-input bg-background px-3 py-2 text-sm"
             />
-            {/* Plafond par commande (2026-08-17) : la valeur par défaut en base
-                est 1, et ce champ n’existait nulle part — l’acheteur ne pouvait
-                donc jamais prendre deux places, l’incrémenteur restant bloqué.
-                Étiqueté plutôt que placeholder seul : en modification le champ
-                est pré-rempli, et un « 1 » nu ne dit pas de quoi il parle. */}
-            <label className="flex flex-col gap-1 text-xs text-muted-foreground">
-              Places max par commande
-              <input
-                type="number"
-                min="1"
-                placeholder={editingId ? undefined : '10'}
-                value={maxPerOrder}
-                onChange={(e) => setMaxPerOrder(e.target.value)}
-                readOnly={maxPerOrderLocked}
-                aria-describedby={maxPerOrderLocked ? 'max-per-order-lock' : undefined}
-                className={`rounded-md border border-input px-3 py-2 text-sm text-foreground ${
-                  maxPerOrderLocked ? 'cursor-not-allowed bg-muted' : 'bg-background'
-                }`}
-              />
-              {maxPerOrderLocked && (
-                <span id="max-per-order-lock" className="text-[11px]">
-                  Figé : {editingTicket?.stockSold} place(s) déjà vendue(s) sous cette règle.
-                </span>
+            {/* Mode d'achat (2026-08-18). Un nombre à taper n'apprend rien à qui
+                ignore sa conséquence : deux options NOMMÉES disent ce qui se
+                passera à l'achat. Le mode se déduit du plafond — pas de second
+                état à tenir synchronisé. Figé dès la première vente : les
+                acheteurs suivants joueraient sinon sous une autre règle. */}
+            <fieldset className="md:col-span-2">
+              <legend className="mb-1.5 text-xs font-medium text-muted-foreground">
+                Combien de places par commande ?
+              </legend>
+              {maxPerOrderLocked ? (
+                <p
+                  id="max-per-order-lock"
+                  className="rounded-xl border border-dashed border-border bg-muted/40 px-3 py-2.5 text-xs text-muted-foreground"
+                >
+                  {singleSeat
+                    ? 'Une place par commande.'
+                    : `Jusqu'à ${maxPerOrder} places par commande.`}{' '}
+                  <span className="font-medium">
+                    Figé : {editingTicket?.stockSold} place(s) déjà vendue(s) sous cette règle.
+                  </span>
+                </p>
+              ) : (
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {[
+                    {
+                      value: '1',
+                      icon: User,
+                      title: 'Une place par commande',
+                      hint: 'Billet nominatif, ou catégorie rare.',
+                    },
+                    {
+                      value: '10',
+                      icon: Users,
+                      title: 'Plusieurs places',
+                      hint: 'L’acheteur choisit sa quantité.',
+                    },
+                  ].map((opt) => {
+                    const selected = opt.value === '1' ? singleSeat : !singleSeat;
+                    const Icon = opt.icon;
+                    return (
+                      <label
+                        key={opt.value}
+                        className={`flex cursor-pointer items-start gap-2.5 rounded-xl border p-3 transition-all focus-within:ring-2 focus-within:ring-ring ${
+                          selected
+                            ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                            : 'border-border hover:border-primary/40 hover:bg-accent/40'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="purchase-mode"
+                          checked={selected}
+                          // Repasser en « plusieurs » restaure 10 plutôt que de
+                          // rendre la main sur un champ vide.
+                          onChange={() => setMaxPerOrder(opt.value)}
+                          className="sr-only"
+                        />
+                        <span
+                          className={`flex size-7 shrink-0 items-center justify-center rounded-lg ${
+                            selected ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+                          }`}
+                        >
+                          <Icon className="size-3.5" />
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block text-xs font-semibold">{opt.title}</span>
+                          <span className="block text-[11px] text-muted-foreground">{opt.hint}</span>
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
               )}
-            </label>
+              {/* Le nombre n'a de sens que dans le second cas — l'afficher
+                  toujours ramènerait la case nue qu'on vient de remplacer.
+                  min=2 : « 1 » est l'AUTRE carte, pas une valeur d'ici. */}
+              {!maxPerOrderLocked && !singleSeat && (
+                <label className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                  Plafond
+                  <input
+                    type="number"
+                    min="2"
+                    placeholder="10"
+                    value={maxPerOrder}
+                    onChange={(e) => setMaxPerOrder(e.target.value)}
+                    aria-label="Nombre maximum de places par commande"
+                    className="w-24 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
+                  />
+                  places
+                </label>
+              )}
+            </fieldset>
             <input
               placeholder="Description (optionnel)"
               value={description}

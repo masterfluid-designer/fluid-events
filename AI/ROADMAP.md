@@ -557,6 +557,41 @@ illisible sans aucun recours. Les deux sélecteurs sont désormais côte à côt
 `currency` reste volontairement non exposé : le panier somme sans conversion,
 le multi-devises est hors périmètre V1.
 
+### Le mode d'achat plutôt qu'un nombre à taper (2026-08-18)
+
+Dernier lot du chantier ouvert le 2026-08-17. `maxPerOrder` était devenu
+saisissable, mais sous la forme d’une case numérique nue : un nombre
+n'apprend rien à qui ignore sa conséquence. Deux cartes NOMMÉES disent ce qui
+se passera à l'achat — « Une place par commande » (billet nominatif, catégorie
+rare) et « Plusieurs places » (l'acheteur choisit sa quantité).
+
+- **Le mode se déduit du plafond**, il n’est pas un second état : rien à tenir
+  synchronisé, donc rien à désynchroniser. `1` ⇢ première carte, tout le reste
+  ⇢ seconde.
+- **Le nombre ne s’affiche que dans le second cas** — le montrer toujours
+  ramènerait la case nue qu’on vient de remplacer. `min=2` : « 1 » est l’AUTRE
+  carte, pas une valeur de ce champ.
+- **Défaut « plusieurs places, 10 » affiché**, et non laissé vide : le plafond 1
+  du schéma n’est presque jamais l’intention, et une case vide laissait le
+  serveur trancher sans le dire.
+- **Verrouillé après la première vente** (décision produit du 2026-08-18) : les
+  cartes cèdent la place à une phrase qui énonce la règle EN VIGUEUR et sa
+  raison — « Jusqu’à 10 places par commande. Figé : 696 place(s) déjà vendue(s)
+  sous cette règle. »
+
+**Vérifié à l’écran sur les trois états** : création (carte « Plusieurs »
+cochée, plafond 10, champ masqué en basculant sur « Une place ») ; modification
+libre sur un billet invendu (état déduit de la vraie valeur, 1 ⇢ 6 enregistré
+en base) ; modification verrouillée sur un billet à 696 ventes (cartes
+remplacées par la phrase). 483 tests API au vert.
+
+⚠️ **Incohérence du jeu de seed relevée au passage** : `concert-festa-2026`
+déclare `expectedAttendees = 500` pour 1 987 places réparties entre ses
+billets. Le garde `EVENT_CAPACITY_EXCEEDED` refuse donc TOUTE création de
+billet sur cet événement. Ce n’est pas une régression — la donnée de seed est
+née hors contrainte — mais elle rend l’écran de création intestable sur cet
+événement.
+
 ## 4. Priorités immédiates (à date)
 
 | Module | Priorité | Référence CDC |
