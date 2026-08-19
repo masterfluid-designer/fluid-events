@@ -111,6 +111,32 @@ export class EmailService {
   }
 
   /**
+   * Invitation d'un agent de contrôle (2026-08-19). Même mécanique que
+   * l'invitation Manager — un lien pour choisir son mot de passe — mais le
+   * message nomme l'événement : un agent peut travailler pour plusieurs
+   * organisateurs et doit savoir lequel l'invite.
+   */
+  async sendScannerInviteEmail(params: {
+    to: string;
+    name: string;
+    eventTitle: string;
+    inviteUrl: string;
+  }): Promise<void> {
+    const { to, name, eventTitle, inviteUrl } = params;
+    const subject = `Contrôle des billets — ${eventTitle}`;
+    const html = `
+      <p>Bonjour ${escapeHtml(name)},</p>
+      <p>Vous avez été désigné·e pour contrôler les billets de
+         <strong>${escapeHtml(eventTitle)}</strong> sur Fluid Events.</p>
+      <p><a href="${inviteUrl}">Définir mon mot de passe et accéder au scanner</a></p>
+      <p>Ce lien expire dans 7 jours. Le jour J, ouvrez le scanner depuis votre
+         téléphone et présentez la caméra au QR de chaque billet.</p>
+    `;
+    await this.send(to, subject, html);
+    this.logger.log(`Email d'invitation scanner envoyé à ${to}`);
+  }
+
+  /**
    * Message du formulaire de contact public (/contact, /support —
    * 2026-07-24). Contrairement à `sendTicketReadyEmail`, l'échec est
    * remonté à l'appelant (même raisonnement que `sendManagerInviteEmail` :

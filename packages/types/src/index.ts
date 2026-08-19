@@ -534,6 +534,10 @@ export const ErrorCodes = {
   // Scanner
   SCANNER_QUOTA_EXCEEDED: 'SCANNER_QUOTA_EXCEEDED',
   SCANNER_NOT_ACTIVE: 'SCANNER_NOT_ACTIVE',
+  // Gestion des comptes scanner par le Manager (2026-08-19).
+  SCANNER_NOT_FOUND: 'SCANNER_NOT_FOUND',
+  // Promotion refusée : compte déjà scanner, ou rôle non promouvable.
+  SCANNER_PROMOTION_INVALID: 'SCANNER_PROMOTION_INVALID',
   // Builder
   BUILDER_CONFLICT: 'BUILDER_CONFLICT',
   BUILDER_SCHEMA_INVALID: 'BUILDER_SCHEMA_INVALID',

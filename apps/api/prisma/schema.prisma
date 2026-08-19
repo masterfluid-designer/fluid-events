@@ -29,6 +29,11 @@ model User {
   avatarUrl           String?
   googleId            String?   @unique
   role                Role      @default(CLIENT)
+  /// Rôle d'avant une promotion en scanner (2026-08-19). Un utilisateur n'a
+  /// qu'un rôle : promouvoir un client le fait passer en SCANNER et lui fait
+  /// perdre l'accès à ses propres billets. On garde d'où il vient pour
+  /// pouvoir le lui rendre en le retirant.
+  previousRole        Role?
   isActive            Boolean   @default(true)
   // Enrichi post-paiement via webhook provider (jamais écrasé si déjà renseigné)
   phone               String?

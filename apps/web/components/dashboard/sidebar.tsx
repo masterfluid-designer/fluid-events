@@ -17,6 +17,7 @@ import {
   PanelLeftOpen,
   ImageIcon,
   MessageCircle,
+  ScanLine,
   BadgeCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -48,6 +49,7 @@ const navByRole: Record<Role, NavItem[]> = {
     { href: '/manager/builder', label: 'Page builder', icon: <Settings className="size-4" /> },
     { href: '/manager/tickets', label: 'Billets', icon: <Ticket className="size-4" /> },
     { href: '/manager/participants', label: 'Participants', icon: <Users className="size-4" /> },
+    { href: '/manager/scanners', label: 'Agents de contrôle', icon: <ScanLine className="size-4" /> },
     { href: '/manager/analytics', label: 'Statistiques', icon: <BarChart3 className="size-4" /> },
     { href: '/manager/profile', label: 'Profil', icon: <Users className="size-4" /> },
     { href: '/manager/appearance', label: 'Apparence', icon: <Palette className="size-4" /> },
