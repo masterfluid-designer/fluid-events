@@ -266,6 +266,8 @@ export class EventsService {
     const urls = [
       data.logoUrl,
       data.coverImageUrl,
+      data.officialMediaUrl,
+      data.heroBackdropUrl,
       ...(data.speakers?.map((s) => s.photoUrl) ?? []),
       ...(data.galleryImages?.map((m) => m.url) ?? []),
       ...(data.sponsorImages?.map((m) => m.url) ?? []),

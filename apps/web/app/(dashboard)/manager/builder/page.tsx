@@ -144,6 +144,9 @@ const EMPTY_CONFIG: EventConfig = {
   longitude: '',
   logoUrl: '',
   coverImageUrl: '',
+  officialMediaUrl: '',
+  officialMediaAspect: '4:5',
+  heroBackdropUrl: '',
   faqs: [],
   schedule: [],
   speakers: [],
@@ -209,6 +212,9 @@ export default function EventBuilderPage() {
       longitude: eventData.longitude == null ? '' : String(eventData.longitude),
       logoUrl: eventData.logoUrl ?? '',
       coverImageUrl: eventData.coverImageUrl ?? '',
+      officialMediaUrl: eventData.officialMediaUrl ?? '',
+      heroBackdropUrl: eventData.heroBackdropUrl ?? '',
+      officialMediaAspect: eventData.officialMediaAspect ?? '4:5',
       faqs: eventData.faqs ?? [],
       schedule: eventData.schedule ?? [],
       speakers: eventData.speakers ?? [],
@@ -248,6 +254,13 @@ export default function EventBuilderPage() {
           longitude: config.longitude ? Number(config.longitude) : undefined,
           logoUrl: config.logoUrl || undefined,
           coverImageUrl: config.coverImageUrl || undefined,
+          // `null` et non `undefined` : vider le champ doit RETIRER l'affiche,
+          // pas laisser l'ancienne en place.
+          officialMediaUrl: config.officialMediaUrl || null,
+          heroBackdropUrl: config.heroBackdropUrl || null,
+          officialMediaAspect: config.officialMediaUrl
+            ? config.officialMediaAspect || '4:5'
+            : null,
           faqs: config.faqs,
           schedule: config.schedule,
           speakers: config.speakers,
@@ -1275,6 +1288,15 @@ function TestimonialsEditor({
                   label="Photo (optionnel)"
                   value={entry.avatarUrl || undefined}
                   onChange={(url) => patch(entry.id, { avatarUrl: url ?? '' })}
+                />
+                {/* Témoignage filmé (2026-08-19) : le nom et le rôle saisis
+                    au-dessus restent affichés sous la vidéo — sans eux, un
+                    visage inconnu n'atteste de rien. */}
+                <ImageUploadField
+                  label="Vidéo du témoignage (optionnel)"
+                  allowVideo
+                  value={entry.videoUrl || undefined}
+                  onChange={(url) => patch(entry.id, { videoUrl: url ?? '' })}
                 />
               </div>
               <button

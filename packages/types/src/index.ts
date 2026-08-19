@@ -406,12 +406,18 @@ export interface TimelineEntry {
  */
 export interface TestimonialEntry {
   id: string;
-  /** Le propos rapporté — seul champ réellement obligatoire. */
+  /** Le propos rapporté. Facultatif si une vidéo le porte à sa place. */
   quote: string;
   author?: string;
   /** Rôle ou provenance : « Édition 2025 », « Bénévole »… */
   role?: string;
   avatarUrl?: string;
+  /**
+   * Témoignage filmé (2026-08-19). Une personne qui parle convainc plus qu'un
+   * texte qu'on peut inventer ; le nom et le rôle restent affichés en dessous,
+   * c'est eux qui rendent le propos attribuable.
+   */
+  videoUrl?: string;
 }
 
 export interface BlockStyles {

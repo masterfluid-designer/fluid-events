@@ -53,6 +53,10 @@ export interface EventConfigData {
   latitude: number | string | null;
   longitude: number | string | null;
   coverImageUrl: string | null;
+  /** Affiche officielle du hero — image ou vidéo (2026-08-19). */
+  officialMediaUrl: string | null;
+  officialMediaAspect: string | null;
+  heroBackdropUrl: string | null;
   /** Date de début déjà formatée en français (calculée une fois côté page). */
   dateLabel: string;
   startDate: string;
@@ -196,11 +200,19 @@ function BlockItem({
         title={(block.props.title as string) || eventConfig.title}
         accentWord={(block.props.accentWord as string) || null}
         socialProof={(block.props.socialProof as string) || null}
+        backdropUrl={eventConfig.heroBackdropUrl}
         lead={(block.props.lead as string) || null}
         description={eventConfig.description}
         imageUrl={(block.props.imageUrl as string) || eventConfig.coverImageUrl}
-        mediaUrl={(block.props.mediaUrl as string) || null}
-        mediaAspect={(block.props.mediaAspect as MediaAspect) || '4:5'}
+        // Priorité : le réglage du bloc, puis l'affiche officielle de
+        // l'événement, puis rien — le hero retombe alors sur la couverture.
+        // Le bloc garde la main pour qui veut une ouverture différente.
+        mediaUrl={(block.props.mediaUrl as string) || eventConfig.officialMediaUrl || null}
+        mediaAspect={
+          ((block.props.mediaUrl
+            ? (block.props.mediaAspect as MediaAspect)
+            : (eventConfig.officialMediaAspect as MediaAspect)) as MediaAspect) || '4:5'
+        }
         dateLabel={eventConfig.dateLabel}
         location={eventConfig.location}
         isPublished={isPublished}

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Quote } from 'lucide-react';
 import type { TestimonialEntry } from '@saas-events/types';
+import { MediaShowcase } from './media-showcase';
 
 /**
  * TestimonialsCarousel — Témoignages en boîtes défilables (décision produit
@@ -75,7 +76,19 @@ export function TestimonialsCarousel({ entries }: { entries: TestimonialEntry[] 
             className="flex w-[85%] shrink-0 snap-start flex-col justify-between rounded-2xl border border-stroke p-6 dark:border-strokedark sm:w-[55%] lg:w-[calc((100%-2rem)/3)]"
           >
             <Quote className="size-6 shrink-0 text-primary opacity-60" />
-            <blockquote className="mt-4 text-sm leading-relaxed">{entry.quote}</blockquote>
+            {entry.videoUrl ? (
+              // Le nom et le rôle restent rendus juste en dessous : ce sont eux
+              // qui rendent le propos attribuable, filmé ou non.
+              <div className="mt-4 overflow-hidden rounded-xl">
+                <MediaShowcase
+                  url={entry.videoUrl}
+                  aspect="9:16"
+                  alt={`Témoignage${entry.author ? ` de ${entry.author}` : ''}`}
+                />
+              </div>
+            ) : (
+              <blockquote className="mt-4 text-sm leading-relaxed">{entry.quote}</blockquote>
+            )}
             {(entry.author || entry.role) && (
               <figcaption className="mt-5 flex items-center gap-3 border-t border-stroke pt-4 dark:border-strokedark">
                 {entry.avatarUrl && (

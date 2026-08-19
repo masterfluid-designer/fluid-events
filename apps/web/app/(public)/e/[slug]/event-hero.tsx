@@ -59,6 +59,7 @@ export function EventHero({
   stat,
   socialProof,
   lead,
+  backdropUrl,
 }: {
   title: string;
   /** Mot du titre à passer en couleur d'accent — choisi, jamais deviné. */
@@ -88,6 +89,12 @@ export function EventHero({
    * bloc de texte aplatissait les deux et ne hiérarchisait rien.
    */
   lead?: string | null;
+  /**
+   * Fond de section, flouté et assombri (2026-08-19). Vide, c'est le média
+   * d'affiche qui sert de fond — comportement d'origine. Le champ existe pour
+   * les affiches trop chargées, illisibles sous le titre même floutées.
+   */
+  backdropUrl?: string | null;
 }) {
   /**
    * L'affiche de droite retombe sur l'IMAGE OFFICIELLE de l'événement quand
@@ -102,7 +109,9 @@ export function EventHero({
   const mediaIsVideo = isVideoUrl(media);
   // Le fond reprend le MÊME visuel : une image floutée et assombrie derrière
   // le texte, une vidéo jouée en cover muet.
-  const backgroundImage = mediaIsVideo ? null : media;
+  // Un fond explicite l'emporte ; sinon l'affiche sert de fond, sauf si
+  // c'est une vidéo — elle est alors jouée en cover juste au-dessus.
+  const backgroundImage = backdropUrl || (mediaIsVideo ? null : media);
 
   return (
     <section id="top" className="relative isolate overflow-hidden">

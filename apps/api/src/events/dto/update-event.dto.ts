@@ -4,6 +4,7 @@ import {
   IsArray,
   IsDateString,
   IsEnum,
+  IsIn,
   IsInt,
   IsNumber,
   IsOptional,
@@ -52,6 +53,23 @@ export class UpdateEventDto {
   @IsOptional()
   @IsUrl({ require_tld: false })
   coverImageUrl?: string;
+
+  /**
+   * Affiche officielle mise en avant dans le hero — image OU vidéo
+   * (2026-08-19). `null` la retire : le hero retombe alors sur la couverture.
+   */
+  @IsOptional()
+  @IsUrl({ require_tld: false })
+  officialMediaUrl?: string | null;
+
+  @IsOptional()
+  @IsIn(['4:5', '1:1', '9:16'])
+  officialMediaAspect?: string | null;
+
+  /** Fond du hero — vide, l'affiche officielle sert de fond (2026-08-19). */
+  @IsOptional()
+  @IsUrl({ require_tld: false })
+  heroBackdropUrl?: string | null;
 
   @IsOptional()
   @IsUrl({ require_tld: false })

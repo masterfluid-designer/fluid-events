@@ -36,6 +36,11 @@ export interface EventConfig {
   longitude: string;
   logoUrl: string;
   coverImageUrl: string;
+  /** Affiche officielle du hero — image ou vidéo (2026-08-19). */
+  officialMediaUrl: string;
+  officialMediaAspect: string;
+  /** Fond du hero — vide, l'affiche officielle sert de fond. */
+  heroBackdropUrl: string;
   faqs: FaqEntry[];
   schedule: ScheduleEntry[];
   speakers: SpeakerEntry[];
@@ -101,6 +106,61 @@ export function ConfigPanel({
           value={config.coverImageUrl || undefined}
           onChange={(url) => onChange({ coverImageUrl: url ?? '' })}
         />
+        {/* Affiche officielle (2026-08-19) — distincte de la couverture, qui
+            n'est qu'une vignette de partage. Celle-ci est le visuel montré EN
+            GRAND dans la colonne droite du hero, à son format réel, et repris
+            en fond de section. Vide, le hero retombe sur la couverture. */}
+        <div className="flex flex-col gap-2">
+          <ImageUploadField
+            label="Image officielle (affiche ou vidéo)"
+            allowVideo
+            value={config.officialMediaUrl || undefined}
+            onChange={(url) => onChange({ officialMediaUrl: url ?? '' })}
+          />
+          <p className="text-[11px] text-muted-foreground">
+            Affichée dans le hero, à droite du titre, et reprise en fond de section. Laissez
+            vide pour utiliser l&apos;image de couverture.
+          </p>
+          {/* Fond distinct (2026-08-19) : une affiche très chargée reste
+              illisible sous le titre même floutée. Ce champ permet d'y mettre
+              un visuel plus calme sans toucher à l'affiche. */}
+          <ImageUploadField
+            label="Image de fond du hero (optionnel)"
+            value={config.heroBackdropUrl || undefined}
+            onChange={(url) => onChange({ heroBackdropUrl: url ?? '' })}
+          />
+          <p className="text-[11px] text-muted-foreground">
+            Floutée et assombrie derrière le titre. Laissez vide pour reprendre l&apos;image
+            officielle.
+          </p>
+          {config.officialMediaUrl && (
+            <div>
+              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                Format d&apos;affichage
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {(['4:5', '1:1', '9:16'] as const).map((ratio) => {
+                  const actif = (config.officialMediaAspect || '4:5') === ratio;
+                  return (
+                    <button
+                      key={ratio}
+                      type="button"
+                      aria-pressed={actif}
+                      onClick={() => onChange({ officialMediaAspect: ratio })}
+                      className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                        actif
+                          ? 'border-primary bg-primary/10 text-primary'
+                          : 'border-border hover:bg-accent'
+                      }`}
+                    >
+                      {ratio}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
         <Field label="Localisation (affichage court)">
           <Input
             value={config.location}

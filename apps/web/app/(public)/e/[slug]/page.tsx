@@ -8,6 +8,7 @@ import { TicketSelector } from './ticket-selector';
 import { EventHeader } from './event-header';
 import { EventHero } from './event-hero';
 import { EventBackdrop } from './event-backdrop';
+import type { MediaAspect } from '@/lib/media';
 import { CtaBand } from './cta-band';
 import { EventFooter } from './event-footer';
 
@@ -39,6 +40,9 @@ interface EventDetail {
   status: string;
   logoUrl: string | null;
   coverImageUrl: string | null;
+  officialMediaUrl: string | null;
+  officialMediaAspect: string | null;
+  heroBackdropUrl: string | null;
   faqs: FaqEntry[];
   schedule: ScheduleEntry[];
   speakers: SpeakerEntry[];
@@ -152,6 +156,9 @@ export default async function EventPage({
     latitude: event.latitude,
     longitude: event.longitude,
     coverImageUrl: event.coverImageUrl,
+    officialMediaUrl: event.officialMediaUrl,
+    officialMediaAspect: event.officialMediaAspect,
+    heroBackdropUrl: event.heroBackdropUrl,
     dateLabel,
     startDate: event.startDate,
     faqs: event.faqs,
@@ -208,6 +215,9 @@ export default async function EventPage({
             title={event.title}
             description={event.description}
             imageUrl={event.coverImageUrl}
+            mediaUrl={event.officialMediaUrl}
+            mediaAspect={(event.officialMediaAspect as MediaAspect) || '4:5'}
+            backdropUrl={event.heroBackdropUrl}
             dateLabel={dateLabel}
             location={event.location}
             isPublished={isPublished}

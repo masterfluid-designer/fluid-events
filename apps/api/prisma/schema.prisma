@@ -118,6 +118,19 @@ model Event {
   accessNotes              String?
   /// Coordonnées optionnelles — si présentes, le lien Maps les préfère à
   /// l’adresse (plus fiable qu’un géocodage approximatif).
+  /// Affiche officielle — image OU vidéo — mise en avant dans la colonne
+  /// droite du hero (2026-08-19). Distincte de `coverImageUrl`, qui n'est
+  /// qu'une vignette de partage : celle-ci est le visuel que l'organisateur
+  /// veut voir en grand, à son format réel. Vide, le hero retombe sur la
+  /// couverture.
+  officialMediaUrl         String?
+  /// Fond du hero, flouté et assombri derrière le texte (2026-08-19).
+  /// Vide, c'est l'affiche officielle qui sert de fond — comportement
+  /// d'origine. Le champ existe pour les affiches trop chargées, qui
+  /// rendent le titre illisible même floutées.
+  heroBackdropUrl          String?
+  /// Format d'affichage de ce média : '4:5', '1:1' ou '9:16'.
+  officialMediaAspect      String?
   latitude                 Decimal? @db.Decimal(9, 6)
   longitude                Decimal? @db.Decimal(9, 6)
   /// Numéro officiel de l’événement, affiché publiquement (E.164).
