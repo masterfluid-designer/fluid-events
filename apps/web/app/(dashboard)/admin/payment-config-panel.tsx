@@ -69,7 +69,10 @@ export function PaymentConfigPanel({ eventId }: { eventId: string }) {
         privateKey,
         webhookSecret,
         siteId: provider === 'CINETPAY' ? siteId : undefined,
-        environment: provider === 'FEDAPAY' ? environment : undefined,
+        // Kkiapay aussi (2026-08-19) : son mode se déduisait de NODE_ENV, ce
+        // qui le rendait toujours live en production. CinetPay n'en a pas —
+        // ce sont ses clés qui portent le mode.
+        environment: provider === 'FEDAPAY' || provider === 'KKIAPAY' ? environment : undefined,
         isActive: activateOnSave,
       }),
     onSuccess: () => {
@@ -199,15 +202,18 @@ export function PaymentConfigPanel({ eventId }: { eventId: string }) {
         {provider === 'CINETPAY' && (
           <Input required placeholder="Site ID" value={siteId} onChange={(e) => setSiteId(e.target.value)} />
         )}
-        {provider === 'FEDAPAY' && (
-          <select
-            value={environment}
-            onChange={(e) => setEnvironment(e.target.value as 'sandbox' | 'live')}
-            className="rounded-md border border-input bg-background px-3 py-2 text-sm"
-          >
-            <option value="sandbox">Sandbox</option>
-            <option value="live">Live</option>
-          </select>
+        {(provider === 'FEDAPAY' || provider === 'KKIAPAY') && (
+          <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+            Environnement
+            <select
+              value={environment}
+              onChange={(e) => setEnvironment(e.target.value as 'sandbox' | 'live')}
+              className="rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
+            >
+              <option value="sandbox">Sandbox — essais, aucun argent encaissé</option>
+              <option value="live">Live — paiements réels</option>
+            </select>
+          </label>
         )}
 
         <label className="flex items-center gap-2 text-sm md:col-span-2">

@@ -45,6 +45,23 @@ function isSandboxMode(): boolean {
   return process.env.NODE_ENV !== 'production';
 }
 
+/**
+ * Mode d'un fournisseur Kkiapay (2026-08-19).
+ *
+ * Il se déduisait de `NODE_ENV`, ce qui rendait Kkiapay TOUJOURS live en
+ * production : aucun moyen d'y essayer des clés d'essai avant d'encaisser
+ * pour de vrai, ni de valider un webhook sans mouvement d'argent. Le mode
+ * vient désormais de la configuration, comme pour FedaPay.
+ *
+ * Le repli sur `NODE_ENV` demeure pour les configurations enregistrées avant
+ * ce champ : sans lui, elles changeraient de comportement du jour au lendemain.
+ */
+function kkiapaySandbox(config: unknown): boolean {
+  const env = (config as { environment?: 'sandbox' | 'live' } | null)?.environment;
+  if (env) return env === 'sandbox';
+  return isSandboxMode();
+}
+
 /** Sous-ensemble d'Order chargé pour finaliser un paiement (webhook), commun aux 3 providers. */
 type OrderForFinalize = {
   id: string;
@@ -264,7 +281,7 @@ export class PaymentsService {
         amount: totalAmount,
         currency,
         publicKey: providerConfig.publicKey,
-        sandbox: isSandboxMode(),
+        sandbox: kkiapaySandbox(providerConfig.config),
       };
     }
 
@@ -569,7 +586,7 @@ export class PaymentsService {
           publicKey: providerConfig.publicKey!,
           privateKey: this.crypto.decrypt(providerConfig.privateKey),
           secretKey: providerConfig.webhookSecret ? this.crypto.decrypt(providerConfig.webhookSecret) : '',
-          sandbox: isSandboxMode(),
+          sandbox: kkiapaySandbox(providerConfig.config),
         },
         payload.transactionId,
       );

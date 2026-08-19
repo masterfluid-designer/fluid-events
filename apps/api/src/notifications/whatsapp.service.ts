@@ -1,5 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { AuditService } from '../common/audit.service';
+import { PrismaService } from '../prisma/prisma.service';
+import { CryptoService } from '../common/crypto.service';
 
 /**
  * WhatsappService — Notification WhatsApp via Meta Cloud API (CDC — WhatsApp
@@ -31,19 +33,75 @@ export interface TicketWhatsappParams {
 export class WhatsappService {
   private readonly logger = new Logger(WhatsappService.name);
 
-  constructor(private readonly audit: AuditService) {}
+  constructor(
+    private readonly audit: AuditService,
+    private readonly prisma: PrismaService,
+    private readonly crypto: CryptoService,
+  ) {}
+
+  /**
+   * Réglages effectifs de la messagerie (2026-08-19).
+   *
+   * La base d'abord, les variables d'environnement ensuite. Ces valeurs ne
+   * vivaient qu'en `.env` : changer de numéro ou de modèle approuvé imposait
+   * un accès au serveur et un redémarrage. Le repli garantit qu'une
+   * installation déjà configurée continue de fonctionner sans rien saisir.
+   */
+  private async resolveSettings(): Promise<{
+    accessToken?: string;
+    phoneNumberId?: string;
+    apiVersion: string;
+    ticketTemplate: string;
+    ticketLang: string;
+    verifyTemplate: string;
+    verifyLang: string;
+  }> {
+    const row = await this.prisma.platformSettings
+      .findUnique({ where: { id: 'singleton' } })
+      .catch(() => null);
+
+    // Le jeton est stocké chiffré : un déchiffrement qui échoue (clé changée)
+    // ne doit pas faire tomber l'envoi, on retombe sur l'environnement.
+    let dbToken: string | undefined;
+    if (row?.whatsappAccessToken) {
+      try {
+        dbToken = this.crypto.decrypt(row.whatsappAccessToken);
+      } catch {
+        this.logger.warn('Jeton WhatsApp illisible en base — repli sur l’environnement.');
+      }
+    }
+
+    return {
+      accessToken: dbToken || process.env.WHATSAPP_ACCESS_TOKEN,
+      phoneNumberId: row?.whatsappPhoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID,
+      apiVersion: row?.whatsappApiVersion || process.env.WHATSAPP_API_VERSION || 'v21.0',
+      ticketTemplate:
+        row?.whatsappTicketTemplate ||
+        process.env.WHATSAPP_TICKET_READY_TEMPLATE_NAME ||
+        'ticket_ready',
+      ticketLang:
+        row?.whatsappTicketLang || process.env.WHATSAPP_TICKET_READY_TEMPLATE_LANG || 'fr',
+      verifyTemplate:
+        row?.whatsappVerifyTemplate ||
+        process.env.WHATSAPP_VERIFICATION_TEMPLATE_NAME ||
+        'phone_verification',
+      verifyLang:
+        row?.whatsappVerifyLang || process.env.WHATSAPP_VERIFICATION_TEMPLATE_LANG || 'fr',
+    };
+  }
 
   async sendTicketReadyMessage(params: TicketWhatsappParams): Promise<void> {
     const { to, clientName, eventTitle, orderNumber } = params;
 
-    const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
-    const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-    const apiVersion = process.env.WHATSAPP_API_VERSION ?? 'v21.0';
-    const templateName = process.env.WHATSAPP_TICKET_READY_TEMPLATE_NAME ?? 'ticket_ready';
-    const templateLang = process.env.WHATSAPP_TICKET_READY_TEMPLATE_LANG ?? 'fr';
+    const settings = await this.resolveSettings();
+    const { accessToken, phoneNumberId, apiVersion } = settings;
+    const templateName = settings.ticketTemplate;
+    const templateLang = settings.ticketLang;
 
     if (!accessToken || !phoneNumberId) {
-      this.logger.warn('WhatsApp non configuré (WHATSAPP_ACCESS_TOKEN/WHATSAPP_PHONE_NUMBER_ID manquants) — envoi ignoré.');
+      this.logger.warn(
+        'WhatsApp non configuré (jeton ou identifiant de numéro manquant, en base comme en environnement) — envoi ignoré.',
+      );
       return;
     }
 
@@ -119,15 +177,14 @@ export class WhatsappService {
   async sendVerificationCode(params: { to: string; code: string }): Promise<void> {
     const { to, code } = params;
 
-    const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
-    const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-    const apiVersion = process.env.WHATSAPP_API_VERSION ?? 'v21.0';
-    const templateName = process.env.WHATSAPP_VERIFICATION_TEMPLATE_NAME ?? 'phone_verification';
-    const templateLang = process.env.WHATSAPP_VERIFICATION_TEMPLATE_LANG ?? 'fr';
+    const settings = await this.resolveSettings();
+    const { accessToken, phoneNumberId, apiVersion } = settings;
+    const templateName = settings.verifyTemplate;
+    const templateLang = settings.verifyLang;
 
     if (!accessToken || !phoneNumberId) {
       throw new Error(
-        'WhatsApp non configuré (WHATSAPP_ACCESS_TOKEN/WHATSAPP_PHONE_NUMBER_ID manquants).',
+        'WhatsApp non configuré — renseignez le jeton et l’identifiant de numéro dans l’espace Admin.',
       );
     }
 

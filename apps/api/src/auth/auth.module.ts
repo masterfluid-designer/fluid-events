@@ -13,6 +13,7 @@ import { GoogleStrategy } from './strategies/google.strategy';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { PrismaModule } from '../prisma/prisma.module';
+import { CryptoService } from '../common/crypto.service';
 
 @Module({
   imports: [
@@ -38,6 +39,10 @@ import { PrismaModule } from '../prisma/prisma.module';
     AuditService,
     PhoneService,
     WhatsappService,
+    // WhatsappService lit ses réglages en base, où le jeton est chiffré
+    // (2026-08-19). AuthModule déclare sa propre instance pour la
+    // vérification OTP : sans CryptoService ici, l'application ne démarre pas.
+    CryptoService,
     JwtStrategy,
     GoogleStrategy,
     JwtAuthGuard,

@@ -45,8 +45,19 @@ export class UpsertPaymentConfigDto {
   @MinLength(1)
   siteId?: string;
 
-  // FEDAPAY uniquement : environnement sandbox/live (FedaPay.setEnvironment()).
-  @ValidateIf((o) => o.provider === PaymentProviderType.FEDAPAY)
+  /**
+   * Environnement du fournisseur — KKIAPAY et FEDAPAY (2026-08-19).
+   *
+   * Kkiapay le déduisait jusqu'ici de `NODE_ENV`, ce qui le rendait
+   * TOUJOURS live en production : impossible d'y essayer des clés d'essai
+   * avant d'encaisser pour de vrai, ni de valider un webhook sans mouvement
+   * d'argent. CinetPay n'en a pas besoin — ce sont ses clés qui portent le
+   * mode, la même URL servant les deux.
+   */
+  @ValidateIf(
+    (o) =>
+      o.provider === PaymentProviderType.FEDAPAY || o.provider === PaymentProviderType.KKIAPAY,
+  )
   @IsIn(['sandbox', 'live'])
   environment?: 'sandbox' | 'live';
 }

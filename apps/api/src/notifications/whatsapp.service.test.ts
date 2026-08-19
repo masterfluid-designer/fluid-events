@@ -10,7 +10,13 @@ describe('WhatsappService.sendTicketReadyMessage()', () => {
   const originalFetch = global.fetch;
 
   beforeEach(() => {
-    service = new WhatsappService({ log: vi.fn().mockResolvedValue(undefined) } as any);
+    service = new WhatsappService(
+      { log: vi.fn().mockResolvedValue(undefined) } as any,
+      // Aucun réglage en base : le service retombe sur l'environnement, ce
+      // que ces tests vérifient précisément.
+      { platformSettings: { findUnique: vi.fn().mockResolvedValue(null) } } as any,
+      { decrypt: vi.fn() } as any,
+    );
     process.env.WHATSAPP_ACCESS_TOKEN = 'token-123';
     process.env.WHATSAPP_PHONE_NUMBER_ID = '111222333';
     process.env.WHATSAPP_API_VERSION = 'v21.0';
@@ -120,7 +126,13 @@ describe('WhatsappService.sendVerificationCode()', () => {
   const originalFetch = global.fetch;
 
   beforeEach(() => {
-    service = new WhatsappService({ log: vi.fn().mockResolvedValue(undefined) } as any);
+    service = new WhatsappService(
+      { log: vi.fn().mockResolvedValue(undefined) } as any,
+      // Aucun réglage en base : le service retombe sur l'environnement, ce
+      // que ces tests vérifient précisément.
+      { platformSettings: { findUnique: vi.fn().mockResolvedValue(null) } } as any,
+      { decrypt: vi.fn() } as any,
+    );
     process.env.WHATSAPP_ACCESS_TOKEN = 'token-123';
     process.env.WHATSAPP_PHONE_NUMBER_ID = '111222333';
     process.env.WHATSAPP_API_VERSION = 'v21.0';

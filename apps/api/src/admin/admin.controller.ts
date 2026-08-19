@@ -10,6 +10,7 @@ import { SetPaymentConfigActiveDto } from './dto/set-payment-config-active.dto';
 import { InviteManagerDto } from './dto/invite-manager.dto';
 import { SetManagerActiveDto } from './dto/set-manager-active.dto';
 import { SetManagerSubscriptionDto } from './dto/set-manager-subscription.dto';
+import { UpdateWhatsappConfigDto } from './dto/update-whatsapp-config.dto';
 import { SetManagerPremiumDto } from './dto/set-manager-premium.dto';
 import { SetEventStatusDto } from './dto/set-event-status.dto';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
@@ -127,6 +128,20 @@ export class AdminController {
   }
 
   /** GET /api/admin/managers — liste des managers (décision produit 2026-07-14). */
+  /** GET /api/admin/whatsapp-config — réglages de la messagerie (jeton masqué). */
+  @Roles(Role.SUPER_ADMIN)
+  @Get('whatsapp-config')
+  async getWhatsappConfig() {
+    return this.adminService.getWhatsappConfig();
+  }
+
+  /** PUT /api/admin/whatsapp-config — jeton chiffré, jamais relu en clair. */
+  @Roles(Role.SUPER_ADMIN)
+  @Put('whatsapp-config')
+  async updateWhatsappConfig(@Body() dto: UpdateWhatsappConfigDto) {
+    return this.adminService.updateWhatsappConfig(dto);
+  }
+
   @Roles(Role.SUPER_ADMIN)
   @Get('managers')
   async listManagers() {

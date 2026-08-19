@@ -13,6 +13,7 @@ import { ErrorCodes, EventStatus, PaymentProviderType, Role, TokenPair } from '@
 import { FRONTEND_URL } from '../common/constants';
 import { UpsertPaymentConfigDto } from './dto/upsert-payment-config.dto';
 import { InviteManagerDto } from './dto/invite-manager.dto';
+import { UpdateWhatsappConfigDto } from './dto/update-whatsapp-config.dto';
 
 /** Durée de validité du lien d'invitation Manager (décision produit 2026-07-14). */
 const INVITE_TOKEN_TTL_DAYS = 7;
@@ -385,7 +386,13 @@ export class AdminService {
 
     const config: Record<string, unknown> = {};
     if (dto.provider === PaymentProviderType.CINETPAY && dto.siteId) config.siteId = dto.siteId;
-    if (dto.provider === PaymentProviderType.FEDAPAY && dto.environment) config.environment = dto.environment;
+    if (
+      (dto.provider === PaymentProviderType.FEDAPAY ||
+        dto.provider === PaymentProviderType.KKIAPAY) &&
+      dto.environment
+    ) {
+      config.environment = dto.environment;
+    }
 
     const encryptedPrivateKey = this.crypto.encrypt(dto.privateKey);
     const encryptedWebhookSecret = this.crypto.encrypt(dto.webhookSecret);
@@ -558,6 +565,61 @@ export class AdminService {
     await this.audit.log('admin.manager.invited', 'User', manager.id, { email: manager.email, emailSent });
 
     return { id: manager.id, name: manager.name, email: manager.email, emailSent };
+  }
+
+  /**
+   * Messagerie WhatsApp de la plateforme (2026-08-19).
+   *
+   * Le jeton n'est JAMAIS renvoyé — on expose seulement s'il est renseigné,
+   * comme pour les clés de paiement (RULES.md §9). Sans ça, un écran d'admin
+   * suffirait à exfiltrer l'accès au compte Meta.
+   */
+  async getWhatsappConfig() {
+    const row = await this.prisma.platformSettings.findUnique({ where: { id: 'singleton' } });
+    return {
+      hasAccessToken: Boolean(row?.whatsappAccessToken),
+      phoneNumberId: row?.whatsappPhoneNumberId ?? null,
+      apiVersion: row?.whatsappApiVersion ?? null,
+      ticketTemplate: row?.whatsappTicketTemplate ?? null,
+      ticketLang: row?.whatsappTicketLang ?? null,
+      verifyTemplate: row?.whatsappVerifyTemplate ?? null,
+      verifyLang: row?.whatsappVerifyLang ?? null,
+      // Dit à l'admin si l'installation tourne encore sur le `.env` : sans
+      // cette information, un écran vide laisserait croire à une panne alors
+      // que les envois fonctionnent.
+      environmentFallback: Boolean(
+        process.env.WHATSAPP_ACCESS_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID,
+      ),
+    };
+  }
+
+  async updateWhatsappConfig(dto: UpdateWhatsappConfigDto) {
+    const data: Record<string, string | null> = {};
+    // Absent = inchangé ; chaîne vide = effacé. Un jeton qu'on ne peut pas
+    // retirer serait un piège le jour d'une fuite.
+    if (dto.accessToken !== undefined) {
+      data.whatsappAccessToken = dto.accessToken ? this.crypto.encrypt(dto.accessToken) : null;
+    }
+    if (dto.phoneNumberId !== undefined) data.whatsappPhoneNumberId = dto.phoneNumberId || null;
+    if (dto.apiVersion !== undefined) data.whatsappApiVersion = dto.apiVersion || null;
+    if (dto.ticketTemplate !== undefined) data.whatsappTicketTemplate = dto.ticketTemplate || null;
+    if (dto.ticketLang !== undefined) data.whatsappTicketLang = dto.ticketLang || null;
+    if (dto.verifyTemplate !== undefined) data.whatsappVerifyTemplate = dto.verifyTemplate || null;
+    if (dto.verifyLang !== undefined) data.whatsappVerifyLang = dto.verifyLang || null;
+
+    await this.prisma.platformSettings.upsert({
+      where: { id: 'singleton' },
+      create: { id: 'singleton', ...data },
+      update: data,
+    });
+
+    // Le jeton n'entre pas dans le journal — seulement le fait qu'il a changé.
+    await this.audit.log('admin.whatsapp_config.updated', 'PlatformSettings', 'singleton', {
+      tokenChanged: dto.accessToken !== undefined,
+      phoneNumberId: dto.phoneNumberId ?? null,
+    });
+
+    return this.getWhatsappConfig();
   }
 
   /** PATCH /api/admin/managers/:id { isActive } — suspend/réactive un compte. */

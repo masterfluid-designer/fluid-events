@@ -16,6 +16,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   ImageIcon,
+  MessageCircle,
   BadgeCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -37,6 +38,7 @@ const navByRole: Record<Role, NavItem[]> = {
     { href: '/admin/managers', label: 'Managers', icon: <Users className="size-4" /> },
     { href: '/admin/logs', label: 'Logs', icon: <BarChart3 className="size-4" /> },
     { href: '/admin/providers', label: 'Paiements', icon: <Settings className="size-4" /> },
+    { href: '/admin/whatsapp', label: 'WhatsApp', icon: <MessageCircle className="size-4" /> },
     { href: '/admin/branding', label: 'Branding', icon: <ImageIcon className="size-4" /> },
     { href: '/admin/trusted-logos', label: 'Confiance', icon: <BadgeCheck className="size-4" /> },
     { href: '/admin/appearance', label: 'Apparence', icon: <Palette className="size-4" /> },
