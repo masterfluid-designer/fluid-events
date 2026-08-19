@@ -48,12 +48,34 @@ const SCHEDULE_MAX = 30;
 const SPEAKERS_MAX = 20;
 const MEDIA_MAX = 30;
 
+/**
+ * Journée à laquelle une entrée du programme se rattache — déduite de sa DATE,
+ * jamais choisie à part (2026-08-19). Un champ « journée » obligerait à ranger
+ * chaque entrée à la main, et à corriger ce rangement à chaque horaire déplacé.
+ * L'afficher ici évite à l'organisateur de deviner ce que la page publique
+ * fera de sa saisie.
+ */
+function dayOfEntry(
+  startsAt: string,
+  days: Array<{ label: string; date: string }>,
+): { label: string; connue: boolean } {
+  if (!startsAt) return { label: 'Sans date', connue: false };
+  const jour = startsAt.slice(0, 10);
+  const trouve = days.find((d) => d.date && d.date.slice(0, 10) === jour);
+  return trouve
+    ? { label: trouve.label, connue: true }
+    : { label: 'Hors des journées déclarées', connue: false };
+}
+
 export function ConfigPanel({
   config,
   onChange,
+  days = [],
 }: {
   config: EventConfig;
   onChange: (patch: Partial<EventConfig>) => void;
+  /** Journées déclarées — servent à situer chaque entrée du programme. */
+  days?: Array<{ label: string; date: string }>;
 }) {
   return (
     <div className="flex flex-col gap-6 p-4">
@@ -222,8 +244,27 @@ export function ConfigPanel({
       </Section>
 
       <Section title={`Programme (${config.schedule.length}/${SCHEDULE_MAX})`}>
-        {config.schedule.map((entry) => (
+        {days.length > 1 && (
+          <p className="text-[11px] text-muted-foreground">
+            Chaque entrée est rattachée à une journée d&apos;après sa date. La page publique
+            affiche un onglet par journée.
+          </p>
+        )}
+        {config.schedule.map((entry) => {
+          const jour = dayOfEntry(entry.startsAt, days);
+          return (
           <div key={entry.id} className="flex flex-col gap-1.5 rounded-lg border border-border p-3">
+            {days.length > 0 && (
+              <span
+                className={`w-fit rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                  jour.connue
+                    ? 'bg-primary/10 text-primary'
+                    : 'bg-amber-500/10 text-amber-600 dark:text-amber-500'
+                }`}
+              >
+                {jour.label}
+              </span>
+            )}
             <div className="flex items-start gap-2">
               <div className="flex-1 space-y-1.5">
                 <input
@@ -270,7 +311,8 @@ export function ConfigPanel({
               </button>
             </div>
           </div>
-        ))}
+        );
+        })}
         <Button
           type="button"
           variant="outline"

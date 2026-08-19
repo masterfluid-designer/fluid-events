@@ -188,6 +188,8 @@ function CheckoutStepper() {
 export interface PublicEventDay {
   id: string;
   label: string;
+  /** Date civile — rattache les entrées du programme à leur journée. */
+  date: string;
   location: string | null;
   startTime: string | null;
   endTime: string | null;

@@ -567,7 +567,13 @@ export default function EventBuilderPage() {
                 </div>
               </div>
             ) : sidebarTab === 'config' ? (
-              <ConfigPanel config={config} onChange={updateConfig} />
+              <ConfigPanel
+                config={config}
+                onChange={updateConfig}
+                // Journées déclarées côté Billetterie : elles situent chaque
+                // entrée du programme, elles ne s'éditent pas ici.
+                days={eventData?.days ?? []}
+              />
             ) : (
               <div className="p-4">
                 <ThemePanel

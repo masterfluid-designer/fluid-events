@@ -7,7 +7,7 @@ import { EventFaq } from './event-faq';
 import type { Block, FaqEntry, MediaEntry, ScheduleEntry, SpeakerEntry, TestimonialEntry, TimelineEntry } from '@saas-events/types';
 import { Countdown } from './countdown';
 import { SponsorsCarousel } from './sponsors-carousel';
-import { Clock } from 'lucide-react';
+import { ScheduleTimeline } from './schedule-timeline';
 import { TicketSelector, type PublicEventDay, type PublicTicket } from './ticket-selector';
 import { SpeakersGrid } from './speakers-grid';
 import { TimelineStrip } from './timeline-strip';
@@ -279,14 +279,10 @@ function BlockItem({
   }
 
   if (block.type === 'schedule') {
-    const sortedSchedule = [...eventConfig.schedule].sort(
-      (a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime(),
-    );
     // Les journées déclarées nomment le programme au lieu d'un « Deux jours,
     // deux scènes » écrit en dur, faux dès qu'un événement tient sur un jour.
     const jours = eventDays.map((d) => d.label).filter(Boolean);
-    const eyebrow =
-      jours.length > 1 ? `${jours.length} journées` : 'Le déroulé';
+    const eyebrow = jours.length > 1 ? `${jours.length} journées` : 'Déroulement';
     const quand =
       jours.length > 0
         ? `Le déroulé heure par heure — ${jours.join(', ')}.`
@@ -296,46 +292,15 @@ function BlockItem({
       <SectionShell>
         <SectionHeading eyebrow={eyebrow} title="Le programme" description={quand} />
         {/*
-          La section reste visible même sans horaire saisi (2026-08-18).
-          Auparavant elle disparaissait : un visiteur qui suivait le lien
-          « Programme » de l'en-tête atterrissait ailleurs, et rien ne lui
-          disait que le déroulé arrivait. Mieux vaut l'annoncer que se taire.
+          La section reste visible même sans horaire saisi : un visiteur qui
+          suivait le lien « Programme » de l'en-tête atterrissait sinon
+          ailleurs, sans jamais apprendre que le déroulé arrivait. Les onglets
+          de journée restent eux aussi affichés — ils annoncent le découpage.
         */}
-        {sortedSchedule.length === 0 ? (
-          <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-stroke px-6 py-10 text-center dark:border-strokedark">
-            <span className="flex size-12 items-center justify-center rounded-full border border-primary/40 text-primary">
-              <Clock className="size-5" />
-            </span>
-            <p className="text-base font-semibold">Programme bientôt disponible</p>
-            <p className="max-w-md text-sm text-waterloo dark:text-manatee">
-              {jours.length > 0
-                ? `Le déroulé heure par heure — ${jours.join(', ')} — est en cours de finalisation.`
-                : 'Le déroulé heure par heure est en cours de finalisation.'}{' '}
-              Revenez très vite.
-            </p>
-          </div>
-        ) : (
-        <div className="flex flex-col gap-3">
-          {sortedSchedule.map((entry) => (
-            <div
-              key={entry.id}
-              className="flex flex-col gap-2 rounded-2xl border border-stroke p-5 dark:border-strokedark sm:flex-row sm:gap-6"
-            >
-              <div className="shrink-0 text-xs font-bold uppercase tracking-wide text-accent-terracotta dark:text-accent-terracotta-dark sm:w-40">
-                {new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium', timeStyle: 'short' }).format(
-                  new Date(entry.startsAt),
-                )}
-              </div>
-              <div>
-                <div className="font-semibold md:text-lg">{entry.title}</div>
-                {entry.description && (
-                  <div className="mt-1 text-sm text-waterloo dark:text-manatee">{entry.description}</div>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-        )}
+        <ScheduleTimeline
+          entries={eventConfig.schedule}
+          days={eventDays.map((d) => ({ id: d.id, label: d.label, date: d.date }))}
+        />
       </SectionShell>
     );
   }
