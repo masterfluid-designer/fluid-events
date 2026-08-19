@@ -146,7 +146,7 @@ export function EventHero({
       )}
       <div className="absolute inset-0 -z-10 bg-gradient-to-t from-black/90 via-black/65 to-black/40" />
 
-      <div className="mx-auto grid min-h-[78svh] max-w-6xl grid-cols-1 items-center gap-10 px-5 pb-12 pt-24 text-white md:px-8 md:pb-16 md:pt-32 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)] lg:gap-14">
+      <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-8 px-5 pb-12 pt-24 text-white md:px-8 md:pb-16 md:pt-32 lg:min-h-[78svh] lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)] lg:gap-14">
         <div className="max-w-3xl">
           <span className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-3.5 py-1.5 text-xs font-semibold backdrop-blur-sm">
             <span className="size-1.5 rounded-full bg-primary" aria-hidden="true" />
@@ -232,9 +232,12 @@ export function EventHero({
         </div>
 
         {media && (
-          // Masqué sous `lg` : en une seule colonne, l'affiche répéterait le
-          // fond juste au-dessus du titre et volerait la hauteur d'écran.
-          <div className="hidden w-full lg:block">
+          // Visible à toutes les tailles (2026-08-19). Elle était masquée sous
+          // `lg` au motif qu'elle répéterait le fond : l'argument ne tient plus
+          // depuis que le fond a son propre champ, et l'affiche officielle est
+          // justement ce qu'un visiteur sur téléphone vient voir. Bornée en
+          // largeur pour ne pas manger tout l'écran sous le titre.
+          <div className="mx-auto w-full max-w-xs sm:max-w-sm lg:mx-0 lg:max-w-none">
             <MediaShowcase
               url={media}
               aspect={mediaAspect}

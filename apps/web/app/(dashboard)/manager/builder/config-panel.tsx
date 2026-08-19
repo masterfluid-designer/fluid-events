@@ -72,6 +72,61 @@ function dayOfEntry(
     : { label: 'Hors des journées déclarées', connue: false };
 }
 
+/**
+ * Adresse en une ligne, pour la recherche de coordonnées. On ne renvoie rien
+ * quand il n'y a pas de quoi chercher : un lien vers une carte vide
+ * n'aiderait personne.
+ */
+function formatAddressQuery(config: EventConfig): string {
+  return [config.venueName, config.addressLine, config.city, config.country]
+    .map((v) => v?.trim())
+    .filter(Boolean)
+    .join(', ');
+}
+
+/**
+ * Extrait des coordonnées d'un lien de carte ou d'un texte collé
+ * (2026-08-19).
+ *
+ * Personne ne connaît sa latitude par cœur, mais tout le monde sait ouvrir
+ * Google Maps et copier le lien de la barre d'adresse. On y lit les formes
+ * courantes, sans appeler le moindre service :
+ *
+ *   .../@5.316667,-4.033333,17z      Google Maps (barre d'adresse)
+ *   ...?q=5.316667,-4.033333          lien de partage, OpenStreetMap
+ *   ...!3d5.316667!4d-4.033333        format interne Google
+ *   5.316667, -4.033333               simple copier-coller
+ *
+ * Les liens raccourcis (maps.app.goo.gl) ne contiennent PAS les coordonnées :
+ * il faudrait suivre la redirection côté serveur. On le dit plutôt que de
+ * laisser l'organisateur devant un champ qui refuse sans expliquer.
+ */
+function parseCoordinates(input: string): { lat: string; lon: string } | null {
+  const texte = input.trim();
+  if (!texte) return null;
+
+  const motifs = [
+    /@(-?\d{1,3}\.\d+),(-?\d{1,3}\.\d+)/,
+    /[?&](?:q|query)=(-?\d{1,3}\.\d+)[,/](-?\d{1,3}\.\d+)/,
+    // OpenStreetMap sépare les deux paramètres au lieu de les joindre.
+    /[?&]mlat=(-?\d{1,3}\.\d+)[^]*?[?&]mlon=(-?\d{1,3}\.\d+)/,
+    /!3d(-?\d{1,3}\.\d+)!4d(-?\d{1,3}\.\d+)/,
+    /^(-?\d{1,3}\.\d+)[,\s]+(-?\d{1,3}\.\d+)$/,
+  ];
+
+  for (const motif of motifs) {
+    const trouve = texte.match(motif);
+    if (!trouve) continue;
+    const lat = Number(trouve[1]);
+    const lon = Number(trouve[2]);
+    // Hors de ces bornes ce ne sont pas des coordonnées, quoi qu’en dise la
+    // forme du texte — mieux vaut refuser que placer un point en mer.
+    if (Math.abs(lat) > 90 || Math.abs(lon) > 180) continue;
+    return { lat: String(lat), lon: String(lon) };
+  }
+  return null;
+}
+
 export function ConfigPanel({
   config,
   onChange,
@@ -218,8 +273,50 @@ export function ConfigPanel({
             placeholder="+22890123456"
           />
         </Field>
-        {/* Optionnelles, mais prioritaires sur l'adresse pour le lien Maps :
-            un géocodage d'adresse peut tomber à plusieurs rues du lieu. */}
+        {/*
+          Optionnelles pour le lien Maps, mais INDISPENSABLES à la carte : sans
+          elles le bloc « Accès » n'affiche ni plan, ni encadré lieu, ni bouton
+          d'itinéraire — il ne reste que le titre. Rien ne le disait, et un
+          organisateur qui avait pourtant saisi son adresse cherchait une panne
+          là où il manquait deux nombres (constaté en production 2026-08-19).
+        */}
+        {!config.latitude?.trim() || !config.longitude?.trim() ? (
+          <p className="rounded-lg border border-dashed border-amber-500/50 px-3 py-2.5 text-[11px] leading-relaxed text-amber-600 dark:text-amber-500">
+            Sans coordonnées, <strong>aucune carte ne s&apos;affiche</strong> sur votre page —
+            l&apos;adresse seule ne suffit pas.{' '}
+            {formatAddressQuery(config) && (
+              <a
+                href={`https://www.openstreetmap.org/search?query=${encodeURIComponent(
+                  formatAddressQuery(config),
+                )}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-semibold underline underline-offset-2"
+              >
+                Trouver celles de votre lieu
+              </a>
+            )}
+            {formatAddressQuery(config)
+              ? ' puis recopiez-les ci-dessous.'
+              : ' Renseignez d’abord une adresse pour les retrouver facilement.'}
+          </p>
+        ) : null}
+        {/* Coller un lien plutôt que taper deux nombres : c'est le geste que
+            l'organisateur sait déjà faire. */}
+        <Field label="Coller un lien Google Maps (ou « lat, lon »)">
+          <Input
+            placeholder="https://www.google.com/maps/place/.../@5.316667,-4.033333,17z"
+            onChange={(e) => {
+              const trouve = parseCoordinates(e.target.value);
+              if (trouve) onChange({ latitude: trouve.lat, longitude: trouve.lon });
+            }}
+          />
+          <p className="mt-1.5 text-[11px] text-muted-foreground">
+            Les deux champs ci-dessous se remplissent seuls. Un lien raccourci
+            (<code>maps.app.goo.gl</code>) ne contient pas les coordonnées : ouvrez-le d&apos;abord,
+            puis copiez l&apos;adresse complète.
+          </p>
+        </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Latitude (optionnel)">
             <Input
