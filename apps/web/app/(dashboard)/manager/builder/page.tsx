@@ -538,11 +538,21 @@ export default function EventBuilderPage() {
 
             {sidebarTab === 'blocs' ? (
               <div className="p-4">
+                {/*
+                  Palette en DEUX familles (2026-08-19). Les quatorze blocs
+                  défilaient d'un bloc, mêlant deux comportements que rien ne
+                  distinguait : les uns basculent (une seule fois par page,
+                  second clic = retrait), les autres s'empilent. Un
+                  organisateur ne pouvait le deviner qu'en essayant.
+                */}
+                <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                  Sections de l&apos;événement
+                </p>
                 <p className="mb-2.5 text-[11px] text-muted-foreground">
-                  Cliquez ou glissez un bloc dans l&apos;aperçu.
+                  Une seule par page. Cliquez pour l&apos;ajouter, recliquez pour la retirer.
                 </p>
                 <div className="flex flex-col gap-1.5">
-                  {BLOCK_LIBRARY.map((b) => {
+                  {BLOCK_LIBRARY.filter((b) => SINGLETON_BLOCK_TYPES.has(b.type)).map((b) => {
                     const alreadyPlaced =
                       SINGLETON_BLOCK_TYPES.has(b.type) && blocks.some((bl) => bl.type === b.type);
                     return (
@@ -577,6 +587,32 @@ export default function EventBuilderPage() {
                       </button>
                     );
                   })}
+                </div>
+
+                <p className="mb-2 mt-5 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                  Blocs libres
+                </p>
+                <p className="mb-2.5 text-[11px] text-muted-foreground">
+                  À volonté, chacun avec son propre contenu.
+                </p>
+                <div className="flex flex-col gap-1.5">
+                  {BLOCK_LIBRARY.filter((b) => !SINGLETON_BLOCK_TYPES.has(b.type)).map((b) => (
+                    <button
+                      key={b.type}
+                      type="button"
+                      draggable
+                      title="Cliquez ou glissez pour ajouter"
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData('application/x-block-type', b.type);
+                        e.dataTransfer.effectAllowed = 'copy';
+                      }}
+                      onClick={() => addBlock(b.type)}
+                      className="flex cursor-grab items-center gap-2.5 rounded-lg border border-border px-2.5 py-2 text-left text-sm font-medium transition-colors hover:bg-accent active:cursor-grabbing"
+                    >
+                      <b.icon className="size-4" />
+                      <span className="min-w-0 flex-1 truncate">{b.label}</span>
+                    </button>
+                  ))}
                 </div>
               </div>
             ) : sidebarTab === 'config' ? (

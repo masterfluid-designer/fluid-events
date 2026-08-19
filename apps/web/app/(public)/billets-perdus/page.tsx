@@ -1,10 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import { useMutation } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { ArrowLeft, MailCheck } from 'lucide-react';
+import { MailCheck } from 'lucide-react';
 import { apiPost, ApiError } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 
@@ -35,13 +34,6 @@ export default function LostTicketsPage() {
   return (
     <main className="min-h-svh bg-alabaster dark:bg-blackho">
       <div className="mx-auto max-w-md px-4 py-12 md:px-8">
-        <Link
-          href="/"
-          className="mb-6 inline-flex items-center gap-1.5 text-xs font-semibold text-manatee hover:text-black dark:text-manatee dark:hover:text-white"
-        >
-          <ArrowLeft className="size-3.5" /> Retour à l'accueil
-        </Link>
-
         <div className="rounded-2xl border border-stroke bg-white p-7 shadow-solid-2 dark:border-strokedark dark:bg-blacksection">
           {sent ? (
             <div className="flex flex-col items-center gap-3 py-6 text-center">
