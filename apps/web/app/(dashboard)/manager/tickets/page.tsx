@@ -66,6 +66,8 @@ interface EventWithTickets {
     location: string | null;
     startTime: string | null;
     endTime: string | null;
+    latitude: string | null;
+    longitude: string | null;
   }>;
 }
 
@@ -172,6 +174,8 @@ export default function ManagerTicketsPage() {
         location: d.location ?? '',
         startTime: d.startTime ?? '',
         endTime: d.endTime ?? '',
+        latitude: d.latitude ?? '',
+        longitude: d.longitude ?? '',
       })),
     );
     setRegimeLoaded(true);
@@ -183,7 +187,15 @@ export default function ManagerTicketsPage() {
         ticketPolicy: policy,
         // Une journée sans date est une ligne que l’utilisateur n’a pas finie :
         // on ne l’envoie pas plutôt que de faire échouer tout l’enregistrement.
-        days: days.filter((d) => d.date),
+        days: days
+          .filter((d) => d.date)
+          .map((d) => ({
+            ...d,
+            // Chaîne vide ⇢ `null` : la journée retombe alors sur le point de
+            // l'événement. Envoyer '' ferait échouer la validation numérique.
+            latitude: d.latitude ? Number(d.latitude) : null,
+            longitude: d.longitude ? Number(d.longitude) : null,
+          })),
       }),
     onSuccess: () => {
       toast.success('Régime enregistré');

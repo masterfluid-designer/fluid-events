@@ -191,6 +191,9 @@ export interface PublicEventDay {
   location: string | null;
   startTime: string | null;
   endTime: string | null;
+  /** Coordonnées propres — voir EventLocation pour les deux cas d'usage. */
+  latitude: string | null;
+  longitude: string | null;
 }
 
 /**

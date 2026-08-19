@@ -36,6 +36,14 @@ export interface EventDayDraft {
   location?: string;
   startTime?: string;
   endTime?: string;
+  /**
+   * Coordonnées de la journée (2026-08-18). Renseignées, elles posent un point
+   * distinct sur la carte publique — une tournée qui change de salle. Laissées
+   * vides, celles de l'événement s'appliquent : une formation au même endroit
+   * n'a rien à ressaisir.
+   */
+  latitude?: string;
+  longitude?: string;
 }
 
 const POLICY_CARDS = [
@@ -84,7 +92,15 @@ export function TicketingPanel({
   function addDay() {
     onDaysChange([
       ...days,
-      { label: `Jour ${days.length + 1}`, date: '', location: '', startTime: '', endTime: '' },
+      {
+        label: `Jour ${days.length + 1}`,
+        date: '',
+        location: '',
+        startTime: '',
+        endTime: '',
+        latitude: '',
+        longitude: '',
+      },
     ]);
   }
 
@@ -227,6 +243,22 @@ export function TicketingPanel({
                   onChange={(e) => updateDay(index, { endTime: e.target.value })}
                   aria-label={`Heure de fin de la journée ${index + 1}`}
                   className="w-[7rem]"
+                />
+              </div>
+              {/* Coordonnées facultatives : vides, la journée reprend le point
+                  de l'événement. On ne les demande qu'à qui change de lieu. */}
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <Input
+                  value={day.latitude ?? ''}
+                  onChange={(e) => updateDay(index, { latitude: e.target.value })}
+                  placeholder="Latitude (si lieu différent)"
+                  aria-label={`Latitude de la journée ${index + 1}`}
+                />
+                <Input
+                  value={day.longitude ?? ''}
+                  onChange={(e) => updateDay(index, { longitude: e.target.value })}
+                  placeholder="Longitude"
+                  aria-label={`Longitude de la journée ${index + 1}`}
                 />
               </div>
               {day.startTime && day.endTime && day.endTime <= day.startTime && (

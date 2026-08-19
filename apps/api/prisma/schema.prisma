@@ -529,6 +529,14 @@ model EventDay {
   /// DateTime rouvrirait l'ambiguïté de fuseau que @db.Date ferme ici.
   startTime String?
   endTime   String?
+  /// Coordonnées de CETTE journée (2026-08-18). Deux cas produit :
+  ///  - une tournée change de salle d'une date à l'autre : chaque journée
+  ///    porte les siennes, la carte affiche un point par lieu ;
+  ///  - une formation se tient toujours au même endroit : on les laisse
+  ///    vides, celles de l'événement s'appliquent et la carte n'a qu'un point.
+  /// Même précision que Event.latitude/longitude.
+  latitude  Decimal? @db.Decimal(9, 6)
+  longitude Decimal? @db.Decimal(9, 6)
   order   Int      @default(0)
 
   tickets Ticket[]

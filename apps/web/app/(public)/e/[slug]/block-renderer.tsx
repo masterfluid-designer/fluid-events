@@ -273,6 +273,7 @@ function BlockItem({
         accessNotes={eventConfig.accessNotes}
         contactPhone={eventConfig.contactPhone}
         anchorId="block-location"
+        days={eventDays}
       />
     );
   }

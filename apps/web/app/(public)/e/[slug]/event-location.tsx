@@ -37,11 +37,31 @@ export function EventLocation({
   accessNotes,
   contactPhone,
   anchorId,
+  days = [],
 }: {
   fields: EventLocationFields;
   accessNotes?: string | null;
   contactPhone?: string | null;
   anchorId?: string;
+  /**
+   * Journées déclarées (2026-08-18). Deux cas produit, un seul mécanisme :
+   *
+   *  - une tournée change de salle d'une date à l'autre : chaque journée
+   *    porte son lieu et ses coordonnées, la carte pose un point par lieu et
+   *    la colonne liste une carte par journée ;
+   *  - une formation se tient toujours au même endroit : les journées n'ont
+   *    ni lieu ni coordonnées propres, celles de l'événement s'appliquent, et
+   *    l'affichage reste exactement celui d'avant — un lieu, un point.
+   *
+   * C'est donc l'absence de saisie qui distingue les deux, pas un réglage.
+   */
+  days?: Array<{
+    id: string;
+    label: string;
+    location: string | null;
+    latitude: string | null;
+    longitude: string | null;
+  }>;
 }) {
   const address = formatEventAddress(fields);
   // wa.me attend le numéro international SANS « + » ni séparateurs. Le champ
@@ -61,18 +81,53 @@ export function EventLocation({
   // désinformerait plus qu'une absence de carte.
   const latitude = toCoord(fields.latitude);
   const longitude = toCoord(fields.longitude);
-  const venues: MapVenue[] =
-    latitude !== null && longitude !== null
-      ? [
-          {
-            id: 'main',
-            label: "Lieu de l'événement",
-            name: fields.venueName?.trim() || address || 'Lieu',
-            latitude,
-            longitude,
-          },
-        ]
-      : [];
+  // Journées qui posent VRAIMENT un lieu à elles : il leur faut un nom ET des
+  // coordonnées, sans quoi rien à placer sur la carte.
+  const daysWithOwnVenue = days
+    .map((d) => ({
+      day: d,
+      lat: toCoord(d.latitude),
+      lon: toCoord(d.longitude),
+      name: d.location?.trim() || null,
+    }))
+    .filter((d) => d.lat !== null && d.lon !== null && d.name);
+
+  // Deux journées au même endroit ne méritent qu'un point et une carte : on
+  // regroupe par coordonnées, et le libellé cite les journées concernées.
+  const grouped = new Map<string, { name: string; lat: number; lon: number; labels: string[] }>();
+  for (const d of daysWithOwnVenue) {
+    const key = `${d.lat},${d.lon}`;
+    const existing = grouped.get(key);
+    if (existing) existing.labels.push(d.day.label);
+    else grouped.set(key, { name: d.name!, lat: d.lat!, lon: d.lon!, labels: [d.day.label] });
+  }
+
+  const mainAlreadyCovered =
+    latitude !== null && longitude !== null && grouped.has(`${latitude},${longitude}`);
+
+  const mainVenue: MapVenue | null =
+    latitude !== null && longitude !== null && !mainAlreadyCovered
+      ? {
+          id: 'main',
+          label: grouped.size > 0 ? 'Lieu principal' : "Lieu de l'événement",
+          name: fields.venueName?.trim() || address || 'Lieu',
+          latitude,
+          longitude,
+        }
+      : null;
+
+  // Les journées d'abord quand elles existent : c'est l'information la plus
+  // précise, le lieu de l'événement n'est plus qu'un repère général.
+  const venues: MapVenue[] = [
+    ...[...grouped.entries()].map(([key, v]) => ({
+      id: `day-${key}`,
+      label: v.labels.join(' · '),
+      name: v.name,
+      latitude: v.lat,
+      longitude: v.lon,
+    })),
+    ...(mainVenue ? [mainVenue] : []),
+  ];
   const hasMap = venues.length > 0;
 
   return (
@@ -98,7 +153,12 @@ export function EventLocation({
           </div>
 
           <div className="flex flex-col gap-4">
-            {venues.map((venue) => (
+            {venues.map((venue) => {
+              const venueMapsUrl =
+                venue.id === 'main' && mapsUrl
+                  ? mapsUrl
+                  : `https://www.google.com/maps/search/?api=1&query=${venue.latitude},${venue.longitude}`;
+              return (
               <div
                 key={venue.id}
                 className="flex flex-1 flex-col justify-center rounded-2xl border border-stroke p-6 dark:border-strokedark"
@@ -112,14 +172,14 @@ export function EventLocation({
                       {venue.label}
                     </div>
                     <p className="mt-1 font-event text-xl leading-tight">{venue.name}</p>
-                    {address && venue.name !== address && (
+                    {venue.id === 'main' && address && venue.name !== address && (
                       <p className="mt-1.5 text-sm leading-relaxed text-waterloo dark:text-manatee">
                         {address}
                       </p>
                     )}
-                    {mapsUrl && (
+                    {venueMapsUrl && (
                       <a
-                        href={mapsUrl}
+                        href={venueMapsUrl}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="mt-4 inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primaryho"
@@ -130,7 +190,8 @@ export function EventLocation({
                   </div>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

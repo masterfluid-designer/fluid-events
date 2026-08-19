@@ -78,6 +78,8 @@ interface EventDetail {
     location: string | null;
     startTime: string | null;
     endTime: string | null;
+    latitude: string | null;
+    longitude: string | null;
   }>;
   eventPage: { blocks: Block[]; theme: EventTheme | null } | null;
 }

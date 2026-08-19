@@ -1,10 +1,12 @@
 import {
   IsDateString,
   IsInt,
+  IsNumber,
   IsOptional,
   IsString,
   IsUrl,
   Matches,
+  Max,
   MaxLength,
   Min,
 } from 'class-validator';
@@ -124,6 +126,24 @@ export class EventDayDto {
   @IsOptional()
   @Matches(HHMM_RE, { message: "L'heure de fin doit être au format HH:mm." })
   endTime?: string | null;
+
+  /**
+   * Coordonnées propres à la journée (2026-08-18). Renseignées, elles posent
+   * un point distinct sur la carte — le cas d'une tournée qui change de salle.
+   * Laissées vides, celles de l'événement s'appliquent : une formation qui se
+   * tient toujours au même endroit n'a rien à ressaisir.
+   */
+  @IsOptional()
+  @IsNumber()
+  @Min(-90)
+  @Max(90)
+  latitude?: number | null;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(-180)
+  @Max(180)
+  longitude?: number | null;
 
   @IsOptional()
   @IsInt()

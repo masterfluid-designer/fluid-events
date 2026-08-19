@@ -191,6 +191,10 @@ export class EventsService {
       location: d.location?.trim() || null,
       startTime: d.startTime || null,
       endTime: d.endTime || null,
+      // `null` explicite : la journée retombe alors sur les coordonnées de
+      // l'événement, elle n'hérite pas d'un ancien point resté en base.
+      latitude: d.latitude ?? null,
+      longitude: d.longitude ?? null,
       order: d.order ?? index,
     }));
 
@@ -249,6 +253,8 @@ export class EventsService {
             location: day.location,
             startTime: day.startTime,
             endTime: day.endTime,
+            latitude: day.latitude,
+            longitude: day.longitude,
             order: day.order,
           },
         });
