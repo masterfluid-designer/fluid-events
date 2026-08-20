@@ -330,6 +330,20 @@ export interface EventTheme {
   accentColorDark?: string;
   accentColorSecondaryDark?: string;
   backgroundColorDark?: string;
+  /** Logo de l’en-tête, par thème (2026-08-20). */
+  headerLogoUrl?: string;
+  headerLogoUrlDark?: string;
+  /** Texte de l’en-tête — remplace le titre de l’événement s’il est fourni. */
+  headerTitle?: string;
+  /**
+   * Entrées RETIRÉES du menu, par type de bloc. On stocke ce qu’on cache et
+   * non ce qu’on montre : un bloc ajouté plus tard apparaît par défaut, au
+   * lieu de rester invisible faute de figurer dans une liste écrite avant lui.
+   */
+  headerHiddenNav?: string[];
+  headerShowMyTicket?: boolean;
+  headerShowBuy?: boolean;
+  headerShowThemeToggle?: boolean;
   /** HEX strict — fond de page. */
   backgroundColor?: string;
   /** Police des titres de la page publique. */

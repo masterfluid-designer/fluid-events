@@ -23,13 +23,22 @@ import type { NavItem } from './block-renderer';
 export function EventHeader({
   eventTitle,
   logoUrl,
+  logoUrlDark,
   slug,
   navItems,
+  showMyTicket = true,
+  showBuy = true,
+  showThemeToggle = true,
 }: {
   eventTitle: string;
   logoUrl: string | null;
+  /** Logo du thème sombre — sans lui, celui du thème clair sert partout. */
+  logoUrlDark?: string | null;
   slug: string;
   navItems: NavItem[];
+  showMyTicket?: boolean;
+  showBuy?: boolean;
+  showThemeToggle?: boolean;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const ticketsAnchor = navItems.find((item) => item.id === 'block-tickets');
@@ -40,8 +49,29 @@ export function EventHeader({
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-5 md:h-18 md:px-8">
           <a href="#top" className="flex min-w-0 items-center gap-2.5">
             {logoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={logoUrl} alt="" className="size-9 shrink-0 rounded-lg object-cover" />
+              <>
+                {/* Deux <img> plutôt qu’un `src` changé en JS : celui-ci
+                    clignoterait au basculement et serait faux au premier
+                    rendu serveur, qui ignore le thème du visiteur. */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={logoUrl}
+                  alt=""
+                  className={
+                    logoUrlDark
+                      ? "size-9 shrink-0 rounded-lg object-cover dark:hidden"
+                      : "size-9 shrink-0 rounded-lg object-cover"
+                  }
+                />
+                {logoUrlDark && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={logoUrlDark}
+                    alt=""
+                    className="hidden size-9 shrink-0 rounded-lg object-cover dark:block"
+                  />
+                )}
+              </>
             ) : null}
             <span className="truncate font-event text-base font-semibold md:text-lg">{eventTitle}</span>
           </a>
@@ -59,14 +89,16 @@ export function EventHeader({
           </nav>
 
           <div className="flex shrink-0 items-center gap-2">
-            <ThemeToggle />
-            <a
-              href={`/client?event=${encodeURIComponent(slug)}`}
-              className="hidden rounded-full border border-stroke px-4 py-2 text-xs font-semibold transition-colors hover:border-black dark:border-strokedark dark:hover:border-white sm:inline-flex"
-            >
-              Mon ticket
-            </a>
-            {ticketsAnchor && (
+            {showThemeToggle && <ThemeToggle />}
+            {showMyTicket && (
+              <a
+                href={`/client?event=${encodeURIComponent(slug)}`}
+                className="hidden rounded-full border border-stroke px-4 py-2 text-xs font-semibold transition-colors hover:border-black dark:border-strokedark dark:hover:border-white sm:inline-flex"
+              >
+                Mon ticket
+              </a>
+            )}
+            {showBuy && ticketsAnchor && (
               <a
                 href={`#${ticketsAnchor.id}`}
                 className="btn-accent inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-semibold md:px-5"

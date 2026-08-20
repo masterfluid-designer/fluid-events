@@ -1,6 +1,7 @@
 'use client';
 
 import { MEDIA_ASPECT_LABEL, type MediaAspect } from '@/lib/media';
+import { BLOCK_NAV_LABELS } from '@/app/(public)/e/[slug]/block-renderer';
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
@@ -628,6 +629,11 @@ export default function EventBuilderPage() {
                 <ThemePanel
                   theme={theme}
                   onChange={(patch) => setTheme((prev) => ({ ...prev, ...patch }))}
+                  // Seuls les blocs RÉELLEMENT posés peuvent figurer au menu :
+                  // proposer de cacher une section absente n’aurait aucun sens.
+                  navChoices={blocks
+                    .filter((b) => BLOCK_NAV_LABELS[b.type])
+                    .map((b) => ({ type: b.type, label: BLOCK_NAV_LABELS[b.type]! }))}
                 />
               </div>
             )}

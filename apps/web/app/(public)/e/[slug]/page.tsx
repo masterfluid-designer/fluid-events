@@ -177,6 +177,9 @@ export default async function EventPage({
       ? [{ id: 'block-tickets', label: 'Billetterie' }]
       : [];
   const ticketsAnchor = navItems.find((item) => item.id === 'block-tickets');
+  // Le thème BRUT porte les réglages d’en-tête ; `theme` n’en garde que ce
+  // qui devient du CSS.
+  const themeRaw = event.eventPage?.theme ?? null;
   const theme = resolveEventTheme(event.eventPage?.theme);
 
   return (
@@ -206,11 +209,23 @@ export default async function EventPage({
           qu'elle est — le décor sur lequel la page est posée. */}
       {theme.backdrop && <EventBackdrop backdrop={theme.backdrop} />}
 
+      {/* Réglages d’en-tête (2026-08-20) : logo par thème, titre, boutons.
+          Les valeurs par défaut restent celles d’avant — un événement qui
+          n’a rien réglé garde exactement l’en-tête qu’il avait. */}
       <EventHeader
-        eventTitle={event.title}
-        logoUrl={event.logoUrl}
+        eventTitle={themeRaw?.headerTitle?.trim() || event.title}
+        logoUrl={themeRaw?.headerLogoUrl || event.logoUrl}
+        logoUrlDark={themeRaw?.headerLogoUrlDark ?? null}
         slug={slug}
-        navItems={navItems}
+        // Le menu masque ce que l’organisateur a décoché. On filtre ici et
+        // non dans getVisibleNavItems : le pied de page, lui, garde la liste
+        // complète — s’y retrouver après avoir lu la page reste utile.
+        navItems={navItems.filter(
+          (i) => !(themeRaw?.headerHiddenNav ?? []).includes(i.id.replace('block-', '')),
+        )}
+        showMyTicket={themeRaw?.headerShowMyTicket !== false}
+        showBuy={themeRaw?.headerShowBuy !== false}
+        showThemeToggle={themeRaw?.headerShowThemeToggle !== false}
       />
 
       {hasBuiltPage ? (

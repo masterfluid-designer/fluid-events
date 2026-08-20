@@ -103,6 +103,18 @@ export const ThemeSchema = z.object({
   accentColorDark: HexColor.optional(),
   accentColorSecondaryDark: HexColor.optional(),
   backgroundColorDark: HexColor.optional(),
+  // En-tête (2026-08-20). Il n’était réglable nulle part : logo, titre,
+  // entrées du menu et boutons étaient figés dans le composant.
+  headerLogoUrl: z.string().max(2048).optional(),
+  headerLogoUrlDark: z.string().max(2048).optional(),
+  headerTitle: z.string().max(80).optional(),
+  // Types de blocs RETIRÉS du menu — on stocke ce qu’on cache, pas ce qu’on
+  // montre : un bloc ajouté plus tard apparaît alors par défaut, au lieu de
+  // rester invisible parce qu’il manquait à une liste écrite avant lui.
+  headerHiddenNav: z.array(z.string().max(40)).max(20).optional(),
+  headerShowMyTicket: z.boolean().optional(),
+  headerShowBuy: z.boolean().optional(),
+  headerShowThemeToggle: z.boolean().optional(),
   backgroundColor: HexColor.optional(),
   fontFamily: z.enum(EVENT_FONT_KEYS).optional(),
   // Image de fond (2026-08-18). L'URL n'est PAS validée ici : le schéma ne
