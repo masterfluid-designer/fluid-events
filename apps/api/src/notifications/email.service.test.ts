@@ -223,10 +223,38 @@ describe('EmailService.sendManagerInviteEmail()', () => {
     expect(sendMailMock).toHaveBeenCalledWith(
       expect.objectContaining({
         to: 'manager@example.com',
-        subject: 'Invitation à rejoindre Fluid Events',
+        subject: 'Votre espace organisateur Fluid Events est ouvert',
         html: expect.stringContaining('http://localhost:3000/auth/set-password?token=abc123'),
       }),
     );
+  });
+
+  /*
+   * Ce que l'ancien message NE disait pas, et qui a motivé sa réécriture le
+   * 2026-08-20 : où revenir après avoir choisi son mot de passe, et qui
+   * joindre. Sans ce test, la prochaine retouche pourrait les faire
+   * disparaître sans que rien ne le signale.
+   */
+  it('donne au nouveau manager les adresses pour se retrouver', async () => {
+    process.env.APP_URL = 'https://fluidevent.online';
+    // APP_URL est figé au CHARGEMENT du module : sans ce reset, l'import mis
+    // en cache par les tests précédents garderait l'ancienne valeur.
+    vi.resetModules();
+    const { EmailService } = await import('./email.service');
+    const service = new EmailService(mockAudit);
+
+    await service.sendManagerInviteEmail({
+      to: 'manager@example.com',
+      name: 'Jean Dupont',
+      inviteUrl: 'https://fluidevent.online/auth/set-password?token=abc123',
+    });
+
+    const html = sendMailMock.mock.calls[0][0].html as string;
+    for (const chemin of ['/manager', '/auth/login', '/docs', '/support']) {
+      expect(html).toContain(`https://fluidevent.online${chemin}`);
+    }
+    // L'expiration doit rester dite : c'est elle qui explique un lien mort.
+    expect(html).toContain('7 jours');
   });
 
   it("propage l'erreur à l'appelant si l'envoi échoue (contrairement à sendTicketReadyEmail)", async () => {
