@@ -49,6 +49,109 @@ export function readableForeground(hex: string): string {
   return withBlack >= withWhite ? '#141312' : '#ffffff';
 }
 
+/* ─── Dérivation d’une palette sombre ────────────────────────────────────
+ *
+ * Une même couleur ne peut pas servir sur fond clair ET sur fond sombre.
+ * Un accent bleu nuit choisi pour du blanc devient illisible sur du noir —
+ * c’est exactement le défaut constaté sur la page publique : le thème
+ * basculait, la couleur d’accent ne bougeait pas.
+ *
+ * On dérive donc une variante sombre à partir de la teinte choisie, en ne
+ * touchant qu’à la LUMINOSITÉ : la teinte et la saturation portent
+ * l’identité de l’organisateur, il n’y a aucune raison d’y toucher. La
+ * dérivation reste un DÉFAUT — le panneau permet de la surcharger.
+ */
+
+function hexToHsl(hex: string): { h: number; s: number; l: number } {
+  const r = parseInt(hex.slice(1, 3), 16) / 255;
+  const g = parseInt(hex.slice(3, 5), 16) / 255;
+  const b = parseInt(hex.slice(5, 7), 16) / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  if (max === min) return { h: 0, s: 0, l };
+  const d = max - min;
+  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+  const h =
+    max === r
+      ? ((g - b) / d + (g < b ? 6 : 0)) / 6
+      : max === g
+        ? ((b - r) / d + 2) / 6
+        : ((r - g) / d + 4) / 6;
+  return { h, s, l };
+}
+
+function hslToHex(h: number, s: number, l: number): string {
+  const f = (n: number) => {
+    const k = (n + h * 12) % 12;
+    const a = s * Math.min(l, 1 - l);
+    const v = l - a * Math.max(-1, Math.min(k - 3, Math.min(9 - k, 1)));
+    return Math.round(255 * v)
+      .toString(16)
+      .padStart(2, '0');
+  };
+  return `#${f(0)}${f(8)}${f(4)}`;
+}
+
+/**
+ * Variante sombre d’un ACCENT : on l’éclaircit s’il est trop sombre pour se
+ * détacher d’un fond noir, on l’assombrit légèrement s’il est éblouissant.
+ * Entre les deux, on n’y touche pas — une couleur déjà lisible n’a pas à
+ * être « corrigée ».
+ */
+/** Encre sombre du design system — la référence des calculs de contraste. */
+const FOND_SOMBRE = '#141312';
+
+/** Ratio de contraste WCAG entre deux couleurs. */
+function contrastRatio(a: string, b: string): number {
+  const la = luminance(a);
+  const lb = luminance(b);
+  const [hi, lo] = la > lb ? [la, lb] : [lb, la];
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+/**
+ * Variante sombre d’un ACCENT, pilotée par le CONTRASTE et non par un seuil
+ * de luminosité.
+ *
+ * Une première version se contentait d’éclaircir les couleurs « trop
+ * sombres ». Elle laissait passer les teintes moyennes : un violet à 57 % de
+ * luminosité restait à 3,17:1 sur fond sombre, sous le minimum lisible,
+ * simplement parce qu’il ne tombait dans aucune des deux bornes.
+ *
+ * On monte donc la luminosité par paliers JUSQU’À atteindre 4,5:1, et on
+ * s’arrête là : éclaircir au-delà délaverait l’identité sans rien gagner.
+ * La teinte ne bouge jamais — c’est elle que l’organisateur a choisie.
+ */
+export function deriveDarkAccent(hex: string): string {
+  if (contrastRatio(hex, FOND_SOMBRE) >= 4.5) {
+    // Déjà lisible. Seul cas traité : un blanc quasi pur, éblouissant sur
+    // fond sombre, qu’on adoucit à peine.
+    const { h, s, l } = hexToHsl(hex);
+    return l > 0.9 ? hslToHex(h, s, 0.82) : hex;
+  }
+
+  const { h, s } = hexToHsl(hex);
+  // Une couleur sombre est souvent très saturée : l’éclaircir sans rien
+  // retirer donnerait un fluo.
+  const saturation = Math.min(s, 0.75);
+  for (let l = hexToHsl(hex).l; l <= 0.92; l += 0.02) {
+    const candidat = hslToHex(h, saturation, l);
+    if (contrastRatio(candidat, FOND_SOMBRE) >= 4.5) return candidat;
+  }
+  return hslToHex(h, saturation, 0.92);
+}
+
+/**
+ * Variante sombre d’un FOND : même teinte, mais ramenée à une valeur qui
+ * tient un texte clair. On garde un soupçon de saturation pour que le fond
+ * reste teinté plutôt que gris — c’est ce qui fait qu’une page sombre
+ * appartient encore à l’organisateur.
+ */
+export function deriveDarkBackground(hex: string): string {
+  const { h, s } = hexToHsl(hex);
+  return hslToHex(h, Math.min(s, 0.35), 0.09);
+}
 export interface ResolvedEventTheme {
   /** Classes next/font à poser sur le conteneur (déclare les @font-face). */
   fontClassName: string;
@@ -56,6 +159,15 @@ export interface ResolvedEventTheme {
   style: CSSProperties;
   /** true si l'organisateur a défini un fond personnalisé. */
   hasCustomBackground: boolean;
+  /**
+   * Règles CSS à poser dans un <style> (2026-08-20).
+   *
+   * Un style INLINE ne sait pas exprimer « et en thème sombre, ceci » :
+   * c'est exactement pourquoi la couleur d'accent ne bougeait pas quand la
+   * page basculait. Ces règles portent les DEUX palettes et laissent le
+   * sélecteur de thème trancher.
+   */
+  css: string;
   /**
    * Image de fond validée, prête à rendre — `null` s'il n'y en a pas. Le
    * voile est déjà borné à son plancher : l'appelant n'a plus de décision de
@@ -97,13 +209,7 @@ export function resolveEventTheme(theme: EventTheme | null | undefined): Resolve
       ? theme.accentColorSecondary
       : null;
 
-  if (accent) {
-    style['--color-primary'] = accent;
-    style['--color-primaryho'] = accent;
-    style['--color-primary-foreground'] = readableForeground(accent);
-    style['--color-accent-terracotta'] = accent;
-    style['--color-accent-terracotta-dark'] = accent;
-  }
+
 
   /*
    * Seconde teinte (2026-08-20). Elle retombe TOUJOURS sur la première quand
@@ -115,12 +221,73 @@ export function resolveEventTheme(theme: EventTheme | null | undefined): Resolve
    * elle qui occupe la majorité de la surface, et un texte lisible sur une
    * moitié seulement ne l'est pas.
    */
-  const accentStart = accent ?? 'var(--color-primary)';
-  style['--color-accent-2'] = accent2 ?? accentStart;
-  if (accent || accent2) {
-    style['--gradient-accent'] =
-      `linear-gradient(115deg, ${accentStart} 0%, ${accent2 ?? accentStart} 100%)`;
-  }
+
+
+  /*
+   * Palette SOMBRE. L'organisateur peut la fixer lui-même ; sinon on la
+   * dérive de la palette claire en garantissant 4,5:1 sur fond sombre.
+   * Dériver plutôt que réutiliser la couleur claire est tout l’enjeu : un
+   * accent bleu nuit choisi pour du blanc tombe à 1,4:1 sur du noir.
+   */
+  const accentDark =
+    theme?.accentColorDark && HEX_RE.test(theme.accentColorDark)
+      ? theme.accentColorDark
+      : accent
+        ? deriveDarkAccent(accent)
+        : null;
+  const accent2Dark =
+    theme?.accentColorSecondaryDark && HEX_RE.test(theme.accentColorSecondaryDark)
+      ? theme.accentColorSecondaryDark
+      : accent2
+        ? deriveDarkAccent(accent2)
+        : null;
+  const backgroundDark =
+    theme?.backgroundColorDark && HEX_RE.test(theme.backgroundColorDark)
+      ? theme.backgroundColorDark
+      : background
+        ? deriveDarkBackground(background)
+        : null;
+
+  const aBackdrop = Boolean(resolveBackdrop(theme));
+
+  /** Variables d’une palette, prêtes à être injectées dans une règle CSS. */
+  const palette = (a: string | null, a2: string | null): string => {
+    if (!a && !a2) return '';
+    const base = a ?? 'var(--color-primary)';
+    const second = a2 ?? base;
+    const parts: string[] = [];
+    if (a) {
+      parts.push(
+        '--color-primary:' + a + ';',
+        '--color-primaryho:' + a + ';',
+        '--color-primary-foreground:' + readableForeground(a) + ';',
+        '--color-accent-terracotta:' + a + ';',
+        '--color-accent-terracotta-dark:' + a + ';',
+      );
+    }
+    parts.push(
+      '--color-accent-2:' + second + ';',
+      '--gradient-accent:linear-gradient(115deg,' + base + ' 0%,' + second + ' 100%);',
+    );
+    return parts.join('');
+  };
+
+  // Le fond n’entre dans le CSS que SANS image de fond : avec une image, une
+  // couleur opaque repeindrait par-dessus la couche fixe.
+  const fond = (c: string | null): string =>
+    c && !aBackdrop
+      ? 'background-color:' + c + ';color:' + readableForeground(c) + ';'
+      : '';
+
+  const regleClaire = palette(accent, accent2) + fond(background);
+  const regleSombre = palette(accentDark, accent2Dark) + fond(backgroundDark);
+
+  const css = [
+    regleClaire ? '.event-theme{' + regleClaire + '}' : '',
+    regleSombre ? '.dark .event-theme{' + regleSombre + '}' : '',
+  ]
+    .filter(Boolean)
+    .join('');
 
   const backdrop = resolveBackdrop(theme);
 
@@ -130,16 +297,14 @@ export function resolveEventTheme(theme: EventTheme | null | undefined): Resolve
   // peint avant les fonds des descendants en flux — l'image aurait
   // simplement disparu). L'encre suit alors le mode clair/sombre habituel,
   // comme le voile qui la protège.
-  if (background && !backdrop) {
-    style.backgroundColor = background;
-    style.color = readableForeground(background);
-  }
+
 
   return {
     fontClassName: ALL_EVENT_FONT_CLASSNAMES,
     style: style as CSSProperties,
     hasCustomBackground: Boolean(background) || Boolean(backdrop),
     backdrop,
+    css,
   };
 }
 

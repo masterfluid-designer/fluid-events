@@ -321,6 +321,15 @@ export interface EventTheme {
    * les dégradés se replient sur la couleur d'accent seule.
    */
   accentColorSecondary?: string;
+  /**
+   * Palette sombre (2026-08-20) — facultative. Vide, elle est DÉRIVÉE de la
+   * palette claire en garantissant 4,5:1 sur fond sombre : réutiliser la
+   * couleur claire telle quelle rendait certains accents invisibles quand la
+   * page basculait.
+   */
+  accentColorDark?: string;
+  accentColorSecondaryDark?: string;
+  backgroundColorDark?: string;
   /** HEX strict — fond de page. */
   backgroundColor?: string;
   /** Police des titres de la page publique. */

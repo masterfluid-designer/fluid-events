@@ -144,7 +144,18 @@ export function EventHero({
           }
         />
       )}
-      <div className="absolute inset-0 -z-10 bg-gradient-to-t from-black/90 via-black/65 to-black/40" />
+      {/*
+        Voile allégé (2026-08-20) : il montait à 90 % en bas, ce qui coupait
+        net le hero du reste de la page — la couleur de fond choisie par
+        l’organisateur ne transparaissait nulle part, et la jointure avec la
+        section suivante se voyait comme un trait.
+
+        Il reste plus dense EN BAS qu’en haut : c’est là que vivent le texte et
+        les boutons, et c’est donc là que la lisibilité se joue. Assez pour
+        tenir un titre blanc sur une affiche claire, assez peu pour que le fond
+        du corps de page se devine et que la page se lise d’un seul tenant.
+      */}
+      <div className="absolute inset-0 -z-10 bg-gradient-to-t from-black/70 via-black/45 to-black/20" />
 
       <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-8 px-5 pb-12 pt-24 text-white md:px-8 md:pb-16 md:pt-32 lg:min-h-[78svh] lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)] lg:gap-14">
         <div className="flex max-w-3xl flex-col items-center text-center lg:items-start lg:text-left">

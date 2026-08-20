@@ -846,3 +846,10 @@
     animation: none;
   }
 }
+
+/* Bandeau d'appel à l'action — même dégradé que les boutons, pour que la page
+   n'ait qu'un seul langage de couleur d'accent (2026-08-20). Le repli sur
+   `--color-primary` garde les événements sans seconde teinte inchangés. */
+.accent-band {
+  background-image: var(--gradient-accent, linear-gradient(115deg, var(--color-primary) 0%, var(--color-accent-2, var(--color-primary)) 100%));
+}

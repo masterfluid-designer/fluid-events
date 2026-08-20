@@ -184,9 +184,23 @@ export default async function EventPage({
       // `public-surface` : la palette de base, jamais celle choisie dans un
       // tableau de bord (2026-08-17). Le thème de l’organisateur, lui, passe
       // par `style` et l’emporte sur cette classe.
-      className={`public-surface min-h-svh ${theme.hasCustomBackground ? '' : 'bg-white dark:bg-blackho'} ${theme.backdrop ? 'event-has-backdrop' : ''} ${theme.fontClassName}`}
+      className={`public-surface event-theme min-h-svh ${theme.hasCustomBackground ? '' : 'bg-white dark:bg-blackho'} ${theme.backdrop ? 'event-has-backdrop' : ''} ${theme.fontClassName}`}
       style={theme.style}
     >
+      {/*
+        Palettes claire ET sombre de l’organisateur (2026-08-20).
+
+        En <style> et non en style inline : un attribut `style` ne sait pas
+        dire « et en thème sombre, ceci ». C’est ce qui faisait que la couleur
+        d’accent restait identique dans les deux modes, jusqu’à devenir
+        illisible sur l’un des deux.
+
+        Le contenu est sûr : chaque couleur a été revalidée en HEX strict
+        avant d’arriver ici (voir resolveEventTheme), rien d’autre ne compose
+        cette chaîne.
+      */}
+      {theme.css && <style dangerouslySetInnerHTML={{ __html: theme.css }} />}
+
       {/* Avant tout le reste : la couche est `fixed`, sa position dans le
           balisage ne change rien à l'écran, mais elle se lit ici comme ce
           qu'elle est — le décor sur lequel la page est posée. */}

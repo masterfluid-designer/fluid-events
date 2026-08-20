@@ -97,6 +97,12 @@ export const ThemeSchema = z.object({
   // touches d'accent de la page. Absente, tout retombe sur la première et
   // l'apparence ne change pas d'un pixel.
   accentColorSecondary: HexColor.optional(),
+  // Palette SOMBRE (2026-08-20). Facultative : sans elle, la variante est
+  // dérivée de la palette claire avec un contraste garanti. Elle n'existe que
+  // pour l'organisateur qui veut trancher lui-même.
+  accentColorDark: HexColor.optional(),
+  accentColorSecondaryDark: HexColor.optional(),
+  backgroundColorDark: HexColor.optional(),
   backgroundColor: HexColor.optional(),
   fontFamily: z.enum(EVENT_FONT_KEYS).optional(),
   // Image de fond (2026-08-18). L'URL n'est PAS validée ici : le schéma ne
