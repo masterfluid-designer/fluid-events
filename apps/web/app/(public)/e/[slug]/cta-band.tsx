@@ -6,8 +6,12 @@ import { Ticket } from 'lucide-react';
  * visiteur a parcouru tout le contenu.
  */
 export function CtaBand({ eventTitle, ticketsAnchorId }: { eventTitle: string; ticketsAnchorId: string }) {
+  // Retrait SYMÉTRIQUE (2026-08-20) : la section n’avait que du padding en bas,
+  // le bandeau démarrait donc exactement au bord supérieur et venait buter
+  // contre la section précédente. Une carte posée sur la page se respire des
+  // deux côtés — sans quoi elle a l’air d’avoir glissé.
   return (
-    <section className="px-5 pb-14 md:px-8 md:pb-20">
+    <section className="px-5 py-14 md:px-8 md:py-20">
       {/* Le bandeau porte le MÊME dégradé que les boutons d'action (2026-08-20)
           — c'était le seul aplat d'accent restant sur la page, et il jurait
           juste au-dessus du pied de page.
