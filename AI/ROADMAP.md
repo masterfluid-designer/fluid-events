@@ -10,7 +10,7 @@
 - **Phase 2 — Scanner & Paiements** : 🔴 **En cours**
 - **Phase 3 — Events & Tickets** : 🟡 À venir
 - **Phase 4 — Builder & Design** : ✅ **Terminée**
-- **Phase 5 — Polish & Prod** : 🟡 **En service** — déployée et joignable sur `https://fluidevent.online` depuis le 2026-08-16. Restent : WhatsApp Meta (les Manager ne peuvent pas se vérifier sans), sauvegardes hors-site, supervision.
+- **Phase 5 — Polish & Prod** : 🟡 **En service** — déployée et joignable sur `https://fluidevent.online` depuis le 2026-08-16. Restent : le template WhatsApp approuvé côté Meta (les identifiants Cloud API se règlent depuis l’espace Admin depuis le 2026-08-19, mais aucun envoi réel n’est possible sans template validé — les Manager ne peuvent donc toujours pas se vérifier), un fournisseur de paiement réellement configuré en production (`payment_provider_configs` est vide, aucun encaissement n’aboutira), sauvegardes hors-site, supervision.
 
 ## 2. État des modules V1
 
@@ -624,6 +624,134 @@ la même journée, par deux sessions différentes. Le commentaire du composant
 porte maintenant l’historique et la raison, pour qu’il ne soit pas retiré une
 troisième fois par bonne intention.
 
+### Agents de contrôle créés par le manager (2026-08-19)
+
+Le CDC prévoyait des comptes Scanner ; rien dans le dashboard Manager ne
+permettait d’en créer un. Les comptes existaient donc, mais seul un accès
+direct à la base pouvait en produire — impasse pour un organisateur.
+
+`/api/scanners` (list / invite / promote / setActive / remove) est **toujours
+porté par l’événement du manager authentifié**, jamais par un `eventId` reçu du
+client : sans cela, un manager pourrait rattacher un agent à l’événement d’un
+autre. Deux voies d’entrée, parce que les deux existent dans la réalité :
+inviter une adresse qui n’a pas encore de compte (email dédié), ou promouvoir
+un client déjà inscrit à l’événement.
+
+Désactiver plutôt que supprimer est l’action par défaut : un agent retiré en
+plein contrôle d’accès doit pouvoir être remis en service sans réinvitation.
+
+### Kkiapay essayable, WhatsApp réglable depuis l’Admin (2026-08-19)
+
+Kkiapay n’avait pas la bascule sandbox / live que FedaPay possédait — impossible
+d’essayer l’encaissement sans clés de production. Ajoutée.
+
+Les identifiants WhatsApp Cloud API vivaient en variables d’environnement : les
+changer imposait un redéploiement. Ils se règlent désormais depuis l’espace
+Admin. C’est le verrou qui empêchait les managers de se vérifier (voir Phase 5).
+
+### Le compte à rebours dit le vrai délai (2026-08-19)
+
+Il affichait « L’événement a commencé ! » sur un événement à venir : il comptait
+depuis une date sans heure, donc depuis minuit. Redessiné en anneaux (jours /
+heures / minutes / secondes) et recalé sur l’horaire réel de la journée.
+
+### Habillage de la page publique (2026-08-20)
+
+Lot d’animation et de couleur demandé d’un bloc :
+
+- **Seconde couleur d’accent** combinée à la première en dégradé sur les boutons
+  d’action, avec halo (`color-mix`) et déplacement du dégradé au survol.
+- **Dérive du hero** : l’affiche et le badge flottent sur des durées de rapport
+  premier (13 s / 8,5 s) — un rapport entier synchroniserait les deux mouvements
+  toutes les quelques secondes, et l’œil verrait la boucle. Le survol met en
+  pause : on ne lit pas une affiche qui bouge.
+- **Révélations à l’entrée dans le viewport** (`reveal.tsx`). Le contenu est
+  rendu **visible côté serveur** et n’est masqué que dans l’`useEffect` : sans
+  JavaScript, la page reste lisible au lieu d’être blanche.
+- Hero centré au mobile seulement, opacité du fond baissée pour laisser
+  transparaître la couleur du corps, marges internes du bandeau CTA reprises.
+
+Tout est sous garde `prefers-reduced-motion`.
+
+### Thème clair / sombre réellement piloté (2026-08-20)
+
+**La cause du bug** : le thème de l’événement était injecté en `style` inline.
+Un attribut `style` ne peut pas exprimer de variante `.dark` — la page sombre
+héritait donc des couleurs claires, en-tête compris. Le thème est maintenant
+émis dans une balise `<style>` scopée qui porte `.event-theme` **et**
+`.dark .event-theme`.
+
+La palette sombre est **dérivée** de la claire (`deriveDarkAccent`,
+`deriveDarkBackground`) en remontant la luminosité jusqu’à un contraste WCAG
+d’au moins 4,5:1 sur fond sombre : `#1a237e` passe de 1,40 à 4,85, `#0d5c4d` de
+2,35 à 4,74, `#000000` de 1,13 à 4,70. L’organisateur n’a donc rien à régler
+pour que sa page tienne dans les deux modes ; un bouton « Personnaliser » ouvre
+les trois champs pour qui veut décider lui-même. Imposer trois sélecteurs de
+plus à tout le monde ferait payer à la majorité la liberté d’une minorité.
+
+### En-tête paramétrable (2026-08-20)
+
+Logo, titre, entrées de menu et boutons vivaient en dur. Un organisateur dont le
+logo disparaissait sur fond sombre n’avait aucun recours. Le Builder expose
+désormais : titre, **deux logos** (clair / sombre, le second facultatif), les
+entrées de menu à afficher, et les boutons « Acheter » / « Mon ticket » /
+bascule de thème.
+
+Deux `<img>` dont l’une est masquée par `dark:hidden`, plutôt qu’un `src` changé
+en JS : celui-ci clignoterait au basculement et serait faux au premier rendu
+serveur, qui ignore le thème du visiteur.
+
+Partout, **absent = affiché** : un événement qui n’a rien réglé garde exactement
+l’en-tête qu’il avait.
+
+### Palette du Builder séparée, et blocs uniques (2026-08-20)
+
+La page publique de production affichait six hero et deux billetteries empilés :
+`SINGLETON_BLOCK_TYPES` ignorait `hero` et `tickets`, et n’existait que côté
+client. La palette distingue maintenant « Sections de l’événement » (bascules,
+un seul exemplaire) et « Blocs libres » (empilables), et décocher une section
+retire **toutes** ses occurrences.
+
+### Email d’invitation Manager complété (2026-08-20)
+
+Il n’indiquait ni ce que contient le tableau de bord, ni comment se reconnecter,
+ni où trouver de l’aide. Réécrit avec les quatre liens de retour (`/manager`,
+`/auth/login`, `/docs`, `/support`) et le délai de 7 jours. `APP_URL` est lu au
+chargement du module — le test recharge donc le module avant de l’observer.
+
+### Bloc Accès : carte à gauche, lieu et contact à droite (2026-08-20)
+
+La grille comptait trois enfants, dont un contact posé dans une grille séparée
+en dessous. Elle en compte exactement deux : la carte, et une colonne réunissant
+lieu et contact. Les deux colonnes gardent la même hauteur, **au desktop
+seulement** (416/416 px vérifiés, et 585/585 avec un bloc de plus).
+
+Cause annexe traitée : la carte ne s’affichait sur aucun écran parce que
+l’événement n’avait ni latitude ni longitude, et que rien ne le disait à
+l’organisateur. Un avertissement l’indique, et coller un lien Google Maps
+renseigne les coordonnées (`@lat,lng`, `?q=`, `mlat`/`mlon`, `!3d!4d`, ou
+« lat, lon » ; les liens courts et les valeurs hors bornes sont refusés).
+
+### Bloc « Notre histoire » ouvert, et sa frise animée (2026-08-20)
+
+Le bloc ne portait qu’une suite de jalons : ni visuel, ni récit, et rien
+d’activable. Un organisateur sans image se voyait imposer un cadre vide, celui
+qui n’avait qu’une photo devait inventer trois jalons.
+
+Il accueille désormais une image et un texte, et chaque élément — image, texte,
+frise — s’active séparément. Absent = affiché, comme partout ailleurs.
+
+La frise se remplit à l’entrée dans le viewport avec un décalage de 160 ms par
+jalon, ce qui fait courir la barre de gauche à droite, dans le sens de la
+lecture. Ce n’est pas décoratif : une frise statique se parcourt rarement
+jusqu’au bout, et le remplissage dit combien de chemin elle couvre. La barre
+s’étire en `scaleX` et non en largeur — animer la largeur forcerait un recalcul
+de mise en page à chaque image. Sous `prefers-reduced-motion`, elle est rendue
+pleine d’emblée : à moitié remplie et figée, elle passerait pour un bug.
+
+**Vérifié à l’écran** : 0 → 163/325/163 px, décalages de 0 / 0,16 / 0,32 s,
+trois points allumés, et décocher un élément le retire du panneau.
+
 ## 4. Priorités immédiates (à date)
 
 | Module | Priorité | Référence CDC |
@@ -643,6 +771,10 @@ troisième fois par bonne intention.
 | Builder — onglet Config (contenu centralisé FAQ/Programme/Speakers/Galerie/Sponsors/Logo/Localisation) | ✅ Fait (2026-07-13, hors CDC initial) | §11 |
 | Header public obligatoire + "Mon ticket" (filtre commandes par événement) | ✅ Fait (2026-07-13, hors CDC initial) | §11 |
 | Admin endpoints (invitation/self-service/rétention/impersonation Manager, vue plateforme paiements) | ✅ Fait (2026-07-14) | §6.11 |
+| Comptes Scanner créés par le Manager (invitation + promotion d’un client) | ✅ Fait (2026-08-19) | §9.5 |
+| Identifiants WhatsApp réglables depuis l’Admin | ✅ Fait (2026-08-19) | §10 |
+| Thème clair/sombre de la page publique + en-tête paramétrable | ✅ Fait (2026-08-20) | §11 |
+| Fournisseur de paiement configuré en production | 🔴 À faire (bloque tout encaissement réel) | §8 |
 | Déploiement production (VPS, TLS, cookies inter-sous-domaines) | ✅ Fait (2026-08-16, en service) | — |
 | Tunnel d’achat : récapitulatif détaillé + « Payer » | ✅ Fait (2026-08-16) | §8 |
 | Tunnel d’achat : numéro collecté sans vérification + pré-remplissage prestataire | ✅ Fait (2026-08-16) | §8 |
