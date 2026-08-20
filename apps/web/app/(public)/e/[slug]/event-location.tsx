@@ -130,6 +130,40 @@ export function EventLocation({
   ];
   const hasMap = venues.length > 0;
 
+  const contactCard = contactPhone ? (
+    <div className="flex flex-1 flex-col rounded-2xl border border-stroke p-6 dark:border-strokedark">
+      <div className="flex items-start gap-3">
+        <Phone className="mt-0.5 size-5 shrink-0 text-primary" />
+        <div className="min-w-0">
+          <div className="text-xs font-bold uppercase tracking-wide text-waterloo dark:text-manatee">
+            Contact de l&apos;événement
+          </div>
+          {/* Lien tel: — sur mobile, un numéro affiché sans lien oblige à le
+              recopier à la main. */}
+          {/* `block` et non `inline-block` : en ligne, le bouton WhatsApp qui
+              suit remontait sur la même ligne que le numéro et le recouvrait
+              (constaté le 2026-08-18). */}
+          <a
+            href={`tel:${contactPhone}`}
+            className="mt-1.5 block text-sm font-semibold hover:underline"
+          >
+            {contactPhone}
+          </a>
+          {whatsappNumber && (
+            <a
+              href={`https://wa.me/${whatsappNumber}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-accent mt-4 inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold"
+            >
+              <MessageCircle className="size-4" /> Contacter via WhatsApp
+            </a>
+          )}
+        </div>
+      </div>
+    </div>
+  ) : null;
+
   return (
     <SectionShell id={anchorId} tone="muted">
       <SectionHeading
@@ -192,19 +226,22 @@ export function EventLocation({
               </div>
               );
             })}
+
+            {/* Le contact rejoint la colonne de droite (2026-08-20). Il vivait
+                dans une grille SÉPARÉE sous la carte : les deux blocs ne
+                pouvaient donc pas s'aligner, puisqu'ils n'appartenaient pas à
+                la même rangée. La section n'a plus que deux enfants — la carte
+                et cette colonne — et leurs hauteurs se répondent. */}
+            {contactCard}
           </div>
         </div>
       )}
 
-      <div className={`grid gap-4 md:grid-cols-2 ${hasMap ? '' : 'mx-auto max-w-4xl'}`}>
-        {/* `items-stretch` est le défaut d’une grille, mais il n’agit que sur
-            les colonnes : les cartes empilées à droite doivent à leur tour
-            grandir (`flex-1`), sinon la colonne s’étire et son contenu laisse
-            un vide en bas — deux blocs côte à côte de hauteurs différentes. */}
-        {/* Avec la carte, l'adresse et son bouton d'itinéraire vivent déjà
-            dans la fiche de lieu à droite : la répéter ici ne ferait que
-            doubler le même contenu à deux endroits de la même section. */}
-        {address && !hasMap && (
+      {/* Sans carte, il reste l'adresse et le contact côte à côte. Avec une
+          carte, tout est déjà rendu au-dessus — cette grille ne s'ouvre plus. */}
+      {!hasMap && (
+      <div className="mx-auto grid max-w-4xl gap-4 md:grid-cols-2">
+        {address && (
           <div className="flex h-full flex-col rounded-2xl border border-stroke p-6 dark:border-strokedark">
             <div className="flex items-start gap-3">
               <MapPin className="mt-0.5 size-5 shrink-0 text-primary" />
@@ -234,44 +271,9 @@ export function EventLocation({
             « présentez votre QR à l'accueil » ne parle qu'à qui a déjà
             acheté. Elles s'affichent désormais sur le billet, dans l'espace
             client. Le contact, lui, sert AVANT l'achat — il reste ici. */}
-        {contactPhone && (
-          <div className="flex flex-col gap-4">
-            {contactPhone && (
-              <div className="flex flex-1 flex-col rounded-2xl border border-stroke p-6 dark:border-strokedark">
-                <div className="flex items-start gap-3">
-                  <Phone className="mt-0.5 size-5 shrink-0 text-primary" />
-                  <div className="min-w-0">
-                    <div className="text-xs font-bold uppercase tracking-wide text-waterloo dark:text-manatee">
-                      Contact de l&apos;événement
-                    </div>
-                    {/* Lien tel: — sur mobile, un numéro affiché sans lien
-                        oblige à le recopier à la main. */}
-                    {/* `block` et non `inline-block` : en ligne, le bouton
-                        WhatsApp qui suit remontait sur la même ligne que le
-                        numéro et le recouvrait (constaté le 2026-08-18). */}
-                    <a
-                      href={`tel:${contactPhone}`}
-                      className="mt-1.5 block text-sm font-semibold hover:underline"
-                    >
-                      {contactPhone}
-                    </a>
-                    {whatsappNumber && (
-                      <a
-                        href={`https://wa.me/${whatsappNumber}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="btn-accent mt-4 inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold"
-                      >
-                        <MessageCircle className="size-4" /> Contacter via WhatsApp
-                      </a>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+        {contactCard}
       </div>
+      )}
     </SectionShell>
   );
 }
