@@ -324,7 +324,20 @@ function BlockItem({
 
   if (block.type === 'timeline') {
     const entries = (block.props.entries as TimelineEntry[] | undefined) ?? [];
-    return <TimelineStrip entries={entries} title={block.props.title as string | undefined} />;
+    return (
+      <TimelineStrip
+        entries={entries}
+        title={block.props.title as string | undefined}
+        eyebrow={block.props.eyebrow as string | undefined}
+        imageUrl={(block.props.imageUrl as string) || null}
+        text={(block.props.text as string) || null}
+        // Absent = affiché : un bloc posé avant l’existence de ces réglages
+        // doit garder l’apparence qu’il avait.
+        showImage={block.props.showImage !== false}
+        showText={block.props.showText !== false}
+        showTimeline={block.props.showTimeline !== false}
+      />
+    );
   }
 
   if (block.type === 'gallery') {

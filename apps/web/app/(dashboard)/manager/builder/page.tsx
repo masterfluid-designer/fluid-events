@@ -1122,9 +1122,9 @@ export default function EventBuilderPage() {
 
               {selected.type === 'timeline' && (
                 <TimelineEditor
-                  title={(selected.props.title as string) ?? ''}
+                  props={selected.props}
                   entries={(selected.props.entries as TimelineEntry[] | undefined) ?? []}
-                  onChangeTitle={(title) => updateSelectedProps({ title })}
+                  onChange={updateSelectedProps}
                   onChangeEntries={(entries) => updateSelectedProps({ entries })}
                 />
               )}
@@ -1184,24 +1184,86 @@ export default function EventBuilderPage() {
 const TIMELINE_ENTRIES_MAX = 12;
 
 function TimelineEditor({
-  title,
+  props,
   entries,
-  onChangeTitle,
+  onChange,
   onChangeEntries,
 }: {
-  title: string;
+  props: Record<string, unknown>;
   entries: TimelineEntry[];
-  onChangeTitle: (title: string) => void;
+  onChange: (patch: Record<string, unknown>) => void;
   onChangeEntries: (entries: TimelineEntry[]) => void;
 }) {
+  const title = (props.title as string) ?? '';
+
+  /*
+   * Chaque élément du bloc s’active séparément (2026-08-20). Un
+   * organisateur sans image ne doit pas se voir imposer un cadre vide, et
+   * celui qui n’a qu’une photo ne doit pas devoir inventer trois jalons.
+   *
+   * Absent = affiché : un bloc posé avant l’existence de ces réglages garde
+   * l’apparence qu’il avait.
+   */
+  const bascules: Array<[string, string]> = [
+    ['showImage', 'Image'],
+    ['showText', 'Texte de présentation'],
+    ['showTimeline', 'Frise des jalons'],
+  ];
+
   return (
     <div className="flex flex-col gap-3">
+      <div>
+        <div className="mb-1.5 text-xs font-semibold">Éléments affichés</div>
+        <div className="flex flex-col gap-1.5">
+          {bascules.map(([cle, libelle]) => (
+            <label key={cle} className="flex cursor-pointer items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={props[cle] !== false}
+                onChange={() => onChange({ [cle]: props[cle] === false })}
+                className="size-4 rounded border-border"
+              />
+              {libelle}
+            </label>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <label className="mb-1.5 block text-xs font-semibold">Sur-titre</label>
+        <Input
+          placeholder="Notre héritage"
+          value={(props.eyebrow as string) ?? ''}
+          onChange={(e) => onChange({ eyebrow: e.target.value })}
+        />
+      </div>
+
+      {props.showImage !== false && (
+        <ImageUploadField
+          label="Image du bloc (optionnel)"
+          value={(props.imageUrl as string) || undefined}
+          onChange={(imageUrl) => onChange({ imageUrl: imageUrl ?? '' })}
+        />
+      )}
+
+      {props.showText !== false && (
+        <div>
+          <label className="mb-1.5 block text-xs font-semibold">Texte de présentation</label>
+          <textarea
+            placeholder="Racontez l’histoire de votre événement."
+            value={(props.text as string) ?? ''}
+            onChange={(e) => onChange({ text: e.target.value })}
+            rows={5}
+            className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          />
+        </div>
+      )}
       <div>
         <label className="mb-1.5 block text-xs font-semibold">Titre de la section</label>
         <Input
           placeholder="Notre histoire"
           value={title}
-          onChange={(e) => onChangeTitle(e.target.value)}
+          onChange={(e) => onChange({ title: e.target.value })}
         />
       </div>
 
