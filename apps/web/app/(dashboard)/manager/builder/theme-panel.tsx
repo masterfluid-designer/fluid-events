@@ -81,6 +81,18 @@ export function ThemePanel({
           value={theme.accentColor}
           onChange={(accentColor) => onChange({ accentColor })}
         />
+        {/* Seconde teinte (2026-08-20) : elle ne remplace pas la première,
+            elle s'y marie. Laissée vide, les dégradés retombent sur l'accent
+            seul et rien ne change à l'écran. */}
+        <ColorField
+          label="Seconde couleur d'accent (optionnel)"
+          value={theme.accentColorSecondary}
+          onChange={(accentColorSecondary) => onChange({ accentColorSecondary })}
+        />
+        <p className="-mt-1 text-[11px] text-muted-foreground">
+          Combinée à la première pour les dégradés des boutons et des touches d&apos;accent.
+          Laissez vide pour une couleur unie.
+        </p>
         <ColorField
           label="Fond de page"
           value={theme.backgroundColor}
@@ -168,6 +180,7 @@ export function ThemePanel({
           onChange({
             fontFamily: undefined,
             accentColor: undefined,
+            accentColorSecondary: undefined,
             backgroundColor: undefined,
             // Chaîne vide, pas `undefined` : « revenir au défaut » doit
             // RETIRER l'image, or une clé absente laisserait celle en base.

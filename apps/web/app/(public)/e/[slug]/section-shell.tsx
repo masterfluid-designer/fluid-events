@@ -1,4 +1,5 @@
 import { SectionEyebrow } from './section-eyebrow';
+import { Reveal } from './reveal';
 
 /**
  * Primitives de mise en page des sections publiques (refonte "haute fidélité
@@ -45,7 +46,9 @@ export function SectionShell({
       // se retrouve pas masqué quand on arrive par un lien d'ancre.
       className={`scroll-mt-20 px-5 py-16 md:px-8 md:py-24 lg:py-28 ${toneClass} ${className}`}
     >
-      <div className="mx-auto w-full max-w-6xl">{children}</div>
+      <Reveal variant={tone === 'accent' ? 'scale' : 'up'} className="mx-auto w-full max-w-6xl">
+        {children}
+      </Reveal>
     </section>
   );
 }
@@ -67,7 +70,7 @@ export function SectionHeading({
 }) {
   return (
     <div className="mb-10 flex flex-col gap-4 md:mb-14 md:flex-row md:items-end md:justify-between">
-      <div className="max-w-2xl">
+      <Reveal variant="up" className="max-w-2xl">
         <SectionEyebrow>{eyebrow}</SectionEyebrow>
         {/* Échelle display : les titres de section portent l'identité de la
             page (cf. fidélité orncity) — grande taille, interlignage très
@@ -81,8 +84,12 @@ export function SectionHeading({
             {description}
           </p>
         )}
-      </div>
-      {action && <div className="shrink-0">{action}</div>}
+      </Reveal>
+      {action && (
+        <Reveal variant="fade" delay={120} className="shrink-0">
+          {action}
+        </Reveal>
+      )}
     </div>
   );
 }

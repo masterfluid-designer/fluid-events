@@ -30,6 +30,9 @@ export interface TicketEmailItem {
   qrCodeUrl: string;
 }
 
+/** Adresse publique de l'application — les emails y renvoient. */
+const APP_URL = process.env.APP_URL ?? 'http://localhost:3000';
+
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
@@ -99,12 +102,66 @@ export class EmailService {
    */
   async sendManagerInviteEmail(params: { to: string; name: string; inviteUrl: string }): Promise<void> {
     const { to, name, inviteUrl } = params;
-    const subject = 'Invitation à rejoindre Fluid Events';
+    const app = APP_URL;
+    const subject = 'Votre espace organisateur Fluid Events est ouvert';
+
+    /*
+     * Réécrit le 2026-08-20. L'ancien message tenait en trois lignes : « vous
+     * avez été invité », un lien, « expire dans 7 jours ». Un organisateur qui
+     * arrivait dessus ne savait NI ce qu'il pouvait faire, NI où retourner
+     * après avoir choisi son mot de passe, NI qui joindre en cas de doute —
+     * et l'email d'invitation est souvent le seul repère qu'il garde.
+     *
+     * On y met donc les trois choses qui manquaient : ce qui l'attend, les
+     * adresses pour y revenir, et une porte de sortie si le lien a expiré.
+     */
     const html = `
-      <p>Bonjour ${escapeHtml(name)},</p>
-      <p>Vous avez été invité·e à gérer un événement sur Fluid Events.</p>
-      <p><a href="${inviteUrl}">Définir mon mot de passe et accéder à mon dashboard</a></p>
-      <p>Ce lien expire dans 7 jours.</p>
+      <div style="font-family:system-ui,-apple-system,'Segoe UI',sans-serif;font-size:15px;line-height:1.6;color:#14171a">
+        <p>Bonjour ${escapeHtml(name)},</p>
+
+        <p>Votre espace organisateur vient d'être ouvert sur <strong>Fluid Events</strong>.
+        Vous pouvez y créer votre événement, vendre vos billets en ligne et contrôler
+        les entrées le jour J.</p>
+
+        <p style="margin:28px 0">
+          <a href="${inviteUrl}"
+             style="display:inline-block;background:#14171a;color:#fff;text-decoration:none;
+                    padding:13px 26px;border-radius:999px;font-weight:600">
+            Choisir mon mot de passe
+          </a>
+        </p>
+
+        <p style="color:#5f6b6b;font-size:13px">
+          Ce lien n'est valable que <strong>7 jours</strong>. Passé ce délai, demandez-en
+          un nouveau à l'équipe — votre compte, lui, reste en place.
+        </p>
+
+        <p style="margin-top:28px"><strong>Une fois votre mot de passe choisi</strong>, votre
+        tableau de bord vous attend :</p>
+        <ul style="padding-left:18px;color:#3d4649">
+          <li><strong>Page publique</strong> — composez la page de votre événement, bloc par bloc.</li>
+          <li><strong>Billetterie</strong> — vos tarifs, vos stocks, vos dates de vente.</li>
+          <li><strong>Agents de contrôle</strong> — invitez qui scannera les billets à l'entrée.</li>
+          <li><strong>Participants et statistiques</strong> — qui a acheté, ce qui s'est vendu.</li>
+        </ul>
+
+        <p style="margin-top:28px">Gardez ces adresses :</p>
+        <ul style="padding-left:18px;color:#3d4649">
+          <li>Votre tableau de bord : <a href="${app}/manager">${app}/manager</a></li>
+          <li>Vous reconnecter plus tard : <a href="${app}/auth/login">${app}/auth/login</a></li>
+          <li>Le guide : <a href="${app}/docs">${app}/docs</a></li>
+        </ul>
+
+        <p style="margin-top:28px;color:#5f6b6b;font-size:13px">
+          Une question, un blocage ? Écrivez-nous depuis
+          <a href="${app}/support">${app}/support</a> — on répond vite.
+        </p>
+
+        <p style="color:#5f6b6b;font-size:13px">
+          Vous n'attendiez pas cette invitation ? Ignorez ce message, le compte restera
+          inutilisé.
+        </p>
+      </div>
     `;
     await this.send(to, subject, html);
     this.logger.log(`Email d'invitation manager envoyé à ${to}`);

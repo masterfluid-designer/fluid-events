@@ -92,6 +92,11 @@ export const BlocksArraySchema = z.array(BlockSchema)
  */
 export const ThemeSchema = z.object({
   accentColor: HexColor.optional(),
+  // Seconde couleur d'accent (2026-08-20) — elle ne remplace pas la première,
+  // elle s'y marie : c'est le dégradé des deux qui habille les boutons et les
+  // touches d'accent de la page. Absente, tout retombe sur la première et
+  // l'apparence ne change pas d'un pixel.
+  accentColorSecondary: HexColor.optional(),
   backgroundColor: HexColor.optional(),
   fontFamily: z.enum(EVENT_FONT_KEYS).optional(),
   // Image de fond (2026-08-18). L'URL n'est PAS validée ici : le schéma ne

@@ -143,12 +143,12 @@ export function EventLocation({
       />
 
       {hasMap && (
-        <div className="mb-4 grid gap-4 lg:grid-cols-[1.4fr_1fr]">
+        <div className="mb-4 grid gap-4 lg:grid-cols-[1.4fr_1fr] lg:items-stretch">
           {/* `isolate` + `z-0` : Leaflet empile ses propres couches à des
               z-index élevés (jusqu'à 1000 pour les popups) — sans contexte
               d'empilement dédié, elles passeraient AU-DESSUS de l'en-tête
               collant de la page. */}
-          <div className="isolate z-0 h-72 overflow-hidden rounded-2xl border border-stroke dark:border-strokedark md:h-96">
+          <div className="isolate z-0 h-72 overflow-hidden rounded-2xl border border-stroke dark:border-strokedark md:h-96 lg:h-full lg:min-h-[26rem]">
             <EventMap venues={venues} />
           </div>
 
@@ -182,7 +182,7 @@ export function EventLocation({
                         href={venueMapsUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="mt-4 inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primaryho"
+                        className="btn-accent mt-4 inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold"
                       >
                         Ouvrir l&apos;itinéraire <Navigation className="size-4" />
                       </a>
@@ -220,7 +220,7 @@ export function EventLocation({
                     // noreferrer autant que noopener : on n'a aucune raison
                     // d'annoncer à Google d'où vient le visiteur.
                     rel="noopener noreferrer"
-                    className="mt-4 inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primaryho"
+                    className="btn-accent mt-4 inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold"
                   >
                     <Navigation className="size-4" /> Ouvrir dans Maps
                   </a>
@@ -260,7 +260,7 @@ export function EventLocation({
                         href={`https://wa.me/${whatsappNumber}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="mt-4 inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primaryho"
+                        className="btn-accent mt-4 inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold"
                       >
                         <MessageCircle className="size-4" /> Contacter via WhatsApp
                       </a>

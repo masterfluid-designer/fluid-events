@@ -315,6 +315,12 @@ export type EventFontKey = (typeof EVENT_FONT_KEYS)[number];
 export interface EventTheme {
   /** HEX strict — couleur d'accent (CTA, badges, points de frise). */
   accentColor?: string;
+  /**
+   * HEX strict — seconde couleur d'accent (2026-08-20). Combinée à la
+   * première pour les dégradés (boutons d'action, halos, filets). Absente,
+   * les dégradés se replient sur la couleur d'accent seule.
+   */
+  accentColorSecondary?: string;
   /** HEX strict — fond de page. */
   backgroundColor?: string;
   /** Police des titres de la page publique. */

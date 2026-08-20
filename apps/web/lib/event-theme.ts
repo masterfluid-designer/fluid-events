@@ -92,12 +92,34 @@ export function resolveEventTheme(theme: EventTheme | null | undefined): Resolve
     '--font-event': `var(${font.variable}), ui-serif, serif`,
   };
 
+  const accent2 =
+    theme?.accentColorSecondary && HEX_RE.test(theme.accentColorSecondary)
+      ? theme.accentColorSecondary
+      : null;
+
   if (accent) {
     style['--color-primary'] = accent;
     style['--color-primaryho'] = accent;
     style['--color-primary-foreground'] = readableForeground(accent);
     style['--color-accent-terracotta'] = accent;
     style['--color-accent-terracotta-dark'] = accent;
+  }
+
+  /*
+   * Seconde teinte (2026-08-20). Elle retombe TOUJOURS sur la première quand
+   * elle n'est pas choisie : les dégradés continuent alors de fonctionner —
+   * un dégradé d'une couleur vers elle-même est un aplat, pas un bug — et
+   * aucune page existante ne change d'apparence.
+   *
+   * L'encre du bouton se calcule sur la couleur de DÉPART du dégradé : c'est
+   * elle qui occupe la majorité de la surface, et un texte lisible sur une
+   * moitié seulement ne l'est pas.
+   */
+  const accentStart = accent ?? 'var(--color-primary)';
+  style['--color-accent-2'] = accent2 ?? accentStart;
+  if (accent || accent2) {
+    style['--gradient-accent'] =
+      `linear-gradient(115deg, ${accentStart} 0%, ${accent2 ?? accentStart} 100%)`;
   }
 
   const backdrop = resolveBackdrop(theme);

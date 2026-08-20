@@ -147,7 +147,7 @@ export function EventHero({
       <div className="absolute inset-0 -z-10 bg-gradient-to-t from-black/90 via-black/65 to-black/40" />
 
       <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-8 px-5 pb-12 pt-24 text-white md:px-8 md:pb-16 md:pt-32 lg:min-h-[78svh] lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)] lg:gap-14">
-        <div className="max-w-3xl">
+        <div className="flex max-w-3xl flex-col items-center text-center lg:items-start lg:text-left">
           <span className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-3.5 py-1.5 text-xs font-semibold backdrop-blur-sm">
             <span className="size-1.5 rounded-full bg-primary" aria-hidden="true" />
             {isPublished ? 'Billets ouverts' : 'Bientôt disponible'}
@@ -157,7 +157,7 @@ export function EventHero({
             {renderTitle(title, accentWord)}
           </h1>
 
-          <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm font-semibold md:text-base">
+          <div className="mt-5 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-sm font-semibold md:text-base lg:justify-start">
             <span className="inline-flex items-center gap-2">
               <CalendarDays className="size-4 text-primary" /> {dateLabel}
             </span>
@@ -180,11 +180,11 @@ export function EventHero({
             </p>
           )}
 
-          <div className="mt-8 flex flex-wrap gap-3">
+          <div className="mt-8 flex flex-wrap justify-center gap-3 lg:justify-start">
             {ticketsAnchorId && (
               <a
                 href={`#${ticketsAnchorId}`}
-                className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primaryho"
+                className="btn-accent inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-semibold"
               >
                 Acheter mes billets <Ticket className="size-4" />
               </a>
@@ -199,17 +199,8 @@ export function EventHero({
             )}
           </div>
 
-          {socialProof?.trim() ? (
+          {socialProof?.trim() && (
             <p className="mt-5 text-sm text-white/75">{socialProof.trim()}</p>
-          ) : (
-            stat && (
-              <div className="mt-10 w-fit rounded-2xl border border-white/20 bg-white/10 px-5 py-3.5 backdrop-blur-md">
-                <div className="font-event text-2xl leading-none md:text-3xl">{stat.value}</div>
-                <div className="mt-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/70">
-                  {stat.label}
-                </div>
-              </div>
-            )
           )}
         </div>
 
@@ -237,13 +228,33 @@ export function EventHero({
           // depuis que le fond a son propre champ, et l'affiche officielle est
           // justement ce qu'un visiteur sur téléphone vient voir. Bornée en
           // largeur pour ne pas manger tout l'écran sous le titre.
-          <div className="mx-auto w-full max-w-xs sm:max-w-sm lg:mx-0 lg:max-w-none">
-            <MediaShowcase
-              url={media}
-              aspect={mediaAspect}
-              alt={`Affiche de ${title}`}
-              className="shadow-2xl ring-1 ring-white/15"
-            />
+          <div className="group relative mx-auto w-full max-w-xs sm:max-w-sm lg:mx-0 lg:max-w-none">
+            <div className="drift-poster">
+              <MediaShowcase
+                url={media}
+                aspect={mediaAspect}
+                alt={`Affiche de ${title}`}
+                className="shadow-2xl ring-1 ring-white/15"
+              />
+            </div>
+
+            {/* Chiffre-clé posé EN DÉBORD de l’affiche (2026-08-20). Sous les
+                boutons il n’était qu’une ligne de plus ; ici il accroche l’œil
+                contre le visuel, décalé pour qu’on voie qu’il flotte au-dessus
+                plutôt que d’appartenir au cadre.
+
+                Sans interception de pointeur : il ne doit jamais capter un clic
+                destiné à l’affiche — c’est elle qui ouvre la vidéo. */}
+            {stat && (
+              <div className="drift-badge pointer-events-none absolute -bottom-5 -left-4 z-10 rounded-2xl border border-white/25 bg-black/45 px-4 py-3 shadow-xl backdrop-blur-md sm:-left-6">
+                <div className="font-event text-2xl leading-none text-white md:text-3xl">
+                  {stat.value}
+                </div>
+                <div className="mt-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/75">
+                  {stat.label}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

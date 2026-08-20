@@ -734,3 +734,115 @@
   --color-waterloo: #cfcbc2;
   --color-manatee: #cfcbc2;
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Boutons d'action de la page publique (2026-08-20)
+
+   Un aplat de couleur d'accent ne donne pas envie de cliquer. Ces boutons
+   portent le dégradé des DEUX teintes de l'organisateur, un halo de la même
+   famille, et un léger déplacement du dégradé au survol — le fond « respire »
+   au lieu de sauter d'une couleur à l'autre.
+
+   `--gradient-accent` retombe sur la couleur d'accent seule quand aucune
+   seconde teinte n'est choisie : un dégradé d'une couleur vers elle-même est
+   un aplat, donc rien ne casse sur les événements existants.
+
+   Le halo est en `color-mix` sur l'accent, jamais une couleur écrite en dur :
+   il suit l'identité de l'événement, y compris quand elle change.
+   ───────────────────────────────────────────────────────────────────────── */
+.btn-accent {
+  position: relative;
+  background-image: var(--gradient-accent, linear-gradient(115deg, var(--color-primary) 0%, var(--color-accent-2, var(--color-primary)) 100%));
+  background-size: 180% 180%;
+  background-position: 0% 50%;
+  color: var(--color-primary-foreground);
+  box-shadow:
+    0 6px 18px -6px color-mix(in oklab, var(--color-primary) 65%, transparent),
+    0 0 0 0 color-mix(in oklab, var(--color-primary) 45%, transparent);
+  transition:
+    background-position 700ms cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 400ms ease,
+    transform 250ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.btn-accent:hover {
+  background-position: 100% 50%;
+  transform: translateY(-1px);
+  /* Le halo s'élargit au survol : c'est lui qui donne l'impression que le
+     bouton s'allume, plus que le déplacement. */
+  box-shadow:
+    0 10px 26px -6px color-mix(in oklab, var(--color-primary) 75%, transparent),
+    0 0 0 6px color-mix(in oklab, var(--color-accent-2, var(--color-primary)) 22%, transparent);
+}
+
+.btn-accent:active {
+  transform: translateY(0);
+}
+
+.btn-accent:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-accent,
+  .btn-accent:hover {
+    transition: none;
+    transform: none;
+    background-position: 0% 50%;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Dérive « astrale » du hero (2026-08-20)
+
+   L'affiche et sa pastille flottent doucement, chacune sur SA trajectoire et
+   SA durée. Les deux périodes sont volontairement premières entre elles
+   (13s / 8.5s) : elles ne retombent jamais en phase, et le mouvement paraît
+   donc aléatoire alors qu'il ne l'est pas — sans une ligne de JavaScript ni
+   un seul recalcul par image.
+
+   `translate3d` plutôt que `top/left` : la composition reste sur le GPU, rien
+   ne provoque de recalcul de mise en page pendant l'animation.
+
+   La pause au survol est portée par le conteneur (`group`) : c'est l'ensemble
+   affiche + pastille qui se fige, pas l'élément survolé seul — figer l'un et
+   laisser l'autre dériver donnerait l'impression d'un bug.
+   ───────────────────────────────────────────────────────────────────────── */
+@keyframes drift-poster {
+  0%   { transform: translate3d(0, 0, 0) rotate(0deg); }
+  25%  { transform: translate3d(6px, -10px, 0) rotate(0.5deg); }
+  50%  { transform: translate3d(-4px, -16px, 0) rotate(-0.4deg); }
+  75%  { transform: translate3d(-8px, -6px, 0) rotate(0.3deg); }
+  100% { transform: translate3d(0, 0, 0) rotate(0deg); }
+}
+
+@keyframes drift-badge {
+  0%   { transform: translate3d(0, 0, 0) rotate(-1deg); }
+  30%  { transform: translate3d(-9px, 8px, 0) rotate(1.4deg); }
+  55%  { transform: translate3d(5px, 14px, 0) rotate(-0.8deg); }
+  80%  { transform: translate3d(10px, 4px, 0) rotate(1deg); }
+  100% { transform: translate3d(0, 0, 0) rotate(-1deg); }
+}
+
+.drift-poster {
+  animation: drift-poster 13s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+  will-change: transform;
+}
+
+.drift-badge {
+  animation: drift-badge 8.5s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+  will-change: transform;
+}
+
+.group:hover .drift-poster,
+.group:hover .drift-badge {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drift-poster,
+  .drift-badge {
+    animation: none;
+  }
+}

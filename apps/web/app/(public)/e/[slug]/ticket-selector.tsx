@@ -396,7 +396,7 @@ export function TicketSelector({
       // Désactivé plutôt qu'absent : voir le bouton éteint apprend qu'il
       // existe et ce qu'il faut faire pour l'allumer.
       disabled={authPending || totalQuantity === 0 || !isPublished}
-      className="inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primaryho disabled:cursor-not-allowed disabled:opacity-45"
+      className="btn-accent inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-full px-6 py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-45"
     >
       {authPending ? 'Connexion…' : 'Continuer'} <Ticket className="size-4" />
     </button>
