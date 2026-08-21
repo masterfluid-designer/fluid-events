@@ -54,3 +54,6 @@ pnpm-debug.log*
 apps/web/fonts/**/*.ttf
 apps/web/fonts/**/OFL.txt
 apps/web/fonts/**/README.txt
+
+# Build de vérification, à côté du .next du serveur de dev (2026-08-21)
+.next-verif/

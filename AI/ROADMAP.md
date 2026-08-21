@@ -819,6 +819,58 @@ logo 2400×1200 de 87 Ko → 19 Ko, coin à alpha 0 ; vidéo et fichier de moins
 BMP, fichier tronqué, image trop lourde, image trop grande, faux conteneur
 vidéo.
 
+### Un manager, plusieurs événements (2026-08-21)
+
+Le palier Premium autorise huit événements, de types librement différents.
+La contrainte « 1 Manager = 1 Event » (CDC §1.4) tombe.
+
+**Ce que le `@unique` garantissait gratuitement doit désormais être vérifié.**
+Cinq services retrouvaient l'événement du manager par
+`findUnique({ where: { managerId } })` : l’appartenance était vraie par
+construction. Elle passe par `EventAccessService` — un seul contrôle, pas cinq
+copies, et ses tests sont écrits AVANT le branchement. Le danger n'était pas un
+écran cassé, c'était un manager atteignant l'événement d'un autre en changeant
+un identifiant dans l'URL. Vérifié contre l'API réelle : refusé, avec le MÊME
+message que pour un identifiant inexistant — une erreur distincte confirmerait
+à un curieux que cet identifiant existe bien ailleurs sur la plateforme.
+
+**`/mine` ne devine pas.** Avec un seul événement il répond comme avant : rien
+ne bouge pour les managers d’aujourd’hui. Avec plusieurs, il refuse et réclame
+`?eventId=` — choisir à la place de l’organisateur la billetterie qu’il modifie
+serait pire qu’une erreur.
+
+**L'événement vit dans l'URL** (`?event=<id>`), jamais dans un état global. Un
+« événement actif » mémorisé coûtait moins cher, mais avec deux onglets ouverts
+sur deux événements, le second écrase le contexte du premier : on édite alors
+la billetterie du mauvais événement sans rien voir. Sur un produit qui manipule
+des stocks et des prix, c’est inacceptable. Les clés React Query portent
+l'identifiant, sans quoi le cache servirait les données de l'un sous le titre de
+l'autre.
+
+**`isPremium` disparaît** au profit de `SubscriptionPlan`. Le booléen ne
+commandait qu’une chose — le multi-jours — et allait en porter quatre. Les
+limites vivent en code (`LIMITES_PLAN`) : une table en base imposerait une
+migration à chaque évolution de l’offre et laisserait les valeurs dériver d’un
+abonné à l’autre.
+
+⚠️ **Le plafond d’agents de contrôle n’existait pas.** `Event.maxScanners`
+valait 3 partout et personne ne le lisait : un manager pouvait créer autant de
+comptes de contrôle qu’il voulait. Il est désormais appliqué, et suit le palier
+— 3 en FREE, 6 en PREMIUM. La colonne devient nullable : une valeur explicite
+est une dérogation de l’Admin, pour le festival qui a besoin de douze agents
+sans qu’on touche à l’offre.
+
+**Rétrograder ne détruit rien.** Vérifié : un manager repassé en FREE garde ses
+deux événements et ses six agents, et se voit seulement refuser le suivant.
+Dépublier des événements en cours de vente, ou révoquer trois agents la veille
+d’une soirée sur un changement de facturation, transformerait un problème
+commercial en fiasco d’exploitation.
+
+Le sélecteur d’événement ne s’affiche qu’à partir de deux : un manager
+mono-événement retrouve exactement le tableau de bord qu’il avait — vérifié à
+l’écran, sans sélecteur, sans paramètre dans l’URL, liens de menu inchangés.
+
+Plan complet et alternatives écartées : `AI/PLAN-TYPES-EVENEMENTS.md`.
 ## 4. Priorités immédiates (à date)
 
 | Module | Priorité | Référence CDC |
@@ -839,6 +891,9 @@ vidéo.
 | Header public obligatoire + "Mon ticket" (filtre commandes par événement) | ✅ Fait (2026-07-13, hors CDC initial) | §11 |
 | Admin endpoints (invitation/self-service/rétention/impersonation Manager, vue plateforme paiements) | ✅ Fait (2026-07-14) | §6.11 |
 | Comptes Scanner créés par le Manager (invitation + promotion d’un client) | ✅ Fait (2026-08-19) | §9.5 |
+| Multi-événement Premium (8 max) + palier d’abonnement | ✅ Fait (2026-08-21) | §1.4 |
+| Plafond d’agents de contrôle réellement appliqué (3 FREE / 6 PREMIUM) | ✅ Fait (2026-08-21) | §9.5 |
+| Trois types d’événements (RSVP / GUEST / ACCOUNT) | 🟡 Planifié — lots 0 à 3 | — |
 | Identifiants WhatsApp réglables depuis l’Admin | ✅ Fait (2026-08-19) | §10 |
 | Thème clair/sombre de la page publique + en-tête paramétrable | ✅ Fait (2026-08-20) | §11 |
 | Uploads : contenu vérifié, poids et dimensions plafonnés, images optimisées | ✅ Fait (2026-08-21) | §6 |

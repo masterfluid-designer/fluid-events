@@ -4,7 +4,7 @@ import { StatGrid } from '@/components/dashboard/stat-grid';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { Sparkles, DollarSign, Ticket, ScanLine, Radio, Clock, AlertTriangle, Rocket } from 'lucide-react';
+import { Sparkles, DollarSign, Ticket, ScanLine, Radio, Clock, AlertTriangle, Rocket, Plus } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -19,6 +19,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { SalesTrendChart, type DailySalesPoint } from '@/components/ui/sales-trend-chart';
 import { api, apiPatch, apiPost, ApiError } from '@/lib/api';
 import { PublicLink } from '@/components/dashboard/public-link';
+import { avecEvenement, useEvenementActif, useMesEvenements } from '@/lib/evenement-actif';
 
 /**
  * Dashboard Manager (CDC §14.3 — KPIs événement géré).
@@ -48,9 +49,14 @@ const STATUS_LABELS: Record<string, string> = {
 export default function ManagerDashboardPage() {
   const queryClient = useQueryClient();
   const [confirmingCancel, setConfirmingCancel] = useState(false);
+  const [creationOuverte, setCreationOuverte] = useState(false);
+  // L'événement porté par l'URL (2026-08-21). Absent, le serveur retombe
+  // sur celui du manager mono-événement — le cas de tous jusqu'ici.
+  const evenement = useEvenementActif();
+
   const { data: overview, isLoading, isError, error } = useQuery({
-    queryKey: ['manager-overview'],
-    queryFn: () => api<Overview>('/api/events/mine/overview'),
+    queryKey: ['manager-overview', evenement],
+    queryFn: () => api<Overview>(avecEvenement('/api/events/mine/overview', evenement)),
     retry: false,
   });
 
@@ -61,7 +67,8 @@ export default function ManagerDashboardPage() {
   });
 
   const setStatus = useMutation({
-    mutationFn: (status: 'PUBLISHED' | 'CANCELLED') => apiPatch('/api/events/mine', { status }),
+    mutationFn: (status: 'PUBLISHED' | 'CANCELLED') =>
+      apiPatch(avecEvenement('/api/events/mine', evenement), { status }),
     onSuccess: (_data, status) => {
       toast.success(status === 'CANCELLED' ? 'Événement annulé' : 'Événement republié');
       setConfirmingCancel(false);
@@ -82,6 +89,26 @@ export default function ManagerDashboardPage() {
 
   if (isError && error instanceof ApiError && error.code === 'EVENT_NOT_FOUND') {
     return <CreateFirstEventOnboarding />;
+  }
+
+  // Même formulaire que le tout premier événement : les champs à remplir
+  // sont les mêmes, et un second écran n'apprendrait rien à personne.
+  if (creationOuverte) {
+    return <CreateFirstEventOnboarding onAnnuler={() => setCreationOuverte(false)} />;
+  }
+
+  /*
+   * Le serveur refuse de choisir entre plusieurs événements. C'est un état de
+   * PASSAGE : le sélecteur écrit l'identifiant dans l'URL au montage, et la
+   * requête repart aussitôt. Afficher « impossible de charger » ferait
+   * craindre une panne là où il ne se passe qu'un aller-retour.
+   */
+  if (isError && error instanceof ApiError && error.code === 'EVENT_SELECTION_REQUIRED') {
+    return (
+      <div className="flex justify-center p-12">
+        <Spinner className="size-6" />
+      </div>
+    );
   }
 
   if (isError || !overview) {
@@ -133,6 +160,7 @@ export default function ManagerDashboardPage() {
               <Sparkles className="mr-1 size-3" /> Premium
             </Badge>
           )}
+          <BoutonNouvelEvenement plan={me?.plan} onCreer={() => setCreationOuverte(true)} />
           {overview.event.status === 'PUBLISHED' && !confirmingCancel && (
             <Button variant="outline" size="sm" onClick={() => setConfirmingCancel(true)}>
               Annuler l&apos;événement
@@ -329,13 +357,44 @@ function slugify(title: string): string {
 }
 
 /**
+ * Création d'un événement SUPPLÉMENTAIRE (2026-08-21) — réservée au palier
+ * Premium, plafonnée à huit par le serveur. Le bouton ne s’affiche que
+ * lorsqu'il y a quelque chose à créer : un manager FREE, qui a déjà son
+ * unique événement, ne doit pas voir une porte qui se refermera sur lui.
+ */
+function BoutonNouvelEvenement({
+  plan,
+  onCreer,
+}: {
+  plan?: 'FREE' | 'PREMIUM';
+  onCreer: () => void;
+}) {
+  const { data: evenements } = useMesEvenements();
+  if (plan !== 'PREMIUM') return null;
+
+  const nombre = evenements?.length ?? 0;
+  const maximum = 8;
+  if (nombre >= maximum) return null;
+
+  return (
+    <Button variant="outline" size="sm" onClick={onCreer}>
+      <Plus className="size-4" />
+      Nouvel événement
+      <span className="text-muted-foreground">
+        {nombre}/{maximum}
+      </span>
+    </Button>
+  );
+}
+
+/**
  * Onboarding affiché quand le Manager authentifié n'a pas encore
  * d'événement (EVENT_NOT_FOUND sur /api/events/mine/overview) — notamment
  * les comptes self-service Google fraîchement créés (CDC §14.3, décision
  * produit 2026-07-14 : 1 Manager = 1 Event en V1, il faut donc pouvoir créer
  * ce premier événement depuis le dashboard plutôt que rester bloqué).
  */
-function CreateFirstEventOnboarding() {
+function CreateFirstEventOnboarding({ onAnnuler }: { onAnnuler?: () => void } = {}) {
   const queryClient = useQueryClient();
   const [title, setTitle] = useState('');
   const [slug, setSlug] = useState('');
@@ -372,7 +431,11 @@ function CreateFirstEventOnboarding() {
       }),
     onSuccess: () => {
       toast.success('Événement créé ! Configurez vos billets et votre page depuis ce dashboard.');
+      // La liste alimente le sélecteur : sans cette invalidation, le nouvel
+      // événement resterait invisible jusqu’au prochain rechargement.
+      queryClient.invalidateQueries({ queryKey: ['mes-evenements'] });
       queryClient.invalidateQueries({ queryKey: ['manager-overview'] });
+      onAnnuler?.();
     },
     onError: (err) => {
       toast.error(err instanceof ApiError ? err.message : "Impossible de créer l'événement");
@@ -533,9 +596,19 @@ function CreateFirstEventOnboarding() {
             />
           </div>
 
-          <Button type="submit" disabled={create.isPending} className="sm:col-span-2 w-fit">
-            {create.isPending ? 'Création...' : "Créer l'événement"}
-          </Button>
+          <div className="flex flex-wrap gap-2 sm:col-span-2">
+            <Button type="submit" disabled={create.isPending} className="w-fit">
+              {create.isPending ? 'Création...' : "Créer l'événement"}
+            </Button>
+            {/* Sortie de secours : sans elle, ouvrir la création par erreur
+                enfermerait le manager sur ce formulaire. Absente au tout
+                premier événement — il n'y a alors rien vers quoi revenir. */}
+            {onAnnuler && (
+              <Button type="button" variant="outline" onClick={onAnnuler} className="w-fit">
+                Annuler
+              </Button>
+            )}
+          </div>
         </form>
       </Card>
     </div>

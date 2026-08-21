@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { Spinner } from '@/components/ui/spinner';
 import { SalesTrendChart, type DailySalesPoint } from '@/components/ui/sales-trend-chart';
 import { api, ApiError } from '@/lib/api';
+import { avecEvenement, useEvenementActif } from '@/lib/evenement-actif';
 
 /**
  * Page Manager — Statistiques (décision produit 2026-07-14). Vue analytics
@@ -36,9 +37,13 @@ interface Overview {
 }
 
 export default function ManagerAnalyticsPage() {
+  // L'événement porté par l'URL (2026-08-21). Absent, le serveur retombe
+  // sur celui du manager mono-événement — le cas de tous jusqu'ici.
+  const evenement = useEvenementActif();
+
   const { data: overview, isLoading, isError, error } = useQuery({
-    queryKey: ['manager-overview'],
-    queryFn: () => api<Overview>('/api/events/mine/overview'),
+    queryKey: ['manager-overview', evenement],
+    queryFn: () => api<Overview>(avecEvenement('/api/events/mine/overview', evenement)),
     retry: false,
   });
 

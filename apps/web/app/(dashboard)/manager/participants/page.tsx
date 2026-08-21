@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Spinner } from '@/components/ui/spinner';
 import { api } from '@/lib/api';
+import { avecEvenement, useEvenementActif } from '@/lib/evenement-actif';
 
 /**
  * Participants (CDC §6.9). Données réelles via GET /api/events/:eventId/participants
@@ -27,9 +28,13 @@ export default function ParticipantsPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'scanned' | 'pending'>('all');
 
+  // L'événement porté par l'URL (2026-08-21). Absent, le serveur retombe
+  // sur celui du manager mono-événement — le cas de tous jusqu'ici.
+  const evenement = useEvenementActif();
+
   const { data: event } = useQuery({
-    queryKey: ['manager-event'],
-    queryFn: () => api<{ id: string }>('/api/events/mine'),
+    queryKey: ['manager-event', evenement],
+    queryFn: () => api<{ id: string }>(avecEvenement('/api/events/mine', evenement)),
   });
 
   const { data: participants, isLoading, isError } = useQuery({

@@ -48,6 +48,7 @@ import { api, apiPatch, apiPut, ApiError } from '@/lib/api';
 import { PublicLink } from '@/components/dashboard/public-link';
 import { ConfigPanel, type EventConfig } from './config-panel';
 import { ThemePanel } from './theme-panel';
+import { avecEvenement, useEvenementActif } from '@/lib/evenement-actif';
 
 /**
  * Event Builder no-code (CDC §11 — blocs). Branché sur les vrais endpoints
@@ -170,14 +171,18 @@ export default function EventBuilderPage() {
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [draggingBlockId, setDraggingBlockId] = useState<string | null>(null);
 
+  // L'événement porté par l'URL (2026-08-21). Absent, le serveur retombe
+  // sur celui du manager mono-événement — le cas de tous jusqu'ici.
+  const evenement = useEvenementActif();
+
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['builder-mine'],
-    queryFn: () => api<BuilderData>('/api/builder/mine'),
+    queryKey: ['builder-mine', evenement],
+    queryFn: () => api<BuilderData>(avecEvenement('/api/builder/mine', evenement)),
   });
 
   const { data: eventData } = useQuery({
-    queryKey: ['manager-event'],
-    queryFn: () => api<ManagerEventData>('/api/events/mine'),
+    queryKey: ['manager-event', evenement],
+    queryFn: () => api<ManagerEventData>(avecEvenement('/api/events/mine', evenement)),
   });
 
   // Même clé que le gate de vérification : la réponse est déjà en cache.
@@ -239,7 +244,7 @@ export default function EventBuilderPage() {
           theme,
           lastKnownUpdatedAt,
         }),
-        apiPatch('/api/events/mine', {
+        apiPatch(avecEvenement('/api/events/mine', evenement), {
           title: config.title,
           description: config.description,
           location: config.location,
@@ -277,12 +282,12 @@ export default function EventBuilderPage() {
       setSavedAt(new Date());
       setPreviewNonce((n) => n + 1);
       queryClient.setQueryData(['builder-mine'], saved);
-      queryClient.invalidateQueries({ queryKey: ['manager-event'] });
+      queryClient.invalidateQueries({ queryKey: ['manager-event', evenement] });
     },
     onError: (err) => {
       if (err instanceof ApiError && err.code === 'BUILDER_CONFLICT') {
         toast.error('Cette page a été modifiée ailleurs — rechargement des dernières données.');
-        queryClient.invalidateQueries({ queryKey: ['builder-mine'] });
+        queryClient.invalidateQueries({ queryKey: ['builder-mine', evenement] });
         return;
       }
       toast.error(err instanceof ApiError ? err.message : 'Impossible de sauvegarder la page');

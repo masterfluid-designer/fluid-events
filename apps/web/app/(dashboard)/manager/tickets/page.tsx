@@ -14,6 +14,7 @@ import { ColorField } from '@/components/ui/color-field';
 import { ImageUploadField } from '@/components/ui/image-upload-field';
 import { api, apiDelete, apiPatch, apiPost, ApiError } from '@/lib/api';
 import { TicketingPanel, type EventDayDraft } from '../builder/ticketing-panel';
+import { avecEvenement, useEvenementActif } from '@/lib/evenement-actif';
 
 /**
  * Gestion des billets (CDC §6.3). Données réelles via GET /api/events/mine
@@ -137,9 +138,13 @@ export default function ManagerTicketsPage() {
   // encre, ce qui permettait déjà de fabriquer un billet illisible.
   const [designTextColor, setDesignTextColor] = useState<string | undefined>(undefined);
 
+  // L'événement porté par l'URL (2026-08-21). Absent, le serveur retombe
+  // sur celui du manager mono-événement — le cas de tous jusqu'ici.
+  const evenement = useEvenementActif();
+
   const { data: event, isLoading, isError } = useQuery({
-    queryKey: ['manager-event'],
-    queryFn: () => api<EventWithTickets>('/api/events/mine'),
+    queryKey: ['manager-event', evenement],
+    queryFn: () => api<EventWithTickets>(avecEvenement('/api/events/mine', evenement)),
   });
 
   // Régime de billetterie — état local jusqu’à l’enregistrement explicite,
@@ -185,7 +190,7 @@ export default function ManagerTicketsPage() {
 
   const saveRegime = useMutation({
     mutationFn: () =>
-      apiPatch('/api/events/mine', {
+      apiPatch(avecEvenement('/api/events/mine', evenement), {
         ticketPolicy: policy,
         // Une journée sans date est une ligne que l’utilisateur n’a pas finie :
         // on ne l’envoie pas plutôt que de faire échouer tout l’enregistrement.

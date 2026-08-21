@@ -172,7 +172,15 @@ surface, pas une hypothèse infusée dans les données.
 
 ### 5.2 L'événement vit dans l'URL, pas dans un état caché
 
-Les routes deviennent `/manager/e/[eventId]/builder`, `/tickets`, etc.
+**Livré le 2026-08-21 sous une forme voisine** : l'événement voyage dans
+l'URL en paramètre de requête — `/manager/tickets?event=<id>` — et non dans
+le chemin (`/manager/e/<id>/tickets`) comme annoncé ici.
+
+Ce qui comptait est acquis : chaque onglet garde son contexte, un lien envoyé
+à un collègue ouvre bien ce qu'on lui montrait, et rien n'est mémorisé
+globalement. Déplacer l'arborescence complète des routes aurait coûté la
+réécriture de huit pages pour la même propriété — la différence est
+cosmétique, le prix ne l’était pas.
 
 **Écarté — un `User.activeEventId` avec les écrans inchangés**, malgré son coût
 plus faible : avec un événement « actif » global, ouvrir deux onglets sur deux
@@ -241,7 +249,7 @@ plafond doit comprendre pourquoi, pas se heurter à une erreur.
 
 | Lot | Contenu | Pourquoi là |
 |---|---|---|
-| **0-bis** | Multi-événement : migration `plan`, retrait du `@@unique`, URL porteuse, helper d'appartenance, quota d'événements, **implémentation** du plafond de scanners, `maxScanners` nullable | Tout le reste s'écrit différemment selon ce choix |
+| **0-bis** | ✅ **Livré le 2026-08-21** — multi-événement : migration `plan`, retrait du `@@unique`, URL porteuse, helper d'appartenance, quota d'événements, **implémentation** du plafond de scanners, `maxScanners` nullable | Tout le reste s'écrit différemment selon ce choix |
 | **0** | `EventAccessMode`, défaut, audit, filtrage de la palette, garde-fou de bascule | Socle des trois types |
 | **1** | GUEST — compte fantôme, tunnel public, lien signé, livraison email, en-tête sans « Mon billet » | Réutilise le tunnel existant ; valide le mécanisme de type sur un cas simple |
 | **2** | RSVP — `Registration`, endpoint public, bloc `registration`, en-tête et pied de page minimaux, alimentation de la page participants et de l'export | Le plus de code neuf |
@@ -252,3 +260,30 @@ production emprunte à chaque requête du tableau de bord. Il part **seul** dans
 son déploiement, avec les tests d'appartenance écrits **avant**. Le danger n'est
 pas un écran cassé — c'est un manager qui atteint l'événement d'un autre en
 changeant un identifiant dans l'URL.
+
+---
+
+## 7. Journal du lot 0-bis (2026-08-21)
+
+Livré et vérifié contre l'API réelle, pas seulement en tests :
+
+| Vérification | Résultat |
+|---|---|
+| Deuxième événement en FREE | refusé, `EVENT_QUOTA_REACHED` |
+| Deuxième événement en PREMIUM | créé |
+| `/mine` sans identifiant, avec deux événements | refusé, `EVENT_SELECTION_REQUIRED` |
+| `/mine?eventId=` d'un **autre** manager | refusé, `EVENT_NOT_FOUND` — même message que « inexistant » |
+| Septième agent de contrôle en PREMIUM | refusé, `SCANNER_QUOTA_EXCEEDED` (plafond 6) |
+| Rétrogradation PREMIUM → FREE | deux événements et six agents conservés, création suivante refusée |
+| Manager mono-événement après le lot | aucun sélecteur, URL sans paramètre, liens de menu inchangés |
+| Bascule entre deux événements dans le navigateur | titre, lien public, menu et données suivent ; aucun mélange de cache |
+
+**Deux constats de code faits en chemin**, qui ont changé le travail :
+
+- `Event.maxScanners` ne limitait rien — la colonne valait 3 partout et
+  personne ne la lisait. Le lot ne modifie donc pas une limite, il en crée une.
+- `isPremium` ne commandait que le multi-jours. Le remplacer coûtait peu
+  aujourd’hui ; il aurait porté quatre privilèges dans six mois.
+
+**Reste à faire avant le lot 0** : rien. Le socle est en place, les trois
+types peuvent s’y poser.

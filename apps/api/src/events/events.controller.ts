@@ -44,6 +44,17 @@ export class EventsController {
   }
 
   /** Événement du manager authentifié — déclarée avant `:id` (même piège que `public/:slug`). */
+  /**
+   * Liste des événements du manager — alimente le sélecteur du tableau de
+   * bord. Déclarée AVANT `mine` : `mine/list` serait sinon capturée par une
+   * route paramétrée, comme `public/:slug` avant elle.
+   */
+  @Roles(Role.MANAGER)
+  @Get('mine/list')
+  async listMyEvents(@CurrentUser() user: RequestUser) {
+    return this.eventsService.listMyEvents(user.id);
+  }
+
   @Roles(Role.MANAGER)
   @Get('mine')
   async getMyEvent(@CurrentUser() user: RequestUser, @Query('eventId') eventId?: string) {

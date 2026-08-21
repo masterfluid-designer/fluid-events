@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Spinner } from '@/components/ui/spinner';
 import { api, apiDelete, apiPatch, apiPost, ApiError } from '@/lib/api';
+import { avecEvenement, useEvenementActif } from '@/lib/evenement-actif';
 
 /**
  * Manager — Agents de contrôle (2026-08-19).
@@ -44,17 +45,21 @@ export default function ManagerScannersPage() {
   const [email, setEmail] = useState('');
   const [promoteEmail, setPromoteEmail] = useState('');
 
+  // L'événement porté par l'URL (2026-08-21). Absent, le serveur retombe
+  // sur celui du manager mono-événement — le cas de tous jusqu'ici.
+  const evenement = useEvenementActif();
+
   const { data: scanners, isLoading, isError } = useQuery({
-    queryKey: ['manager-scanners'],
-    queryFn: () => api<ScannerRow[]>('/api/scanners'),
+    queryKey: ['manager-scanners', evenement],
+    queryFn: () => api<ScannerRow[]>(avecEvenement('/api/scanners', evenement)),
   });
 
-  const refresh = () => queryClient.invalidateQueries({ queryKey: ['manager-scanners'] });
+  const refresh = () => queryClient.invalidateQueries({ queryKey: ['manager-scanners', evenement] });
   const fail = (err: unknown, repli: string) =>
     toast.error(err instanceof ApiError ? err.message : repli);
 
   const invite = useMutation({
-    mutationFn: () => apiPost<{ emailSent: boolean }>('/api/scanners/invite', { name, email }),
+    mutationFn: () => apiPost<{ emailSent: boolean }>(avecEvenement('/api/scanners/invite', evenement), { name, email }),
     onSuccess: (res) => {
       // On distingue les deux : un compte créé dont l'email n'est pas parti
       // demande une relance, pas un second compte.
@@ -71,7 +76,7 @@ export default function ManagerScannersPage() {
   });
 
   const promote = useMutation({
-    mutationFn: () => apiPost('/api/scanners/promote', { email: promoteEmail }),
+    mutationFn: () => apiPost(avecEvenement('/api/scanners/promote', evenement), { email: promoteEmail }),
     onSuccess: () => {
       toast.success('Compte promu — il accède désormais au scanner');
       setPromoteEmail('');
@@ -81,7 +86,7 @@ export default function ManagerScannersPage() {
   });
 
   const toggleActive = useMutation({
-    mutationFn: (s: ScannerRow) => apiPatch(`/api/scanners/${s.id}/active`, { isActive: !s.isActive }),
+    mutationFn: (s: ScannerRow) => apiPatch(avecEvenement(`/api/scanners/${s.id}/active`, evenement), { isActive: !s.isActive }),
     onSuccess: () => {
       toast.success('Accès mis à jour');
       refresh();
@@ -90,7 +95,7 @@ export default function ManagerScannersPage() {
   });
 
   const remove = useMutation({
-    mutationFn: (s: ScannerRow) => apiDelete(`/api/scanners/${s.id}`),
+    mutationFn: (s: ScannerRow) => apiDelete(avecEvenement(`/api/scanners/${s.id}`, evenement)),
     onSuccess: () => {
       toast.success('Agent retiré');
       refresh();

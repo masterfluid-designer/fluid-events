@@ -326,6 +326,25 @@ export class EventsService {
   }
 
   /**
+   * Tous les événements du manager, pour le sélecteur du tableau de bord
+   * (2026-08-21). Volontairement MAIGRE : de quoi peupler une liste, pas de
+   * quoi afficher une page — un manager Premium en a huit, et rapatrier huit
+   * arbres complets à chaque chargement du dashboard ne servirait personne.
+   */
+  async listMyEvents(managerId: string) {
+    return this.prisma.event.findMany({
+      where: { managerId },
+      orderBy: { createdAt: 'asc' },
+      select: {
+        id: true,
+        slug: true,
+        title: true,
+        status: true,
+        startDate: true,
+      },
+    });
+  }
+  /**
    * Un événement du manager authentifié. Sans `eventId`, celui du manager
    * mono-événement — voir EventAccessService pour le cas à plusieurs.
    */

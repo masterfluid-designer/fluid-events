@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { lienDashboard, useEvenementActif } from '@/lib/evenement-actif';
+import { SelecteurEvenement } from '@/components/dashboard/selecteur-evenement';
 import {
   LayoutDashboard,
   Ticket,
@@ -91,6 +93,11 @@ function NavLinks({
     .filter((href) => pathname === href || pathname.startsWith(href + '/'))
     .sort((a, b) => b.length - a.length)[0];
 
+  // L'événement visé voyage avec la navigation (2026-08-21). Sans cela,
+  // passer des billets aux participants ramènerait au premier événement —
+  // ou, pour un manager qui en a plusieurs, à un refus de choisir.
+  const evenement = useEvenementActif();
+
   return (
     <nav className="flex-1 space-y-1 overflow-y-auto p-3">
       {items.map((item) => {
@@ -98,7 +105,7 @@ function NavLinks({
         return (
           <Link
             key={item.href}
-            href={item.href}
+            href={lienDashboard(item.href, evenement)}
             onClick={onNavigate}
             title={collapsed ? item.label : undefined}
             className={cn(
@@ -187,6 +194,9 @@ export function DashboardSidebar() {
                 <X className="size-5" />
               </Button>
             </div>
+            <div className="px-3 pt-3">
+              <SelecteurEvenement />
+            </div>
             <NavLinks items={items} pathname={pathname} onNavigate={() => setMobileOpen(false)} />
             <div className="border-t p-3">
               <Button
@@ -234,6 +244,12 @@ export function DashboardSidebar() {
           )}
         </div>
 
+        {/* Ne s’affiche que si le manager porte plusieurs événements. */}
+        {!collapsed && (
+          <div className="px-3 pt-3">
+            <SelecteurEvenement />
+          </div>
+        )}
         <NavLinks items={items} pathname={pathname} collapsed={collapsed} />
 
         <div className={cn('border-t p-3', collapsed && 'flex flex-col items-center gap-2')}>
