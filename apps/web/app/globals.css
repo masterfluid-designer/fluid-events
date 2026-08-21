@@ -853,3 +853,129 @@
 .accent-band {
   background-image: var(--gradient-accent, linear-gradient(115deg, var(--color-primary) 0%, var(--color-accent-2, var(--color-primary)) 100%));
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Frise « Notre histoire » — progression liée au défilement (2026-08-20)
+
+   Une seule variable pilote tout : `--frise-p`, la progression de 0 à 1, que
+   le composant recalcule au défilement. Le curseur court le long du rail, le
+   rail se remplit derrière lui, les jalons s'allument à son passage.
+
+   TOUT est fait en CSS à partir de cette variable — aucun rendu React par
+   image. Un seuil `--s` (position du jalon, de 0 à 1) est posé une fois sur
+   chaque jalon ; `clamp()` le compare à la progression. C'est ce qui remplace
+   un état React par jalon, qui aurait redessiné la section à chaque pixel.
+
+   `--fx-a`/`--fx-b` (et `--fy-*`) sont les centres du PREMIER et du DERNIER
+   anneau, mesurés au montage. Sans eux le rail déborderait des anneaux et le
+   curseur ne terminerait pas sa course sur le dernier jalon — or c'est
+   précisément ce que la frise doit dire : le chemin est terminé.
+
+   Deux axes : vertical au mobile (une frise horizontale à trois jalons y est
+   illisible), horizontal à partir de `md`.
+   ───────────────────────────────────────────────────────────────────────── */
+.frise {
+  --frise-p: 0;
+  --frise-epaisseur: 2px;
+  --frise-axe: 0.75rem; /* centre de la colonne des anneaux, au mobile */
+}
+
+/* Sans JavaScript, la progression n'est jamais calculée : la frise est alors
+   rendue pleine plutôt que vide. Une frise vide et immobile serait un bug. */
+.frise-sans-js {
+  --frise-p: 1 !important;
+}
+
+.frise-rail,
+.frise-rail-rempli {
+  position: absolute;
+  left: calc(var(--frise-axe) - var(--frise-epaisseur) / 2);
+  top: var(--fy-a, 0px);
+  height: calc(var(--fy-b, 100%) - var(--fy-a, 0px));
+  width: var(--frise-epaisseur);
+  border-radius: 999px;
+}
+
+.frise-rail {
+  background: color-mix(in oklab, currentColor 18%, transparent);
+}
+
+.frise-rail-rempli {
+  background: var(--color-primary);
+  transform: scaleY(var(--frise-p));
+  transform-origin: top center;
+}
+
+.frise-curseur {
+  position: absolute;
+  left: var(--frise-axe);
+  top: calc(var(--fy-a, 0px) + (var(--fy-b, 0px) - var(--fy-a, 0px)) * var(--frise-p));
+  translate: -50% -50%;
+  width: 1.125rem;
+  height: 1.125rem;
+  border-radius: 999px;
+  background: var(--color-primary);
+  box-shadow: 0 0 0 5px color-mix(in oklab, var(--color-primary) 22%, transparent);
+  /* Il ne se montre qu'une fois la course commencée : posé à l'arrêt sur le
+     premier jalon, il se confondrait avec l'anneau et paraîtrait décoratif. */
+  opacity: clamp(0, calc(var(--frise-p) * 30), 1);
+}
+
+@media (min-width: 768px) {
+  .frise-rail,
+  .frise-rail-rempli {
+    left: var(--fx-a, 0px);
+    top: 50%;
+    width: calc(var(--fx-b, 100%) - var(--fx-a, 0px));
+    height: var(--frise-epaisseur);
+    translate: 0 -50%;
+  }
+
+  .frise-rail-rempli {
+    transform: scaleX(var(--frise-p));
+    transform-origin: left center;
+  }
+
+  .frise-curseur {
+    top: 50%;
+    left: calc(var(--fx-a, 0px) + (var(--fx-b, 0px) - var(--fx-a, 0px)) * var(--frise-p));
+  }
+}
+
+/* Pastille interne de l'anneau : elle s'allume au PASSAGE du curseur, c'est
+   à dire quand la progression atteint le seuil du jalon — et non après.
+
+   Le « + 1 » porte toute la logique : sans lui, le dernier jalon (seuil 1)
+   ne s'allumerait jamais, la progression plafonnant elle aussi à 1. Le
+   curseur viendrait donc mourir sur un anneau resté éteint.
+
+   Le facteur 40 rend la bascule franche (2,5 % de course) sans être
+   brutale — l'œil doit voir le jalon s'allumer, pas le découvrir allumé. */
+.frise-pastille {
+  opacity: clamp(0, calc((var(--frise-p) - var(--s)) * 40 + 1), 1);
+}
+
+/* Même raison pour le « + 1 » : la dernière carte doit être lisible quand
+   le curseur l'atteint. Le facteur plus faible la fait monter en fondu un
+   peu avant, pour qu'elle soit déjà là quand le regard y arrive. */
+.frise-carte {
+  --vu: clamp(0, calc((var(--frise-p) - var(--s)) * 24 + 1), 1);
+  opacity: var(--vu);
+  transform: translateY(calc((1 - var(--vu)) * 10px));
+}
+
+/* Mouvement coupé : tout est montré à l'arrivée, d'emblée. */
+@media (prefers-reduced-motion: reduce) {
+  .frise {
+    --frise-p: 1;
+  }
+
+  .frise-curseur {
+    display: none;
+  }
+
+  .frise-carte {
+    opacity: 1;
+    transform: none;
+  }
+}
