@@ -45,6 +45,12 @@ interface CurrentUser {
   phone: string | null;
   phoneVerifiedAt: string | null;
   isImpersonating: boolean;
+  /**
+   * Le serveur peut-il réellement envoyer un code ? Absent d'une ancienne
+   * réponse : on suppose alors que oui, pour ne pas lever la vérification
+   * par accident sur un déploiement partiel.
+   */
+  phoneVerificationAvailable?: boolean;
 }
 
 export function PhoneVerificationGate({ children }: { children: React.ReactNode }) {
@@ -106,8 +112,22 @@ export function PhoneVerificationGate({ children }: { children: React.ReactNode 
   // Un Admin en impersonation ne doit jamais être bloqué par le compte
   // Manager qu'il inspecte/assiste — la vérification reste due par le vrai
   // titulaire du compte, à sa prochaine connexion normale.
+  /*
+   * On n'exige la vérification que si le serveur est en mesure d'envoyer le
+   * code (2026-08-21). Réclamer une preuve impossible à fournir ne protège
+   * rien : cela ferme le tableau de bord à tout le monde, ce qui est arrivé
+   * pendant cinq jours. Et ce n'est pas une barrière d'authentification —
+   * on est déjà connecté pour arriver ici.
+   *
+   * Le blocage revient de lui-même dès que Twilio est configuré : rien à
+   * réactiver à la main.
+   */
+  const canalDisponible = user.phoneVerificationAvailable !== false;
   const needsVerification =
-    !user.isImpersonating && GATED_ROLES.has(user.role) && (!user.phone || !user.phoneVerifiedAt);
+    canalDisponible &&
+    !user.isImpersonating &&
+    GATED_ROLES.has(user.role) &&
+    (!user.phone || !user.phoneVerifiedAt);
   if (!needsVerification) return <>{children}</>;
 
   return (

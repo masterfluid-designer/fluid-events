@@ -356,7 +356,23 @@ export class AuthOrchestratorService {
     // À plat plutôt qu’imbriqué : l’appelant n’a que faire du profil scanner,
     // seulement du slug à interroger.
     const { scannerProfile, ...rest } = user;
-    return { ...rest, eventSlug: scannerProfile?.event?.slug ?? null };
+    return {
+      ...rest,
+      eventSlug: scannerProfile?.event?.slug ?? null,
+      /*
+       * Le canal d'envoi du code est-il configuré ? (2026-08-21)
+       *
+       * Le frontend n'EXIGE la vérification que si la réponse est oui.
+       * Sans cela, il réclame une preuve que personne ne peut fournir :
+       * du 16 au 21 août, aucun Manager ne pouvait entrer dans son tableau
+       * de bord, faute de canal en état de marche.
+       *
+       * C'est un CONSTAT, pas un réglage : rien à poser, rien à oublier de
+       * retirer. La vérification se réactive d’elle-même le jour où Twilio
+       * est configuré.
+       */
+      phoneVerificationAvailable: this.sms.estDisponible(),
+    };
   }
 
   /**

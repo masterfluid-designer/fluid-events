@@ -205,7 +205,14 @@ describe('AuthOrchestratorService.getCurrentUser()', () => {
         }),
       },
     };
-    const service = new AuthOrchestratorService(prisma as any, {} as any, {} as any, makeAudit() as any, {} as any, {} as any);
+    const service = new AuthOrchestratorService(
+      prisma as any,
+      {} as any,
+      {} as any,
+      makeAudit() as any,
+      {} as any,
+      { estDisponible: () => true } as any,
+    );
 
     const result = await service.getCurrentUser('u-1');
 
@@ -220,7 +227,44 @@ describe('AuthOrchestratorService.getCurrentUser()', () => {
       avatarUrl: null,
       // Compte non-scanner : le slug est présent mais nul (2026-08-17).
       eventSlug: null,
+      // Le frontend n’exige la vérification que si le canal peut envoyer.
+      phoneVerificationAvailable: true,
     });
+  });
+
+  it('rapporte que le canal est indisponible quand Twilio n’est pas configuré', async () => {
+    // Sans ce constat, le frontend exigerait une vérification que le serveur
+    // ne peut pas satisfaire — et fermerait le tableau de bord à tout le
+    // monde, comme du 16 au 21 août 2026.
+    const prisma = {
+      user: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: 'u-3',
+          email: 'c@x.com',
+          name: null,
+          role: Role.MANAGER,
+          isActive: true,
+          phone: null,
+          country: null,
+          avatarUrl: null,
+          phoneVerifiedAt: null,
+          plan: 'FREE',
+          scannerProfile: null,
+        }),
+      },
+    };
+    const service = new AuthOrchestratorService(
+      prisma as any,
+      {} as any,
+      {} as any,
+      makeAudit() as any,
+      {} as any,
+      { estDisponible: () => false } as any,
+    );
+
+    const result = await service.getCurrentUser('u-3');
+
+    expect(result).toMatchObject({ phoneVerificationAvailable: false });
   });
 
   it("expose le slug de l'événement pour un compte SCANNER, à plat", async () => {
@@ -241,7 +285,14 @@ describe('AuthOrchestratorService.getCurrentUser()', () => {
         }),
       },
     };
-    const service = new AuthOrchestratorService(prisma as any, {} as any, {} as any, makeAudit() as any, {} as any, {} as any);
+    const service = new AuthOrchestratorService(
+      prisma as any,
+      {} as any,
+      {} as any,
+      makeAudit() as any,
+      {} as any,
+      { estDisponible: () => true } as any,
+    );
 
     const result = await service.getCurrentUser('u-2');
 
@@ -253,7 +304,14 @@ describe('AuthOrchestratorService.getCurrentUser()', () => {
 
   it('404 si le user est introuvable (USER_NOT_FOUND)', async () => {
     const prisma = { user: { findUnique: vi.fn().mockResolvedValue(null) } };
-    const service = new AuthOrchestratorService(prisma as any, {} as any, {} as any, makeAudit() as any, {} as any, {} as any);
+    const service = new AuthOrchestratorService(
+      prisma as any,
+      {} as any,
+      {} as any,
+      makeAudit() as any,
+      {} as any,
+      { estDisponible: () => true } as any,
+    );
 
     await expect(service.getCurrentUser('unknown')).rejects.toThrow(NotFoundException);
   });

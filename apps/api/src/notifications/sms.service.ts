@@ -33,6 +33,20 @@ export interface TicketSmsParams {
 export class SmsService {
   private readonly logger = new Logger(SmsService.name);
 
+  /**
+   * Le canal est-il configuré ? Consulté avant d'EXIGER une vérification :
+   * imposer une preuve que personne ne peut fournir enferme tout le monde
+   * dehors — ce qui est arrivé du 2026-08-16 au 2026-08-21, quand WhatsApp
+   * était le seul canal et restait muet.
+   */
+  estDisponible(): boolean {
+    return Boolean(
+      process.env.TWILIO_ACCOUNT_SID &&
+        process.env.TWILIO_AUTH_TOKEN &&
+        process.env.TWILIO_SMS_FROM,
+    );
+  }
+
   async sendTicketReadySms(params: TicketSmsParams): Promise<void> {
     const { to, eventTitle, orderNumber } = params;
 
