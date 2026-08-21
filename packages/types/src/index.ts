@@ -58,6 +58,52 @@ export const TicketPolicy = {
 export type TicketPolicy = (typeof TicketPolicy)[keyof typeof TicketPolicy];
 
 /**
+ * Palier d'abonnement du Manager (2026-08-21). Remplace le booléen
+ * `User.isPremium`, qui ne commandait qu'une chose — le multi-jours — et
+ * aurait fini par porter quatre privilèges sans les nommer.
+ *
+ * ⚠️ Distinct de `subscriptionActive`, qui commande la suppression par
+ * rétention et vaut déjà `true` pour tout manager invité : les confondre
+ * rendrait Premium l'ensemble d'entre eux.
+ */
+export const SubscriptionPlan = {
+  /** Comportement historique : un seul événement, pas de multi-jours. */
+  FREE: 'FREE',
+  /** Accordé à la main par l'Admin depuis /admin/managers. */
+  PREMIUM: 'PREMIUM',
+} as const;
+
+export type SubscriptionPlan = (typeof SubscriptionPlan)[keyof typeof SubscriptionPlan];
+
+/**
+ * Ce que chaque palier autorise. Volontairement EN CODE et non en base : une
+ * table de limites imposerait une migration de données à chaque évolution de
+ * l'offre, et laisserait les valeurs dériver d'un abonné à l'autre. Ici, un
+ * changement de palier vaut pour tous ses abonnés d’un coup, et se relit dans
+ * l'historique du dépôt.
+ *
+ * `maxScannersParEvenement` est un plafond PAR ÉVÉNEMENT : un manager qui en
+ * porte huit a bien droit à huit équipes distinctes. Un agent qui contrôle
+ * l'entrée d'une soirée n'a aucune raison d'accéder aux sept autres.
+ */
+export const LIMITES_PLAN: Record<
+  SubscriptionPlan,
+  { maxEvenements: number; maxScannersParEvenement: number; multiJours: boolean }
+> = {
+  FREE: { maxEvenements: 1, maxScannersParEvenement: 3, multiJours: false },
+  PREMIUM: { maxEvenements: 8, maxScannersParEvenement: 6, multiJours: true },
+};
+
+/**
+ * Limites applicables à un manager. Un plan inconnu — palier retiré de
+ * l'offre, donnée héritée — retombe sur FREE : en cas de doute, on accorde le
+ * moins, jamais le plus.
+ */
+export function limitesDuPlan(plan: SubscriptionPlan | null | undefined) {
+  return LIMITES_PLAN[plan ?? SubscriptionPlan.FREE] ?? LIMITES_PLAN.FREE;
+}
+
+/**
  * Mode de vente d'un billet (décision produit 2026-08-18). `ON_REQUEST` couvre
  * les formules négociées — tables, packages groupe — que les organisateurs
  * fabriquaient jusqu'ici en billets fictifs annulés à la main.
@@ -518,6 +564,10 @@ export const ErrorCodes = {
   AUTH_REQUIRED_TO_PURCHASE: 'AUTH_REQUIRED_TO_PURCHASE',
   // Events
   EVENT_NOT_FOUND: 'EVENT_NOT_FOUND',
+  /** Le compte porte plusieurs événements : la route doit préciser lequel. */
+  EVENT_SELECTION_REQUIRED: 'EVENT_SELECTION_REQUIRED',
+  /** Le palier d'abonnement n'autorise pas un événement de plus. */
+  EVENT_QUOTA_REACHED: 'EVENT_QUOTA_REACHED',
   EVENT_NOT_ACTIVE: 'EVENT_NOT_ACTIVE',
   EVENT_EXPIRED: 'EVENT_EXPIRED',
   // Somme des stocks de billets > Event.expectedAttendees (plafond réel,

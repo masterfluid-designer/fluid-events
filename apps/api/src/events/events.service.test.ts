@@ -30,13 +30,28 @@ function makePrisma() {
   };
 }
 
+
+/**
+ * Faux EventAccessService. Le vrai est couvert par ses propres tests
+ * (common/event-access.service.test.ts) : ici on ne teste pas la résolution,
+ * on la suppose faite. Par défaut elle renvoie l'identifiant demandé, ou
+ * `ev-1` — celui que les mocks Prisma de ce fichier renvoient déjà.
+ */
+function makeAcces() {
+  return {
+    resoudreEvenementDuManager: vi.fn(async (_managerId: string, eventId?: string) => eventId ?? 'ev-1'),
+    assertQuotaEvenements: vi.fn().mockResolvedValue(undefined),
+    plafondScanners: vi.fn().mockResolvedValue(3),
+  };
+}
+
 describe('EventsService.createEvent()', () => {
   let prisma: ReturnType<typeof makePrisma>;
   let service: EventsService;
 
   beforeEach(() => {
     prisma = makePrisma();
-    service = new EventsService(prisma as any, { log: vi.fn().mockResolvedValue(undefined) } as any);
+    service = new EventsService(prisma as any, { log: vi.fn().mockResolvedValue(undefined) } as any, makeAcces() as any);
   });
 
   const dto = {
@@ -79,7 +94,7 @@ describe('EventsService.updateMyEvent()', () => {
 
   beforeEach(() => {
     prisma = makePrisma();
-    service = new EventsService(prisma as any, { log: vi.fn().mockResolvedValue(undefined) } as any);
+    service = new EventsService(prisma as any, { log: vi.fn().mockResolvedValue(undefined) } as any, makeAcces() as any);
   });
 
   it("met à jour l'événement du manager authentifié", async () => {
@@ -95,9 +110,19 @@ describe('EventsService.updateMyEvent()', () => {
     });
   });
 
-  it("404 si le manager n'a pas d'événement", async () => {
-    prisma.event.findUnique.mockResolvedValue(null);
-    await expect(service.updateMyEvent('mgr-1', { title: 'X' } as any)).rejects.toThrow(NotFoundException);
+  it("propage le refus quand le manager n'a pas d'événement", async () => {
+    // La résolution a déménagé dans EventAccessService (2026-08-21), qui a
+    // ses propres tests. Ce qu’on vérifie ici : le refus remonte, et rien
+    // n’est écrit au passage.
+    const acces = makeAcces();
+    acces.resoudreEvenementDuManager.mockRejectedValue(new NotFoundException({}));
+    const isole = new EventsService(
+      prisma as any,
+      { log: vi.fn().mockResolvedValue(undefined) } as any,
+      acces as any,
+    );
+
+    await expect(isole.updateMyEvent('mgr-1', { title: 'X' } as any)).rejects.toThrow(NotFoundException);
     expect(prisma.event.update).not.toHaveBeenCalled();
   });
 
@@ -188,7 +213,7 @@ describe('EventsService.getMyEvent()', () => {
 
   beforeEach(() => {
     prisma = makePrisma();
-    service = new EventsService(prisma as any, { log: vi.fn().mockResolvedValue(undefined) } as any);
+    service = new EventsService(prisma as any, { log: vi.fn().mockResolvedValue(undefined) } as any, makeAcces() as any);
   });
 
   it("retourne l'événement du manager avec ses tickets", async () => {
@@ -209,7 +234,7 @@ describe('EventsService.getMyEventOverview()', () => {
 
   beforeEach(() => {
     prisma = makePrisma();
-    service = new EventsService(prisma as any, { log: vi.fn().mockResolvedValue(undefined) } as any);
+    service = new EventsService(prisma as any, { log: vi.fn().mockResolvedValue(undefined) } as any, makeAcces() as any);
   });
 
   it('agrège revenus, ventes et scans depuis les vraies commandes payées', async () => {
@@ -324,7 +349,7 @@ describe('EventsService.getParticipants()', () => {
 
   beforeEach(() => {
     prisma = makePrisma();
-    service = new EventsService(prisma as any, { log: vi.fn().mockResolvedValue(undefined) } as any);
+    service = new EventsService(prisma as any, { log: vi.fn().mockResolvedValue(undefined) } as any, makeAcces() as any);
   });
 
   it('liste les participants des commandes payées uniquement', async () => {
@@ -372,7 +397,7 @@ describe('EventsService.getPublicEventBySlug()', () => {
 
   beforeEach(() => {
     prisma = makePrisma();
-    service = new EventsService(prisma as any, { log: vi.fn().mockResolvedValue(undefined) } as any);
+    service = new EventsService(prisma as any, { log: vi.fn().mockResolvedValue(undefined) } as any, makeAcces() as any);
   });
 
   it('retourne l’événement publié avec ses billets et les blocs Builder', async () => {
@@ -423,14 +448,14 @@ describe('EventsService.updateMyEvent() — journées et régime', () => {
 
   beforeEach(() => {
     prisma = makePrisma();
-    service = new EventsService(prisma as any, { log: vi.fn().mockResolvedValue(undefined) } as any);
+    service = new EventsService(prisma as any, { log: vi.fn().mockResolvedValue(undefined) } as any, makeAcces() as any);
     prisma.event.findUnique.mockResolvedValue({ id: 'ev-1', ticketPolicy: 'SINGLE_DAY' });
     prisma.event.update.mockResolvedValue({ id: 'ev-1' });
     prisma.eventDay.findMany.mockResolvedValue([]);
   });
 
   it('refuse le multi-jours à un manager non Premium (PREMIUM_REQUIRED)', async () => {
-    prisma.user.findUnique.mockResolvedValue({ isPremium: false });
+    prisma.user.findUnique.mockResolvedValue({ plan: 'FREE' });
 
     await expect(
       service.updateMyEvent('mgr-1', { ticketPolicy: 'PER_DAY', days: TWO_DAYS } as any),
@@ -442,7 +467,7 @@ describe('EventsService.updateMyEvent() — journées et régime', () => {
   });
 
   it('refuse une seule journée en multi-jours (une journée, c’est SINGLE_DAY)', async () => {
-    prisma.user.findUnique.mockResolvedValue({ isPremium: true });
+    prisma.user.findUnique.mockResolvedValue({ plan: 'PREMIUM' });
 
     await expect(
       service.updateMyEvent('mgr-1', {
@@ -455,7 +480,7 @@ describe('EventsService.updateMyEvent() — journées et régime', () => {
   });
 
   it('refuse des journées déclarées sur un événement resté mono-jour', async () => {
-    prisma.user.findUnique.mockResolvedValue({ isPremium: true });
+    prisma.user.findUnique.mockResolvedValue({ plan: 'PREMIUM' });
 
     await expect(
       service.updateMyEvent('mgr-1', { ticketPolicy: 'SINGLE_DAY', days: TWO_DAYS } as any),
@@ -465,7 +490,7 @@ describe('EventsService.updateMyEvent() — journées et régime', () => {
   });
 
   it('refuse deux journées à la même date (le scanner ne saurait pas laquelle)', async () => {
-    prisma.user.findUnique.mockResolvedValue({ isPremium: true });
+    prisma.user.findUnique.mockResolvedValue({ plan: 'PREMIUM' });
 
     await expect(
       service.updateMyEvent('mgr-1', {
@@ -481,7 +506,7 @@ describe('EventsService.updateMyEvent() — journées et régime', () => {
   });
 
   it('refuse de supprimer une journée à laquelle des billets sont rattachés', async () => {
-    prisma.user.findUnique.mockResolvedValue({ isPremium: true });
+    prisma.user.findUnique.mockResolvedValue({ plan: 'PREMIUM' });
     // Une 3e journée existe en base, absente de la nouvelle liste, et porte
     // des billets déjà vendus : la supprimer les détacherait (SetNull) et ils
     // n'ouvriraient plus rien au contrôle d'accès.
@@ -498,7 +523,7 @@ describe('EventsService.updateMyEvent() — journées et régime', () => {
   });
 
   it('accepte deux journées pour un manager Premium et normalise les dates', async () => {
-    prisma.user.findUnique.mockResolvedValue({ isPremium: true });
+    prisma.user.findUnique.mockResolvedValue({ plan: 'PREMIUM' });
 
     await service.updateMyEvent('mgr-1', { ticketPolicy: 'PER_DAY', days: TWO_DAYS } as any);
 
@@ -510,7 +535,7 @@ describe('EventsService.updateMyEvent() — journées et régime', () => {
   });
 
   it('laisse passer une mise à jour ordinaire sans toucher aux journées', async () => {
-    prisma.user.findUnique.mockResolvedValue({ isPremium: false });
+    prisma.user.findUnique.mockResolvedValue({ plan: 'FREE' });
 
     await service.updateMyEvent('mgr-1', { title: 'Nouveau titre' } as any);
 
@@ -537,11 +562,11 @@ describe('EventsService.updateMyEvent() — changement de régime', () => {
 
   beforeEach(() => {
     prisma = makePrisma();
-    service = new EventsService(prisma as any, { log: vi.fn().mockResolvedValue(undefined) } as any);
+    service = new EventsService(prisma as any, { log: vi.fn().mockResolvedValue(undefined) } as any, makeAcces() as any);
     prisma.event.findUnique.mockResolvedValue({ id: 'ev-1', ticketPolicy: 'SINGLE_DAY' });
     prisma.event.update.mockResolvedValue({ id: 'ev-1' });
     prisma.eventDay.findMany.mockResolvedValue([]);
-    prisma.user.findUnique.mockResolvedValue({ isPremium: true });
+    prisma.user.findUnique.mockResolvedValue({ plan: 'PREMIUM' });
     prisma.orderItem.count.mockResolvedValue(0);
   });
 

@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { PrismaModule } from '../prisma/prisma.module';
+import { EventAccessModule } from '../common/event-access.module';
 import { AuthModule } from '../auth/auth.module';
 import { TicketDesignModule } from '../ticket-design/ticket-design.module';
 import { ScannerService } from './scanner.service';
@@ -11,7 +12,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 @Module({
   // NotificationsModule (2026-08-19) : l’invitation d’un agent de contrôle
   // part par email, comme celle d’un Manager.
-  imports: [PrismaModule, AuthModule, TicketDesignModule, NotificationsModule],
+  imports: [PrismaModule, AuthModule, TicketDesignModule, NotificationsModule, EventAccessModule],
   providers: [ScannerService, ScannerAdminService],
   controllers: [ScannerController, ScannerAdminController],
 })

@@ -35,6 +35,10 @@ model User {
   /// pouvoir le lui rendre en le retirant.
   previousRole        Role?
   isActive            Boolean   @default(true)
+  /// Palier d’abonnement (2026-08-21) — remplace `isPremium`, qui ne
+  /// commandait que le multi-jours et aurait fini par porter quatre
+  /// privilèges sans les nommer. Voir `LIMITES_PLAN` (packages/types).
+  plan                SubscriptionPlan @default(FREE)
   // Enrichi post-paiement via webhook provider (jamais écrasé si déjà renseigné)
   phone               String?
   country             String?
@@ -69,18 +73,8 @@ model User {
   // abonné (l'Admin l'a déjà vérifié) ; un Manager self-service démarre non
   // abonné (fenêtre d'essai de 3 jours avant suppression automatique).
   subscriptionActive Boolean @default(false)
-  /// Palier Premium (décision produit 2026-08-16) : débloque les options
-  /// avancées, à commencer par les événements sur plusieurs jours — un Manager
-  /// par défaut est limité à un événement d’une seule journée. Accordé à la main
-  /// par l’Admin.
-  ///
-  /// Délibérément DISTINCT de `subscriptionActive` : ce dernier commande la
-  /// suppression par rétention et vaut déjà `true` pour tout Manager invité par
-  /// un Admin — le réutiliser rendrait Premium tout compte invité, sans que
-  /// personne ne l’ait décidé.
-  isPremium          Boolean @default(false)
 
-  managedEvent   Event?   @relation("EventManager")
+  managedEvents  Event[]  @relation("EventManager")
   scannerProfile Scanner?
   orders         Order[]
   auditLogs      AuditLog[]
@@ -152,7 +146,15 @@ model Event {
   endDate                  DateTime // Détermine la durée de session client (endDate + 24h)
   timezone                 String              @default("Africa/Abidjan")
   status                   EventStatus         @default(DRAFT)
-  maxScanners              Int                 @default(3)
+  /// Plafond d’agents de contrôle. `null` = suivre le palier du manager
+  /// (3 en FREE, 6 en PREMIUM). Une valeur explicite est une dérogation
+  /// accordée par l'Admin — un festival qui a besoin de douze agents sans
+  /// qu’on touche à l’offre.
+  ///
+  /// ⚠️ Ce champ ne limitait RIEN avant le 2026-08-21 : il valait 3 partout
+  /// et personne ne le lisait. Le contrôle vit désormais dans
+  /// `ScannerAdminService`.
+  maxScanners              Int?
   paymentProvider          PaymentProviderType?
   allowManagerChooseProvider Boolean          @default(true)
   expiresAt                DateTime?
@@ -170,9 +172,15 @@ model Event {
   galleryImages  Json    @default("[]") // MediaEntry[]
   sponsorImages  Json    @default("[]") // MediaEntry[] — carrousel infini
 
-  // V1 : 1 Manager = 1 Event — contrainte volontaire (CDC §1.4)
-  managerId String @unique
+  /// Un manager portait UN événement (contrainte V1, CDC §1.4). Le palier
+  /// Premium en autorise huit (2026-08-21) : le `@unique` saute, le quota
+  /// est appliqué à la création par `LIMITES_PLAN`. Retirer une contrainte
+  /// d'unicité ne déplace aucune donnée ; tout le reste du schéma était déjà
+  /// rattaché à `eventId`.
+  managerId String
   manager   User   @relation("EventManager", fields: [managerId], references: [id])
+
+  @@index([managerId])
 
   tickets   Ticket[]
   days      EventDay[]
@@ -183,6 +191,13 @@ model Event {
   paymentProviderConfigs PaymentProviderConfig[]
 
   @@map("events")
+}
+
+/// Palier d’abonnement du Manager. Distinct de `subscriptionActive`, qui
+/// commande la rétention et vaut déjà `true` pour tout manager invité.
+enum SubscriptionPlan {
+  FREE
+  PREMIUM
 }
 
 enum EventStatus {

@@ -156,9 +156,11 @@ export default function ManagerTicketsPage() {
 
   const { data: me } = useQuery({
     queryKey: ['auth-me'],
-    queryFn: () => api<{ isPremium: boolean }>('/api/auth/me'),
+    queryFn: () => api<{ plan?: 'FREE' | 'PREMIUM' }>('/api/auth/me'),
   });
-  const isPremium = me?.isPremium ?? false;
+  // Dérivé du palier, pas une seconde source de vérité : le serveur
+  // revalide chaque opération privilégiée (RULES.md §1).
+  const isPremium = me?.plan === 'PREMIUM';
 
   // Amorce unique : on ne réécrit pas l’état à chaque refetch, sinon une
   // saisie en cours serait écrasée par la version serveur.

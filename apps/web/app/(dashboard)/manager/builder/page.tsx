@@ -183,7 +183,7 @@ export default function EventBuilderPage() {
   // Même clé que le gate de vérification : la réponse est déjà en cache.
   const { data: me } = useQuery({
     queryKey: ['auth-me'],
-    queryFn: () => api<{ isPremium: boolean }>('/api/auth/me'),
+    queryFn: () => api<{ plan?: 'FREE' | 'PREMIUM' }>('/api/auth/me'),
   });
 
   // Synchronise l'état local éditable avec la dernière version chargée/sauvegardée.

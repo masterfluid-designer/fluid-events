@@ -70,18 +70,27 @@ export class RetentionService {
       select: {
         id: true,
         email: true,
-        managedEvent: { select: { id: true } },
+        managedEvents: { select: { id: true } },
       },
     });
 
     for (const manager of managers) {
-      if (manager.managedEvent) {
+      const idsEvenements = manager.managedEvents.map((e) => e.id);
+
+      /*
+       * Un manager peut porter plusieurs événements depuis le 2026-08-21.
+       * Une SEULE commande, sur n'importe lequel, épargne tout le compte : la
+       * suppression est indivisible. En supprimer trois sur quatre laisserait
+       * un compte à moitié vidé, et le `user.delete` échouerait de toute façon
+       * sur l'événement restant.
+       */
+      if (idsEvenements.length > 0) {
         const orderCount = await this.prisma.order.count({
-          where: { eventId: manager.managedEvent.id },
+          where: { eventId: { in: idsEvenements } },
         });
         if (orderCount > 0) {
           this.logger.warn(
-            `Suppression auto ignorée — manager ${manager.id} (${manager.email}) a un événement avec ${orderCount} commande(s) liée(s).`,
+            `Suppression auto ignorée — manager ${manager.id} (${manager.email}) a ${orderCount} commande(s) liée(s) sur ${idsEvenements.length} événement(s).`,
           );
           continue;
         }
@@ -89,8 +98,8 @@ export class RetentionService {
 
       try {
         await this.prisma.$transaction(async (tx) => {
-          if (manager.managedEvent) {
-            await tx.event.delete({ where: { id: manager.managedEvent!.id } });
+          if (idsEvenements.length > 0) {
+            await tx.event.deleteMany({ where: { id: { in: idsEvenements } } });
           }
           await tx.user.delete({ where: { id: manager.id } });
         });
@@ -103,7 +112,7 @@ export class RetentionService {
 
       await this.audit.log('account.retention.manager.deleted', 'User', manager.id, {
         email: manager.email,
-        hadEvent: Boolean(manager.managedEvent),
+        evenementsSupprimes: idsEvenements.length,
       });
     }
   }

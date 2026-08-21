@@ -57,7 +57,7 @@ export default function ManagerDashboardPage() {
   // Palier Premium — le manager n’avait aucun moyen de savoir qu’il l’a.
   const { data: me } = useQuery({
     queryKey: ['auth-me'],
-    queryFn: () => api<{ isPremium: boolean }>('/api/auth/me'),
+    queryFn: () => api<{ plan?: 'FREE' | 'PREMIUM' }>('/api/auth/me'),
   });
 
   const setStatus = useMutation({
@@ -128,7 +128,7 @@ export default function ManagerDashboardPage() {
           >
             ● {STATUS_LABELS[overview.event.status] ?? overview.event.status}
           </Badge>
-          {me?.isPremium && (
+          {me?.plan === 'PREMIUM' && (
             <Badge variant="success" title="Options avancées débloquées, dont les événements sur plusieurs jours">
               <Sparkles className="mr-1 size-3" /> Premium
             </Badge>

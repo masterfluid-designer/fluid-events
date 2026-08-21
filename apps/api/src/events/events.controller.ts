@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Body, Param } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Param, Query } from '@nestjs/common';
 import { Role } from '@saas-events/types';
 import { EventsService } from './events.service';
 import { CreateEventDto } from './dto/create-event.dto';
@@ -19,11 +19,21 @@ export class EventsController {
     return this.eventsService.createEvent(user.id, data);
   }
 
-  /** Mise à jour de l'événement du manager authentifié. */
+  /**
+   * Mise à jour d'un événement du manager authentifié.
+   *
+   * `?eventId=` désigne lequel (2026-08-21). Absent, la route vaut pour un
+   * manager mono-événement — tous ceux d’avant le palier Premium, dont rien
+   * ne change. L'appartenance est vérifiée dans le service, jamais ici.
+   */
   @Roles(Role.MANAGER)
   @Patch('mine')
-  async updateMyEvent(@CurrentUser() user: RequestUser, @Body() data: UpdateEventDto) {
-    return this.eventsService.updateMyEvent(user.id, data);
+  async updateMyEvent(
+    @CurrentUser() user: RequestUser,
+    @Body() data: UpdateEventDto,
+    @Query('eventId') eventId?: string,
+  ) {
+    return this.eventsService.updateMyEvent(user.id, data, eventId);
   }
 
   /** Page événement publique — CDC §6.2, doit être déclarée avant `:id`. */
@@ -36,15 +46,15 @@ export class EventsController {
   /** Événement du manager authentifié — déclarée avant `:id` (même piège que `public/:slug`). */
   @Roles(Role.MANAGER)
   @Get('mine')
-  async getMyEvent(@CurrentUser() user: RequestUser) {
-    return this.eventsService.getMyEvent(user.id);
+  async getMyEvent(@CurrentUser() user: RequestUser, @Query('eventId') eventId?: string) {
+    return this.eventsService.getMyEvent(user.id, eventId);
   }
 
   /** Statistiques réelles (revenus, ventes, scans) de l'événement du manager. */
   @Roles(Role.MANAGER)
   @Get('mine/overview')
-  async getMyEventOverview(@CurrentUser() user: RequestUser) {
-    return this.eventsService.getMyEventOverview(user.id);
+  async getMyEventOverview(@CurrentUser() user: RequestUser, @Query('eventId') eventId?: string) {
+    return this.eventsService.getMyEventOverview(user.id, eventId);
   }
 
   /** Participants (billets payés) — ownership Manager vérifiée dans le service. */

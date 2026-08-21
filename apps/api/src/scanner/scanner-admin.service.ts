@@ -7,6 +7,7 @@ import {
 import { randomBytes } from 'crypto';
 import { Role, ErrorCodes } from '@saas-events/types';
 import { PrismaService } from '../prisma/prisma.service';
+import { EventAccessService } from '../common/event-access.service';
 import { AuditService } from '../common/audit.service';
 import { EmailService } from '../notifications/email.service';
 
@@ -38,12 +39,17 @@ export class ScannerAdminService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly email: EmailService,
+    private readonly acces: EventAccessService,
   ) {}
 
-  /** Événement du manager — 1 Manager = 1 Event (CDC §1.4). */
-  private async getMyEventOrThrow(managerId: string) {
+  /**
+   * Événement visé, dont l'appartenance au manager est vérifiée. Sans
+   * `eventId`, celui du manager mono-événement (2026-08-21).
+   */
+  private async getMyEventOrThrow(managerId: string, eventId?: string) {
+    const id = await this.acces.resoudreEvenementDuManager(managerId, eventId);
     const event = await this.prisma.event.findUnique({
-      where: { managerId },
+      where: { id },
       select: { id: true, title: true },
     });
     if (!event) {
@@ -55,8 +61,32 @@ export class ScannerAdminService {
     return event;
   }
 
-  async list(managerId: string) {
-    const event = await this.getMyEventOrThrow(managerId);
+  /**
+   * Refuse un agent de plus que l'événement n'en autorise.
+   *
+   * ⚠️ Ce plafond n'existait QUE dans le schéma jusqu'au 2026-08-21 :
+   * `Event.maxScanners` valait 3 partout et personne ne le lisait. Un manager
+   * pouvait créer autant de comptes de contrôle qu'il voulait. Le contrôle
+   * porte sur les agents ACTIFS comme inactifs : un agent désactivé garde son
+   * compte et se réactive en un clic.
+   */
+  private async assertPlafondScanners(eventId: string): Promise<void> {
+    const [plafond, existants] = await Promise.all([
+      this.acces.plafondScanners(eventId),
+      this.prisma.scanner.count({ where: { eventId } }),
+    ]);
+
+    if (existants >= plafond) {
+      throw new ForbiddenException({
+        code: ErrorCodes.SCANNER_QUOTA_EXCEEDED,
+        message: `Cet événement autorise ${plafond} agent(s) de contrôle, et vous en avez déjà ${existants}.`,
+        details: { existants, maximum: plafond },
+      });
+    }
+  }
+
+  async list(managerId: string, eventId?: string) {
+    const event = await this.getMyEventOrThrow(managerId, eventId);
     const scanners = await this.prisma.scanner.findMany({
       where: { eventId: event.id },
       orderBy: { createdAt: 'asc' },
@@ -86,8 +116,9 @@ export class ScannerAdminService {
   }
 
   /** Crée un compte scanner et envoie l'invitation à l'adresse indiquée. */
-  async invite(managerId: string, dto: { name: string; email: string }) {
-    const event = await this.getMyEventOrThrow(managerId);
+  async invite(managerId: string, dto: { name: string; email: string }, eventId?: string) {
+    const event = await this.getMyEventOrThrow(managerId, eventId);
+    await this.assertPlafondScanners(event.id);
 
     const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
     if (existing) {
@@ -152,8 +183,9 @@ export class ScannerAdminService {
    * un scanner laisserait un compte orphelin qu'aucun écran ne sait plus
    * traiter.
    */
-  async promote(managerId: string, dto: { email: string }) {
-    const event = await this.getMyEventOrThrow(managerId);
+  async promote(managerId: string, dto: { email: string }, eventId?: string) {
+    const event = await this.getMyEventOrThrow(managerId, eventId);
+    await this.assertPlafondScanners(event.id);
 
     const user = await this.prisma.user.findUnique({
       where: { email: dto.email },
@@ -200,8 +232,8 @@ export class ScannerAdminService {
     return { id: scanner.id, name: scanner.name, email: user.email };
   }
 
-  async setActive(managerId: string, scannerId: string, isActive: boolean) {
-    const event = await this.getMyEventOrThrow(managerId);
+  async setActive(managerId: string, scannerId: string, isActive: boolean, eventId?: string) {
+    const event = await this.getMyEventOrThrow(managerId, eventId);
     const scanner = await this.prisma.scanner.findUnique({
       where: { id: scannerId },
       select: { id: true, eventId: true },
@@ -229,8 +261,8 @@ export class ScannerAdminService {
    * d'origine quand il en avait un, sinon il est simplement désactivé.
    * Supprimer l'utilisateur effacerait ses scans du journal par cascade.
    */
-  async remove(managerId: string, scannerId: string) {
-    const event = await this.getMyEventOrThrow(managerId);
+  async remove(managerId: string, scannerId: string, eventId?: string) {
+    const event = await this.getMyEventOrThrow(managerId, eventId);
     const scanner = await this.prisma.scanner.findUnique({
       where: { id: scannerId },
       select: {

@@ -5,10 +5,11 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { EventDayDto } from './dto/event-config.dto';
-import { ErrorCodes, TicketPolicy } from '@saas-events/types';
+import { ErrorCodes, TicketPolicy, limitesDuPlan } from '@saas-events/types';
 import { isAllowedImageUrl } from '../storage/image-whitelist.util';
 import { bucketSalesByDay } from '../common/analytics.util';
 import { AuditService } from '../common/audit.service';
+import { EventAccessService } from '../common/event-access.service';
 
 /** Fenêtre de la série temporelle "ventes dans le temps" (Analytics, 2026-07-14). */
 const SALES_TREND_DAYS = 30;
@@ -21,10 +22,20 @@ export class EventsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly acces: EventAccessService,
   ) {}
 
-  /** managerId dérivé du JWT (@CurrentUser), jamais du body — voir CreateEventDto. */
+  /**
+   * managerId dérivé du JWT (@CurrentUser), jamais du body — voir CreateEventDto.
+   *
+   * Le plafond n'est plus la contrainte d'unicité du schéma mais le palier
+   * d'abonnement (2026-08-21) : un manager FREE reste à un événement, un
+   * PREMIUM va jusqu’à huit. Le contrôle précède la création — attendre le
+   * refus de la base ne dirait plus rien depuis que le `@unique` a sauté.
+   */
   async createEvent(managerId: string, data: CreateEventDto) {
+    await this.acces.assertQuotaEvenements(managerId);
+
     try {
       const event = await this.prisma.event.create({
         data: {
@@ -38,28 +49,27 @@ export class EventsService {
       return event;
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === UNIQUE_VIOLATION) {
-        // Contrainte V1 : 1 Manager = 1 Event (Event.managerId @unique).
+        // Depuis le retrait du `@unique` sur managerId (2026-08-21), la seule
+        // unicité que la création puisse violer est celle du slug — deux
+        // événements ne peuvent pas partager la même adresse publique.
         throw new ConflictException({
           code: 'EVENT_ALREADY_EXISTS',
-          message: 'Vous avez déjà un événement associé à votre compte.',
+          message: 'Cette adresse (slug) est déjà utilisée par un autre événement.',
         });
       }
       throw err;
     }
   }
 
-  /** Mise à jour de l'événement du manager authentifié (ownership implicite via managerId). */
-  async updateMyEvent(managerId: string, data: UpdateEventDto) {
-    const event = await this.prisma.event.findUnique({
-      where: { managerId },
-      select: { id: true },
-    });
-    if (!event) {
-      throw new NotFoundException({
-        code: ErrorCodes.EVENT_NOT_FOUND,
-        message: 'Aucun événement associé à ce compte manager.',
-      });
-    }
+  /**
+   * Mise à jour d'un événement du manager authentifié.
+   *
+   * `eventId` absent = compatibilité `/mine`, qui ne vaut que pour un manager
+   * mono-événement. Avec plusieurs, le helper refuse plutôt que de deviner.
+   */
+  async updateMyEvent(managerId: string, data: UpdateEventDto, eventId?: string) {
+    const id = await this.acces.resoudreEvenementDuManager(managerId, eventId);
+    const event = { id };
 
     this.assertImagesAllowed(data);
 
@@ -127,7 +137,7 @@ export class EventsService {
 
     const manager = await this.prisma.user.findUnique({
       where: { id: managerId },
-      select: { isPremium: true },
+      select: { plan: true },
     });
     const current = await this.prisma.event.findUnique({
       where: { id: eventId },
@@ -136,7 +146,9 @@ export class EventsService {
     const effectivePolicy = ticketPolicy ?? current?.ticketPolicy ?? TicketPolicy.SINGLE_DAY;
     const wantsMultiDay = effectivePolicy !== TicketPolicy.SINGLE_DAY || (days?.length ?? 0) > 0;
 
-    if (wantsMultiDay && !manager?.isPremium) {
+    // Le multi-jours était le SEUL privilège que portait `isPremium`. Il
+    // découle désormais du palier, comme les autres (2026-08-21).
+    if (wantsMultiDay && !limitesDuPlan(manager?.plan).multiJours) {
       throw new ForbiddenException({
         code: ErrorCodes.PREMIUM_REQUIRED,
         message:
@@ -313,10 +325,14 @@ export class EventsService {
     return event;
   }
 
-  /** Événement du manager authentifié (CDC §1.4 : 1 Manager = 1 Event). */
-  async getMyEvent(managerId: string) {
+  /**
+   * Un événement du manager authentifié. Sans `eventId`, celui du manager
+   * mono-événement — voir EventAccessService pour le cas à plusieurs.
+   */
+  async getMyEvent(managerId: string, eventId?: string) {
+    const id = await this.acces.resoudreEvenementDuManager(managerId, eventId);
     const event = await this.prisma.event.findUnique({
-      where: { managerId },
+      where: { id },
       include: {
         tickets: { orderBy: { createdAt: 'asc' } },
         // Journées déclarées (2026-08-16) — le Builder les édite et le
@@ -340,9 +356,10 @@ export class EventsService {
    * décision produit 2026-07-14). Calculées à la volée (V1 — pas de table
    * d'agrégats dédiée, `EventAnalytics` non branchée).
    */
-  async getMyEventOverview(managerId: string) {
+  async getMyEventOverview(managerId: string, eventId?: string) {
+    const id = await this.acces.resoudreEvenementDuManager(managerId, eventId);
     const event = await this.prisma.event.findUnique({
-      where: { managerId },
+      where: { id },
       include: {
         scanners: { include: { logs: { select: { result: true, scannedAt: true } } } },
         // Statut paiement (décision produit 2026-07-13, config par événement,

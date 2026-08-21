@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { IsBoolean, IsEmail, IsString, MaxLength, MinLength } from 'class-validator';
 import { Role } from '@saas-events/types';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -41,24 +41,38 @@ class SetScannerActiveDto {
 export class ScannerAdminController {
   constructor(private readonly service: ScannerAdminService) {}
 
+  /**
+   * `?eventId=` désigne l'événement dont on gère les agents (2026-08-21).
+   * Absent, celui du manager mono-événement. Un agent appartient à UN
+   * événement : celui qui contrôle une soirée n'a aucune raison d'accéder aux
+   * sept autres d’un manager Premium.
+   */
   @Roles(Role.MANAGER)
   @Get()
-  async list(@CurrentUser() user: RequestUser) {
-    return this.service.list(user.id);
+  async list(@CurrentUser() user: RequestUser, @Query('eventId') eventId?: string) {
+    return this.service.list(user.id, eventId);
   }
 
   /** Crée le compte et envoie l'invitation à l'adresse indiquée. */
   @Roles(Role.MANAGER)
   @Post('invite')
-  async invite(@CurrentUser() user: RequestUser, @Body() dto: InviteScannerDto) {
-    return this.service.invite(user.id, dto);
+  async invite(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: InviteScannerDto,
+    @Query('eventId') eventId?: string,
+  ) {
+    return this.service.invite(user.id, dto, eventId);
   }
 
   /** Promeut un compte client existant — il perd l'accès à ses billets. */
   @Roles(Role.MANAGER)
   @Post('promote')
-  async promote(@CurrentUser() user: RequestUser, @Body() dto: PromoteScannerDto) {
-    return this.service.promote(user.id, dto);
+  async promote(
+    @CurrentUser() user: RequestUser,
+    @Body() dto: PromoteScannerDto,
+    @Query('eventId') eventId?: string,
+  ) {
+    return this.service.promote(user.id, dto, eventId);
   }
 
   @Roles(Role.MANAGER)
@@ -67,13 +81,18 @@ export class ScannerAdminController {
     @CurrentUser() user: RequestUser,
     @Param('id') id: string,
     @Body() dto: SetScannerActiveDto,
+    @Query('eventId') eventId?: string,
   ) {
-    return this.service.setActive(user.id, id, dto.isActive);
+    return this.service.setActive(user.id, id, dto.isActive, eventId);
   }
 
   @Roles(Role.MANAGER)
   @Delete(':id')
-  async remove(@CurrentUser() user: RequestUser, @Param('id') id: string) {
-    return this.service.remove(user.id, id);
+  async remove(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Query('eventId') eventId?: string,
+  ) {
+    return this.service.remove(user.id, id, eventId);
   }
 }

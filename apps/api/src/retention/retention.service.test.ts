@@ -9,7 +9,7 @@ import { RetentionService } from './retention.service';
 
 function makePrisma() {
   const tx = {
-    event: { delete: vi.fn().mockResolvedValue({}) },
+    event: { delete: vi.fn().mockResolvedValue({}), deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
     user: { delete: vi.fn().mockResolvedValue({}) },
   };
   return {
@@ -58,39 +58,39 @@ describe('RetentionService.deleteExpiredSelfServiceManagers()', () => {
 
   it("supprime un manager expiré sans événement (pas de commande à protéger)", async () => {
     prisma.user.findMany.mockResolvedValue([
-      { id: 'mgr-1', email: 'mgr1@x.com', managedEvent: null },
+      { id: 'mgr-1', email: 'mgr1@x.com', managedEvents: [] },
     ]);
 
     await service.deleteExpiredSelfServiceManagers();
 
-    expect(prisma._tx.event.delete).not.toHaveBeenCalled();
+    expect(prisma._tx.event.deleteMany).not.toHaveBeenCalled();
     expect(prisma._tx.user.delete).toHaveBeenCalledWith({ where: { id: 'mgr-1' } });
     expect(audit.log).toHaveBeenCalledWith('account.retention.manager.deleted', 'User', 'mgr-1', {
       email: 'mgr1@x.com',
-      hadEvent: false,
+      evenementsSupprimes: 0,
     });
   });
 
   it("supprime le manager ET son événement quand l'événement n'a aucune commande", async () => {
     prisma.user.findMany.mockResolvedValue([
-      { id: 'mgr-1', email: 'mgr1@x.com', managedEvent: { id: 'ev-1' } },
+      { id: 'mgr-1', email: 'mgr1@x.com', managedEvents: [{ id: 'ev-1' }] },
     ]);
     prisma.order.count.mockResolvedValue(0);
 
     await service.deleteExpiredSelfServiceManagers();
 
-    expect(prisma.order.count).toHaveBeenCalledWith({ where: { eventId: 'ev-1' } });
-    expect(prisma._tx.event.delete).toHaveBeenCalledWith({ where: { id: 'ev-1' } });
+    expect(prisma.order.count).toHaveBeenCalledWith({ where: { eventId: { in: ['ev-1'] } } });
+    expect(prisma._tx.event.deleteMany).toHaveBeenCalledWith({ where: { id: { in: ['ev-1'] } } });
     expect(prisma._tx.user.delete).toHaveBeenCalledWith({ where: { id: 'mgr-1' } });
     expect(audit.log).toHaveBeenCalledWith('account.retention.manager.deleted', 'User', 'mgr-1', {
       email: 'mgr1@x.com',
-      hadEvent: true,
+      evenementsSupprimes: 1,
     });
   });
 
   it("N'IGNORE PAS la suppression et journalise un avertissement quand l'événement a des commandes", async () => {
     prisma.user.findMany.mockResolvedValue([
-      { id: 'mgr-1', email: 'mgr1@x.com', managedEvent: { id: 'ev-1' } },
+      { id: 'mgr-1', email: 'mgr1@x.com', managedEvents: [{ id: 'ev-1' }] },
     ]);
     prisma.order.count.mockResolvedValue(3);
 
@@ -103,8 +103,8 @@ describe('RetentionService.deleteExpiredSelfServiceManagers()', () => {
 
   it("continue sur les managers suivants si une suppression échoue (erreur DB)", async () => {
     prisma.user.findMany.mockResolvedValue([
-      { id: 'mgr-1', email: 'mgr1@x.com', managedEvent: null },
-      { id: 'mgr-2', email: 'mgr2@x.com', managedEvent: null },
+      { id: 'mgr-1', email: 'mgr1@x.com', managedEvents: [] },
+      { id: 'mgr-2', email: 'mgr2@x.com', managedEvents: [] },
     ]);
     prisma.$transaction
       .mockImplementationOnce(() => Promise.reject(new Error('FK constraint')))

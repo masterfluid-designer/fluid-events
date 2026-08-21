@@ -82,14 +82,16 @@ describe('AdminService.getOverview()', () => {
         name: 'Kwame Asante',
         email: 'kwame@x.com',
         isActive: true,
-        managedEvent: {
-          id: 'ev-1',
-          title: 'Concert FESTA',
-          status: 'PUBLISHED',
-          paymentProviderConfigs: [{ provider: 'KKIAPAY' }],
-        },
+        managedEvents: [
+          {
+            id: 'ev-1',
+            title: 'Concert FESTA',
+            status: 'PUBLISHED',
+            paymentProviderConfigs: [{ provider: 'KKIAPAY' }],
+          },
+        ],
       },
-      { name: null, email: 'nobody@x.com', isActive: false, managedEvent: null },
+      { name: null, email: 'nobody@x.com', isActive: false, managedEvents: [] },
     ]);
     prisma.auditLog.findMany.mockResolvedValue([
       { action: 'payment.webhook.success', createdAt: new Date('2026-07-12T10:00:00Z') },
@@ -109,6 +111,9 @@ describe('AdminService.getOverview()', () => {
         eventId: 'ev-1',
         eventTitle: 'Concert FESTA',
         eventStatus: 'PUBLISHED',
+        // Un manager Premium en porte jusqu’à huit : la vue reste une ligne
+        // par manager, et dit combien il en a (2026-08-21).
+        eventsCount: 1,
         paymentProvider: 'KKIAPAY',
       },
       {
@@ -118,6 +123,7 @@ describe('AdminService.getOverview()', () => {
         eventId: null,
         eventTitle: null,
         eventStatus: null,
+        eventsCount: 0,
         paymentProvider: null,
       },
     ]);
@@ -651,8 +657,9 @@ describe('AdminService.listManagers()', () => {
         isActive: true,
         isSelfService: false,
         subscriptionActive: true,
+        plan: 'PREMIUM',
         createdAt: new Date('2026-07-01T00:00:00Z'),
-        managedEvent: { id: 'ev-1', title: 'Concert FESTA', status: 'PUBLISHED' },
+        managedEvents: [{ id: 'ev-1', title: 'Concert FESTA', status: 'PUBLISHED' }],
       },
       {
         id: 'mgr-2',
@@ -661,8 +668,9 @@ describe('AdminService.listManagers()', () => {
         isActive: false,
         isSelfService: true,
         subscriptionActive: false,
+        plan: 'FREE',
         createdAt: new Date('2026-07-02T00:00:00Z'),
-        managedEvent: null,
+        managedEvents: [],
       },
     ] as any);
 
@@ -676,10 +684,12 @@ describe('AdminService.listManagers()', () => {
         isActive: true,
         isSelfService: false,
         subscriptionActive: true,
+        plan: 'PREMIUM',
         createdAt: new Date('2026-07-01T00:00:00Z'),
         eventId: 'ev-1',
         eventTitle: 'Concert FESTA',
         eventStatus: 'PUBLISHED',
+        eventsCount: 1,
       },
       {
         id: 'mgr-2',
@@ -688,10 +698,12 @@ describe('AdminService.listManagers()', () => {
         isActive: false,
         isSelfService: true,
         subscriptionActive: false,
+        plan: 'FREE',
         createdAt: new Date('2026-07-02T00:00:00Z'),
         eventId: null,
         eventTitle: null,
         eventStatus: null,
+        eventsCount: 0,
       },
     ]);
     expect(prisma.user.findMany).toHaveBeenCalledWith(
@@ -848,29 +860,29 @@ describe('AdminService.setManagerPremium()', () => {
     service = new AdminService(prisma as any, makeCrypto() as any, makeEmail() as any, audit as any, makeAuthService() as any, {} as any);
   });
 
-  it('accorde le palier Premium et journalise', async () => {
+  it('accorde le palier PREMIUM et journalise', async () => {
     prisma.user.findUnique.mockResolvedValue({ id: 'mgr-1', role: 'MANAGER' });
-    prisma.user.update.mockResolvedValue({ id: 'mgr-1', isPremium: true });
+    prisma.user.update.mockResolvedValue({ id: 'mgr-1', plan: 'PREMIUM' });
 
-    const result = await service.setManagerPremium('mgr-1', true);
+    const result = await service.setManagerPlan('mgr-1', 'PREMIUM');
 
     expect(prisma.user.update).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: 'mgr-1' }, data: { isPremium: true } }),
+      expect.objectContaining({ where: { id: 'mgr-1' }, data: { plan: 'PREMIUM' } }),
     );
-    expect(audit.log).toHaveBeenCalledWith('admin.manager.premium', 'User', 'mgr-1', {
-      isPremium: true,
+    expect(audit.log).toHaveBeenCalledWith('admin.manager.plan', 'User', 'mgr-1', {
+      plan: 'PREMIUM',
     });
-    expect(result).toEqual({ id: 'mgr-1', isPremium: true });
+    expect(result).toEqual({ id: 'mgr-1', plan: 'PREMIUM' });
   });
 
   it("ne touche JAMAIS à l'abonnement au passage", async () => {
-    // Les deux drapeaux sont distincts à dessein : `subscriptionActive`
-    // commande la suppression par rétention, `isPremium` les options
-    // avancées. Les confondre supprimerait des comptes ou en promouvrait.
+    // Les deux réglages sont distincts à dessein : `subscriptionActive`
+    // commande la suppression par rétention, `plan` ce qui est permis. Les
+    // confondre supprimerait des comptes ou en promouvrait.
     prisma.user.findUnique.mockResolvedValue({ id: 'mgr-1', role: 'MANAGER' });
-    prisma.user.update.mockResolvedValue({ id: 'mgr-1', isPremium: false });
+    prisma.user.update.mockResolvedValue({ id: 'mgr-1', plan: 'FREE' });
 
-    await service.setManagerPremium('mgr-1', false);
+    await service.setManagerPlan('mgr-1', 'FREE');
 
     const written = prisma.user.update.mock.calls[0][0].data;
     expect(written).not.toHaveProperty('subscriptionActive');
@@ -879,7 +891,7 @@ describe('AdminService.setManagerPremium()', () => {
 
   it('404 si le manager est introuvable', async () => {
     prisma.user.findUnique.mockResolvedValue(null);
-    await expect(service.setManagerPremium('unknown', true)).rejects.toThrow(NotFoundException);
+    await expect(service.setManagerPlan('unknown', 'PREMIUM')).rejects.toThrow(NotFoundException);
   });
 });
 

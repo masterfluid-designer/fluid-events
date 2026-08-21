@@ -9,7 +9,7 @@ import { AuditService } from '../common/audit.service';
 import { EmailService } from '../notifications/email.service';
 import { AuthService } from '../auth/auth.service';
 import { StorageService } from '../storage/storage.service';
-import { ErrorCodes, EventStatus, PaymentProviderType, Role, TokenPair } from '@saas-events/types';
+import { ErrorCodes, EventStatus, PaymentProviderType, Role, SubscriptionPlan, TokenPair } from '@saas-events/types';
 import { FRONTEND_URL } from '../common/constants';
 import { UpsertPaymentConfigDto } from './dto/upsert-payment-config.dto';
 import { InviteManagerDto } from './dto/invite-manager.dto';
@@ -73,7 +73,11 @@ export class AdminService {
           name: true,
           email: true,
           isActive: true,
-          managedEvent: {
+          // Un manager Premium en porte jusqu’à huit (2026-08-21). La vue
+          // plateforme reste une LIGNE par manager : on montre le plus
+          // ancien — celui qui l’identifie — et on dit combien il en a.
+          managedEvents: {
+            orderBy: { createdAt: 'asc' },
             select: {
               id: true,
               title: true,
@@ -110,15 +114,19 @@ export class AdminService {
       currency: 'XOF',
       ticketsSold,
       salesOverTime,
-      managers: managers.map((m) => ({
-        name: m.name ?? 'Sans nom',
-        email: m.email,
-        isActive: m.isActive,
-        eventId: m.managedEvent?.id ?? null,
-        eventTitle: m.managedEvent?.title ?? null,
-        eventStatus: m.managedEvent?.status ?? null,
-        paymentProvider: m.managedEvent?.paymentProviderConfigs[0]?.provider ?? null,
-      })),
+      managers: managers.map((m) => {
+        const premier = m.managedEvents[0];
+        return {
+          name: m.name ?? 'Sans nom',
+          email: m.email,
+          isActive: m.isActive,
+          eventId: premier?.id ?? null,
+          eventTitle: premier?.title ?? null,
+          eventStatus: premier?.status ?? null,
+          eventsCount: m.managedEvents.length,
+          paymentProvider: premier?.paymentProviderConfigs[0]?.provider ?? null,
+        };
+      }),
       recentLogs,
     };
   }
@@ -492,9 +500,9 @@ export class AdminService {
         isActive: true,
         isSelfService: true,
         subscriptionActive: true,
-        isPremium: true,
+        plan: true,
         createdAt: true,
-        managedEvent: { select: { id: true, title: true, status: true } },
+        managedEvents: { orderBy: { createdAt: 'asc' }, select: { id: true, title: true, status: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -506,11 +514,12 @@ export class AdminService {
       isActive: m.isActive,
       isSelfService: m.isSelfService,
       subscriptionActive: m.subscriptionActive,
-      isPremium: m.isPremium,
+      plan: m.plan,
       createdAt: m.createdAt,
-      eventId: m.managedEvent?.id ?? null,
-      eventTitle: m.managedEvent?.title ?? null,
-      eventStatus: m.managedEvent?.status ?? null,
+      eventId: m.managedEvents[0]?.id ?? null,
+      eventTitle: m.managedEvents[0]?.title ?? null,
+      eventStatus: m.managedEvents[0]?.status ?? null,
+      eventsCount: m.managedEvents.length,
     }));
   }
 
@@ -640,14 +649,21 @@ export class AdminService {
    * l’abonnement protège le compte de la suppression automatique, Premium
    * débloque les options avancées (événements sur plusieurs jours).
    */
-  async setManagerPremium(managerId: string, isPremium: boolean) {
+  /**
+   * Change le palier d'abonnement (2026-08-21 — remplace le booléen
+   * `isPremium`). Rétrograder ne détruit RIEN : les événements déjà créés et
+   * les agents déjà invités continuent de vivre, seule la création d’un de
+   * plus est refusée. Dépublier des événements en cours de vente sur un
+   * changement de facturation serait indéfendable.
+   */
+  async setManagerPlan(managerId: string, plan: SubscriptionPlan) {
     const manager = await this.getManagerOrThrow(managerId);
     const updated = await this.prisma.user.update({
       where: { id: manager.id },
-      data: { isPremium },
-      select: { id: true, isPremium: true },
+      data: { plan },
+      select: { id: true, plan: true },
     });
-    await this.audit.log('admin.manager.premium', 'User', manager.id, { isPremium });
+    await this.audit.log('admin.manager.plan', 'User', manager.id, { plan });
     return updated;
   }
 

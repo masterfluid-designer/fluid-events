@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Put } from '@nestjs/common';
+import { Body, Controller, Get, Param, Put, Query } from '@nestjs/common';
 import { Role } from '@saas-events/types';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -15,9 +15,11 @@ export class BuilderController {
   constructor(private readonly builderService: BuilderService) {}
 
   @Roles(Role.MANAGER)
+  /** `?eventId=` désigne l'événement visé (2026-08-21) ; absent, celui du
+   *  manager mono-événement. */
   @Get('mine')
-  async getMine(@CurrentUser() user: RequestUser) {
-    return this.builderService.getMyBlocks(user.id);
+  async getMine(@CurrentUser() user: RequestUser, @Query('eventId') eventId?: string) {
+    return this.builderService.getMyBlocks(user.id, eventId);
   }
 
   @Roles(Role.MANAGER)

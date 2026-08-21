@@ -11,7 +11,7 @@ import { InviteManagerDto } from './dto/invite-manager.dto';
 import { SetManagerActiveDto } from './dto/set-manager-active.dto';
 import { SetManagerSubscriptionDto } from './dto/set-manager-subscription.dto';
 import { UpdateWhatsappConfigDto } from './dto/update-whatsapp-config.dto';
-import { SetManagerPremiumDto } from './dto/set-manager-premium.dto';
+import { SetManagerPlanDto } from './dto/set-manager-plan.dto';
 import { SetEventStatusDto } from './dto/set-event-status.dto';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
 import { UpdatePlatformSettingsDto } from '../platform-settings/dto/update-platform-settings.dto';
@@ -162,11 +162,11 @@ export class AdminController {
     return this.adminService.setManagerActive(id, dto.isActive);
   }
 
-  /** PATCH /api/admin/managers/:id/premium — palier Premium (options avancées). */
+  /** PATCH /api/admin/managers/:id/plan — palier d'abonnement (2026-08-21). */
   @Roles(Role.SUPER_ADMIN)
-  @Patch('managers/:id/premium')
-  async setManagerPremium(@Param('id') id: string, @Body() dto: SetManagerPremiumDto) {
-    return this.adminService.setManagerPremium(id, dto.isPremium);
+  @Patch('managers/:id/plan')
+  async setManagerPlan(@Param('id') id: string, @Body() dto: SetManagerPlanDto) {
+    return this.adminService.setManagerPlan(id, dto.plan);
   }
 
   /** PATCH /api/admin/managers/:id/subscription — statut manuel (V1, pas de facturation réelle). */

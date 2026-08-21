@@ -337,9 +337,10 @@ export class AuthOrchestratorService {
         country: true,
         avatarUrl: true,
         phoneVerifiedAt: true,
-        // Palier Premium (2026-08-16) : le frontend conditionne les options
-        // avancées dessus. Jamais une garantie — le serveur revalide.
-        isPremium: true,
+        // Palier d'abonnement (2026-08-21, remplace `isPremium`) : le frontend
+        // conditionne les options avancées dessus. Jamais une garantie — le
+        // serveur revalide.
+        plan: true,
         // Événement rattaché à un compte SCANNER (2026-08-17) : son interface
         // doit porter les couleurs de la page publique de cet événement, et
         // n’a aujourd’hui aucun moyen de savoir duquel il s’agit.

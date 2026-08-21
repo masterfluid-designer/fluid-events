@@ -8,6 +8,7 @@ import {
 import { InputJsonValue } from '@prisma/client/runtime/library';
 import { ErrorCodes } from '@saas-events/types';
 import { PrismaService } from '../prisma/prisma.service';
+import { EventAccessService } from '../common/event-access.service';
 import { SaveBlocksDto } from './blocks.schema';
 import { detectConcurrencyConflict } from './builder.concurrency';
 import { isAllowedImageUrl } from '../storage/image-whitelist.util';
@@ -20,12 +21,20 @@ import { sanitizeBlockHtml } from './html-sanitizer.util';
  */
 @Injectable()
 export class BuilderService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly acces: EventAccessService,
+  ) {}
 
-  /** Page builder de l'événement du manager authentifié (CDC §1.4 : 1 Manager = 1 Event). */
-  async getMyBlocks(managerId: string) {
+  /**
+   * Page builder d'un événement du manager authentifié. Sans `eventId`,
+   * celui du manager mono-événement — l'appartenance était garantie par le
+   * `@unique` sur managerId, elle est désormais vérifiée (2026-08-21).
+   */
+  async getMyBlocks(managerId: string, eventId?: string) {
+    const id = await this.acces.resoudreEvenementDuManager(managerId, eventId);
     const event = await this.prisma.event.findUnique({
-      where: { managerId },
+      where: { id },
       select: { id: true, eventPage: true },
     });
     if (!event) {

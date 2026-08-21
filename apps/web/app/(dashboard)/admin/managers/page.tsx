@@ -26,7 +26,10 @@ interface ManagerRow {
   isSelfService: boolean;
   subscriptionActive: boolean;
   // Palier Premium (2026-08-16) — débloque le multi-jours.
-  isPremium: boolean;
+  /** Palier d'abonnement (2026-08-21) — remplace le booléen `isPremium`. */
+  plan: 'FREE' | 'PREMIUM';
+  /** Nombre d’événements portés — 1 en FREE, jusqu’à 8 en PREMIUM. */
+  eventsCount: number;
   createdAt: string;
   eventId: string | null;
   eventTitle: string | null;
@@ -89,12 +92,16 @@ export default function AdminManagersPage() {
   });
 
   // Séparé de l’abonnement à dessein : l’abonnement protège le compte de la
-  // suppression automatique, Premium débloque les options avancées.
-  const togglePremium = useMutation({
-    mutationFn: ({ id, isPremium }: { id: string; isPremium: boolean }) =>
-      apiPatch(`/api/admin/managers/${id}/premium`, { isPremium }),
+  // suppression automatique, le palier décide de ce qui est permis.
+  //
+  // Rétrograder ne détruit rien : les événements déjà créés et les agents
+  // déjà invités continuent de vivre, seule la création d’un de plus est
+  // refusée (voir EventAccessService).
+  const togglePlan = useMutation({
+    mutationFn: ({ id, plan }: { id: string; plan: 'FREE' | 'PREMIUM' }) =>
+      apiPatch(`/api/admin/managers/${id}/plan`, { plan }),
     onSuccess: (_data, variables) => {
-      toast.success(variables.isPremium ? 'Palier Premium accordé' : 'Palier Premium retiré');
+      toast.success(variables.plan === 'PREMIUM' ? 'Palier Premium accordé' : 'Palier Premium retiré');
       invalidate();
     },
     onError: (err) => {
@@ -187,7 +194,12 @@ export default function AdminManagersPage() {
                   <Badge variant={m.subscriptionActive ? 'success' : 'outline'}>
                     {m.subscriptionActive ? 'Abonné' : 'Non abonné'}
                   </Badge>
-                  {m.isPremium && <Badge variant="success">Premium</Badge>}
+                  {m.plan === 'PREMIUM' && <Badge variant="success">Premium</Badge>}
+                  {/* Un Premium peut porter huit événements : le dire ici évite
+                      d’ouvrir sa fiche pour savoir combien il en a. */}
+                  {m.eventsCount > 1 && (
+                    <Badge variant="outline">{m.eventsCount} événements</Badge>
+                  )}
 
                   <Button
                     variant="outline"
@@ -210,10 +222,12 @@ export default function AdminManagersPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    disabled={togglePremium.isPending}
-                    onClick={() => togglePremium.mutate({ id: m.id, isPremium: !m.isPremium })}
+                    disabled={togglePlan.isPending}
+                    onClick={() =>
+                      togglePlan.mutate({ id: m.id, plan: m.plan === 'PREMIUM' ? 'FREE' : 'PREMIUM' })
+                    }
                   >
-                    {m.isPremium ? 'Retirer Premium' : 'Passer Premium'}
+                    {m.plan === 'PREMIUM' ? 'Retirer Premium' : 'Passer Premium'}
                   </Button>
                   <Button
                     variant="secondary"

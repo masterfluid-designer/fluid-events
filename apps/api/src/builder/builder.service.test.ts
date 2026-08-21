@@ -21,13 +21,28 @@ function makePrisma() {
   };
 }
 
+
+/**
+ * Faux EventAccessService. Le vrai est couvert par ses propres tests
+ * (common/event-access.service.test.ts) : ici on ne teste pas la résolution,
+ * on la suppose faite. Par défaut elle renvoie l'identifiant demandé, ou
+ * `ev-1` — celui que les mocks Prisma de ce fichier renvoient déjà.
+ */
+function makeAcces() {
+  return {
+    resoudreEvenementDuManager: vi.fn(async (_managerId: string, eventId?: string) => eventId ?? 'ev-1'),
+    assertQuotaEvenements: vi.fn().mockResolvedValue(undefined),
+    plafondScanners: vi.fn().mockResolvedValue(3),
+  };
+}
+
 describe('BuilderService', () => {
   let prisma: ReturnType<typeof makePrisma>;
   let service: BuilderService;
 
   beforeEach(() => {
     prisma = makePrisma();
-    service = new BuilderService(prisma as any);
+    service = new BuilderService(prisma as any, makeAcces() as any);
   });
 
   describe('getMyBlocks()', () => {
