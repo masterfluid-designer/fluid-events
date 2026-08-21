@@ -752,6 +752,73 @@ pleine d’emblée : à moitié remplie et figée, elle passerait pour un bug.
 **Vérifié à l’écran** : 0 → 163/325/163 px, décalages de 0 / 0,16 / 0,32 s,
 trois points allumés, et décocher un élément le retire du panneau.
 
+### La frise avance au rythme du défilement (2026-08-21)
+
+La barre se remplissait d’un coup à l’entrée dans le viewport. Le modèle
+validé demande l’inverse : un curseur qui court le long du rail au rythme de
+la page et vient se poser sur le dernier jalon.
+
+Ce n’est pas qu’une affaire de goût. Une animation jouée une fois retire au
+lecteur la main sur son rythme — elle se déclenche qu’il regarde ou non, et ne
+dit rien de l’endroit où il en est. Liée au défilement, la barre devient une
+jauge.
+
+- Le défilement n’écrit **qu’une variable CSS** sur le conteneur ; rail,
+  curseur, jalons et cartes en découlent en CSS. Un état React ferait repasser
+  React sur toute la section à chaque pixel, pour un rendu identique.
+- Les extrémités du rail sont **mesurées sur les anneaux**, pas sur les bords
+  du conteneur : sinon le curseur finit sa course à côté du dernier jalon.
+- Vertical au mobile (une frise horizontale à trois jalons y est illisible),
+  horizontal à partir de `md`.
+
+⚠️ Deux pièges rencontrés, à ne pas réintroduire :
+
+1. un jalon dont le seuil vaut exactement 1 ne s’allume jamais si la formule
+   ne compense pas — la progression plafonne elle aussi à 1. Le dernier anneau
+   restait éteint sous le curseur arrêté dessus ;
+2. le redimensionnement doit **remesurer**, pas seulement recalculer. Passer du
+   bureau au mobile fait basculer l’axe : le rail gardait la géométrie
+   précédente et se retrouvait de hauteur nulle après une rotation.
+
+**Vérifié à l’écran** : curseur à 249, 633 puis 1017 px — les centres exacts
+des trois anneaux —, rail de 0 à 768 px, jalons allumés dans l’ordre ; au
+mobile la même course à la verticale sur 267 px, sans débordement horizontal.
+
+### Images allégées à l’envoi, et contenu vérifié (2026-08-21)
+
+Deux défauts qui se répondaient.
+
+**La whitelist ne regardait que le `mimetype` annoncé par le navigateur**, qui
+se falsifie en une ligne : n’importe quel fichier déclaré `image/png`
+finissait dans un bucket public, servi depuis notre domaine. Le serveur lit
+désormais les premiers octets, puis les dimensions réelles, et stocke le type
+qu’il a détecté (`api/src/storage/image-guard.ts`).
+
+**L’image partait telle quelle.** Une affiche de 4000 px et 10 Mo était
+téléchargée en entier par chaque visiteur — sur un forfait data, cette seule
+image coûte plus que tout le reste de la page. Le navigateur la redimensionne
+à 1920 px et la réencode en WEBP avant l’envoi (`web/lib/image-optimizer.ts`).
+
+- **Pas de `sharp`** : un binaire natif par plateforme, installé depuis un
+  poste Windows vers une image Alpine, pour un besoin qui tient en quelques
+  lectures d’octets.
+- **L’optimisation vit dans `apiUpload`**, pas dans le composant de dépôt :
+  placée là, elle aurait manqué le dépôt des logos de la landing.
+- **AVIF reste refusé** : nous ne savons pas en lire les dimensions sans
+  décodeur, et accepter un format invérifiable revient à retirer le garde-fou.
+- Limites serveur : **3 Mo** (au lieu de 5) et **4000 px** par côté, PNG, JPEG
+  ou WEBP. Le client ne garantit rien — il se contourne ; c’est le serveur qui
+  refuse.
+- La conversion est abandonnée si elle **alourdit** le fichier, l’orientation
+  EXIF est respectée (sans quoi une photo de téléphone arrive couchée), et la
+  transparence traverse.
+
+**Mesuré** avec le module réellement servi : PNG 4000×3000 de 10 Mo → 82 Ko ;
+logo 2400×1200 de 87 Ko → 19 Ko, coin à alpha 0 ; vidéo et fichier de moins de
+48 Ko renvoyés inchangés. 18 tests serveur : exécutable renommé, SVG, GIF,
+BMP, fichier tronqué, image trop lourde, image trop grande, faux conteneur
+vidéo.
+
 ## 4. Priorités immédiates (à date)
 
 | Module | Priorité | Référence CDC |
@@ -774,6 +841,7 @@ trois points allumés, et décocher un élément le retire du panneau.
 | Comptes Scanner créés par le Manager (invitation + promotion d’un client) | ✅ Fait (2026-08-19) | §9.5 |
 | Identifiants WhatsApp réglables depuis l’Admin | ✅ Fait (2026-08-19) | §10 |
 | Thème clair/sombre de la page publique + en-tête paramétrable | ✅ Fait (2026-08-20) | §11 |
+| Uploads : contenu vérifié, poids et dimensions plafonnés, images optimisées | ✅ Fait (2026-08-21) | §6 |
 | Fournisseur de paiement configuré en production | 🔴 À faire (bloque tout encaissement réel) | §8 |
 | Déploiement production (VPS, TLS, cookies inter-sous-domaines) | ✅ Fait (2026-08-16, en service) | — |
 | Tunnel d’achat : récapitulatif détaillé + « Payer » | ✅ Fait (2026-08-16) | §8 |
