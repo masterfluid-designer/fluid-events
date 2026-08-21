@@ -1,6 +1,13 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { ErrorCodes, SubscriptionPlan, limitesDuPlan } from '@saas-events/types';
+import {
+  ErrorCodes,
+  EventAccessMode,
+  SubscriptionPlan,
+  limitesDuPlan,
+  vendDesBillets,
+} from '@saas-events/types';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from './audit.service';
 
 /**
  * EventAccessService — à qui appartient quel événement, et ce que son palier
@@ -19,7 +26,10 @@ import { PrismaService } from '../prisma/prisma.service';
  */
 @Injectable()
 export class EventAccessService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
   /**
    * Résout l'événement sur lequel une opération porte, et garantit qu'il
@@ -102,6 +112,70 @@ export class EventAccessService {
         details: { existants, maximum: limites.maxEvenements },
       });
     }
+  }
+
+  /**
+   * Change le régime d’accès d’un événement, ou refuse.
+   *
+   * UNE SEULE bascule est interdite : quitter la billetterie alors que des
+   * places ont été vendues. Retirer sa page d’accès à quelqu’un qui a payé
+   * n’est pas rattrapable — les autres sens ne retirent rien à personne.
+   *
+   * Rien n’est jamais détruit au passage : les blocs, les billets et les
+   * inscriptions restent en base. Le régime ne commande que ce qui est
+   * RENDU et ce qui est PROPOSÉ (voir `blocAutorise`), jamais ce qui est
+   * stocké. Revenir en arrière restitue la page à l’identique.
+   */
+  async changerRegimeAcces(
+    eventId: string,
+    cible: EventAccessMode,
+    managerId: string,
+  ): Promise<{ avant: EventAccessMode; apres: EventAccessMode; commandesPayees: number }> {
+    const evenement = await this.prisma.event.findUnique({
+      where: { id: eventId },
+      select: { accessMode: true },
+    });
+
+    if (!evenement) {
+      throw new NotFoundException({
+        code: ErrorCodes.EVENT_NOT_FOUND,
+        message: 'Événement introuvable.',
+      });
+    }
+
+    const avant = evenement.accessMode as EventAccessMode;
+
+    // On compte les commandes payées quel que soit le sens : le chiffre
+    // sert aussi à l’écran de confirmation, qui doit annoncer ce qui est
+    // conservé plutôt qu’un avertissement vague.
+    const commandesPayees = await this.prisma.order.count({
+      where: { eventId, status: 'PAID' },
+    });
+
+    const quitteLaBilletterie = vendDesBillets(avant) && !vendDesBillets(cible);
+    if (quitteLaBilletterie && commandesPayees > 0) {
+      throw new ForbiddenException({
+        code: ErrorCodes.EVENT_ACCESS_MODE_LOCKED,
+        message: `Impossible de retirer la billetterie : ${commandesPayees} commande(s) ont déjà été payées.`,
+        details: { commandesPayees },
+      });
+    }
+
+    if (avant !== cible) {
+      await this.prisma.event.update({ where: { id: eventId }, data: { accessMode: cible } });
+      /*
+       * L’audit porte l’état du moment, pas seulement le changement : un
+       * manager qui bascule deux fois et perd le fil n’a aucun recours si
+       * l’on n’a gardé que « avant → après ».
+       */
+      await this.audit.log('event.access_mode.changed', 'Event', eventId, {
+        avant,
+        apres: cible,
+        commandesPayees,
+      }, managerId);
+    }
+
+    return { avant, apres: cible, commandesPayees };
   }
 
   /**

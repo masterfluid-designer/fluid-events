@@ -83,8 +83,19 @@ export class EventsService {
       endDate,
       days,
       ticketPolicy,
+      accessMode,
       ...rest
     } = data;
+
+    /*
+     * Le régime d'accès sort du lot : il ne s'écrit pas avec les autres
+     * champs (2026-08-21). Retirer la billetterie à un événement dont des
+     * places ont été payées n'est pas rattrapable, et chaque passage doit
+     * laisser une trace. `changerRegimeAcces` porte les deux règles.
+     */
+    if (accessMode !== undefined) {
+      await this.acces.changerRegimeAcces(event.id, accessMode, managerId);
+    }
 
     // Avant l’écriture : un régime refusé ne doit laisser aucune trace.
     await this.applyDaysAndPolicy(event.id, managerId, ticketPolicy, days);

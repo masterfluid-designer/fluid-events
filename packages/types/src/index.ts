@@ -76,6 +76,46 @@ export const SubscriptionPlan = {
 export type SubscriptionPlan = (typeof SubscriptionPlan)[keyof typeof SubscriptionPlan];
 
 /**
+ * Régime d'accès d'un événement (plan validé le 2026-08-21). Trois façons
+ * d'ouvrir sa porte, là où le produit n'en connaissait qu'une.
+ *
+ * `TICKETED_ACCOUNT` est le défaut, et c'est délibéré : à la migration,
+ * aucun événement existant ne change de comportement. La production vend
+ * des billets pendant que le reste se construit.
+ */
+export const EventAccessMode = {
+  /** Inscription simple : ni billet, ni paiement, ni compte. */
+  RSVP: 'RSVP',
+  /** Billetterie, mais achat sans compte — le billet arrive par email. */
+  TICKETED_GUEST: 'TICKETED_GUEST',
+  /** Billetterie avec compte client : le parcours historique. */
+  TICKETED_ACCOUNT: 'TICKETED_ACCOUNT',
+} as const;
+
+export type EventAccessMode = (typeof EventAccessMode)[keyof typeof EventAccessMode];
+
+/** Un billet ne se vend que dans les deux régimes billetterie. */
+export function vendDesBillets(mode: EventAccessMode | null | undefined): boolean {
+  return mode !== EventAccessMode.RSVP;
+}
+
+/**
+ * Blocs proposés par le Builder pour un régime donné.
+ *
+ * ⚠️ Ce filtre porte sur ce qui est PROPOSÉ, jamais sur ce qui est stocké.
+ * Un événement qui passe de billetterie à RSVP garde son bloc `tickets` en
+ * base : il cesse simplement d’être rendu et offert. Revenir en arrière
+ * restitue la page à l’identique — aucune donnée n’est détruite par un
+ * changement de régime.
+ */
+export function blocAutorise(type: BlockType, mode: EventAccessMode | null | undefined): boolean {
+  const regime = mode ?? EventAccessMode.TICKETED_ACCOUNT;
+  if (type === 'tickets') return regime !== EventAccessMode.RSVP;
+  if (type === 'registration') return regime === EventAccessMode.RSVP;
+  return true;
+}
+
+/**
  * Ce que chaque palier autorise. Volontairement EN CODE et non en base : une
  * table de limites imposerait une migration de données à chaque évolution de
  * l'offre, et laisserait les valeurs dériver d'un abonné à l'autre. Ici, un
@@ -301,6 +341,7 @@ export const SINGLETON_BLOCK_TYPES = [
   'gallery',
   'sponsors',
   'location',
+  'registration',
 ] as const;
 
 export type BlockType =
@@ -318,6 +359,10 @@ export type BlockType =
   | 'speakers'
   | 'html'
   | 'timeline'
+  // Bloc « Formulaire d’inscription » (plan 2026-08-21) : réservé au régime
+  // RSVP, où il remplace la billetterie. Titre, description, liste à puces
+  // et formulaire de recueil.
+  | 'registration'
   // Bloc « Où ça se passe » (décision produit 2026-08-16) : adresse structurée,
   // indications d’accès, numéro officiel et lien Maps. Le contenu vient des
   // champs de l’événement, pas des props du bloc — même principe que
@@ -568,6 +613,8 @@ export const ErrorCodes = {
   EVENT_SELECTION_REQUIRED: 'EVENT_SELECTION_REQUIRED',
   /** Le palier d'abonnement n'autorise pas un événement de plus. */
   EVENT_QUOTA_REACHED: 'EVENT_QUOTA_REACHED',
+  /** Bascule refusée : des places ont déjà été vendues. */
+  EVENT_ACCESS_MODE_LOCKED: 'EVENT_ACCESS_MODE_LOCKED',
   EVENT_NOT_ACTIVE: 'EVENT_NOT_ACTIVE',
   EVENT_EXPIRED: 'EVENT_EXPIRED',
   // Somme des stocks de billets > Event.expectedAttendees (plafond réel,

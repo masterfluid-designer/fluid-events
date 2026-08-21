@@ -16,7 +16,7 @@ import {
   MaxLength,
   ValidateNested,
 } from 'class-validator';
-import { EventStatus, TicketPolicy } from '@saas-events/types';
+import { EventAccessMode, EventStatus, TicketPolicy } from '@saas-events/types';
 import {
   EventDayDto,
   FaqEntryDto,
@@ -99,6 +99,17 @@ export class UpdateEventDto {
   @IsOptional()
   @IsEnum(TicketPolicy)
   ticketPolicy?: TicketPolicy;
+
+  /**
+   * Régime d'accès (plan 2026-08-21) : inscription simple, billetterie sans
+   * compte, billetterie avec compte. La bascule n'est pas une écriture comme
+   * une autre — elle passe par `EventAccessService.changerRegimeAcces`, qui
+   * refuse de retirer la billetterie à des acheteurs déjà payants et
+   * consigne le passage. Jamais écrite directement par `update`.
+   */
+  @IsOptional()
+  @IsEnum(EventAccessMode)
+  accessMode?: EventAccessMode;
 
   /**
    * Journées de l’événement, remplacées en bloc à chaque enregistrement.

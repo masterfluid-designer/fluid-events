@@ -142,6 +142,12 @@ model Event {
   /// tant que le Manager n’est pas Premium — c’est le comportement d’avant.
   ticketPolicy             TicketPolicy @default(SINGLE_DAY)
 
+  /// Régime d’accès (plan 2026-08-21) : inscription simple, billetterie
+  /// sans compte, ou billetterie avec compte. Le défaut reproduit le
+  /// comportement historique — aucun événement existant ne bouge à la
+  /// migration.
+  accessMode               EventAccessMode @default(TICKETED_ACCOUNT)
+
   startDate                DateTime
   endDate                  DateTime // Détermine la durée de session client (endDate + 24h)
   timezone                 String              @default("Africa/Abidjan")
@@ -195,6 +201,13 @@ model Event {
 
 /// Palier d’abonnement du Manager. Distinct de `subscriptionActive`, qui
 /// commande la rétention et vaut déjà `true` pour tout manager invité.
+/// Régime d’accès d’un événement — voir `EventAccessMode` (packages/types).
+enum EventAccessMode {
+  RSVP
+  TICKETED_GUEST
+  TICKETED_ACCOUNT
+}
+
 enum SubscriptionPlan {
   FREE
   PREMIUM

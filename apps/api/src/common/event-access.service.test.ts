@@ -19,9 +19,15 @@ function makePrisma() {
       findUnique: vi.fn(),
       findMany: vi.fn(),
       count: vi.fn(),
+      update: vi.fn().mockResolvedValue({}),
     },
+    order: { count: vi.fn().mockResolvedValue(0) },
     user: { findUnique: vi.fn() },
   };
+}
+
+function makeAudit() {
+  return { log: vi.fn().mockResolvedValue(undefined) };
 }
 
 /** Extrait la réponse d'erreur NestJS, où vivent `code` et `details`. */
@@ -44,10 +50,12 @@ async function erreurDe(promesse: Promise<unknown>) {
 describe('EventAccessService.resoudreEvenementDuManager()', () => {
   let prisma: ReturnType<typeof makePrisma>;
   let service: EventAccessService;
+  let audit: ReturnType<typeof makeAudit>;
 
   beforeEach(() => {
     prisma = makePrisma();
-    service = new EventAccessService(prisma as never);
+    audit = makeAudit();
+    service = new EventAccessService(prisma as never, audit as never);
   });
 
   it("accepte un événement qui appartient bien au manager", async () => {
@@ -98,10 +106,12 @@ describe('EventAccessService.resoudreEvenementDuManager()', () => {
 describe('EventAccessService.assertQuotaEvenements()', () => {
   let prisma: ReturnType<typeof makePrisma>;
   let service: EventAccessService;
+  let audit: ReturnType<typeof makeAudit>;
 
   beforeEach(() => {
     prisma = makePrisma();
-    service = new EventAccessService(prisma as never);
+    audit = makeAudit();
+    service = new EventAccessService(prisma as never, audit as never);
   });
 
   it('laisse un manager FREE créer son premier événement', async () => {
@@ -152,10 +162,12 @@ describe('EventAccessService.assertQuotaEvenements()', () => {
 describe('EventAccessService.plafondScanners()', () => {
   let prisma: ReturnType<typeof makePrisma>;
   let service: EventAccessService;
+  let audit: ReturnType<typeof makeAudit>;
 
   beforeEach(() => {
     prisma = makePrisma();
-    service = new EventAccessService(prisma as never);
+    audit = makeAudit();
+    service = new EventAccessService(prisma as never, audit as never);
   });
 
   it('suit le palier quand aucune dérogation n’est posée', async () => {
@@ -179,5 +191,85 @@ describe('EventAccessService.plafondScanners()', () => {
     // accorderait 6 agents à un événement dont on voulait fermer le contrôle.
     prisma.event.findUnique.mockResolvedValue({ maxScanners: 0, manager: { plan: 'PREMIUM' } });
     await expect(service.plafondScanners('evt-1')).resolves.toBe(0);
+  });
+});
+
+describe('EventAccessService.changerRegimeAcces()', () => {
+  let prisma: ReturnType<typeof makePrisma>;
+  let service: EventAccessService;
+  let audit: ReturnType<typeof makeAudit>;
+
+  beforeEach(() => {
+    prisma = makePrisma();
+    audit = makeAudit();
+    service = new EventAccessService(prisma as never, audit as never);
+  });
+
+  it('refuse de retirer la billetterie quand des places ont été payées', async () => {
+    prisma.event.findUnique.mockResolvedValue({ accessMode: 'TICKETED_ACCOUNT' });
+    prisma.order.count.mockResolvedValue(12);
+
+    const err = await erreurDe(service.changerRegimeAcces('evt-1', 'RSVP', 'mgr-1'));
+
+    expect(err.code).toBe(ErrorCodes.EVENT_ACCESS_MODE_LOCKED);
+    expect(err.details).toEqual({ commandesPayees: 12 });
+    // Rien ne doit avoir bougé en base.
+    expect(prisma.event.update).not.toHaveBeenCalled();
+  });
+
+  it('laisse retirer la billetterie tant que rien n’a été vendu', async () => {
+    prisma.event.findUnique.mockResolvedValue({ accessMode: 'TICKETED_GUEST' });
+    prisma.order.count.mockResolvedValue(0);
+
+    const r = await service.changerRegimeAcces('evt-1', 'RSVP', 'mgr-1');
+
+    expect(r).toEqual({ avant: 'TICKETED_GUEST', apres: 'RSVP', commandesPayees: 0 });
+    expect(prisma.event.update).toHaveBeenCalledWith({
+      where: { id: 'evt-1' },
+      data: { accessMode: 'RSVP' },
+    });
+  });
+
+  it('laisse passer d’un régime billetterie à l’autre, même avec des ventes', async () => {
+    // On ne retire la billetterie à personne : on cesse seulement d’exiger
+    // un compte. Les acheteurs existants gardent le leur.
+    prisma.event.findUnique.mockResolvedValue({ accessMode: 'TICKETED_ACCOUNT' });
+    prisma.order.count.mockResolvedValue(40);
+
+    await expect(service.changerRegimeAcces('evt-1', 'TICKETED_GUEST', 'mgr-1')).resolves.toMatchObject({
+      apres: 'TICKETED_GUEST',
+    });
+  });
+
+  it('laisse une inscription devenir une billetterie', async () => {
+    prisma.event.findUnique.mockResolvedValue({ accessMode: 'RSVP' });
+
+    await expect(service.changerRegimeAcces('evt-1', 'TICKETED_ACCOUNT', 'mgr-1')).resolves.toMatchObject({
+      avant: 'RSVP',
+    });
+  });
+
+  it('consigne la bascule, avec le nombre de commandes du moment', async () => {
+    prisma.event.findUnique.mockResolvedValue({ accessMode: 'TICKETED_ACCOUNT' });
+    prisma.order.count.mockResolvedValue(7);
+
+    await service.changerRegimeAcces('evt-1', 'TICKETED_GUEST', 'mgr-9');
+
+    expect(audit.log).toHaveBeenCalledWith(
+      'event.access_mode.changed',
+      'Event',
+      'evt-1',
+      { avant: 'TICKETED_ACCOUNT', apres: 'TICKETED_GUEST', commandesPayees: 7 },
+      'mgr-9',
+    );
+  });
+
+  it('n’écrit rien et ne consigne rien quand le régime ne change pas', async () => {
+    prisma.event.findUnique.mockResolvedValue({ accessMode: 'RSVP' });
+
+    await service.changerRegimeAcces('evt-1', 'RSVP', 'mgr-1');
+
+    expect(prisma.event.update).not.toHaveBeenCalled();
+    expect(audit.log).not.toHaveBeenCalled();
   });
 });
