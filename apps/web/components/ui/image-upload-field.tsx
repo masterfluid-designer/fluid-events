@@ -77,6 +77,15 @@ export function ImageUploadField({
           />
         </label>
       )}
+      {/* Dire ce qui est accepté AVANT le refus : découvrir la règle par un
+          message d’erreur, après une minute d’envoi, est une perte de temps. */}
+      {!value && (
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          {allowVideo
+            ? 'PNG, JPEG, WEBP (3 Mo) ou MP4, WEBM (40 Mo). Les images sont optimisées automatiquement.'
+            : 'PNG, JPEG ou WEBP, 3 Mo maximum. Redimensionnée et compressée automatiquement.'}
+        </p>
+      )}
     </div>
   );
 }

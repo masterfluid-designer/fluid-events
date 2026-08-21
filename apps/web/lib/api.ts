@@ -1,5 +1,7 @@
 'use client';
 
+import { optimiserImage } from './image-optimizer';
+
 /**
  * lib/api.ts — Client API fetch avec gestion des cookies httpOnly.
  *
@@ -96,10 +98,14 @@ export function apiPut<T = unknown>(
  * réutiliser ensuite comme designImageUrl (billet) ou props.imageUrl (Builder).
  * Ne passe pas par `api()` : un upload multipart ne doit jamais fixer
  * Content-Type manuellement (le navigateur pose la boundary lui-même).
+ *
+ * L'optimisation est faite ICI, et non chez les appelants (2026-08-20) :
+ * placée dans le composant de dépôt, elle aurait manqué le dépôt des logos
+ * de la landing, et manquerait le prochain point d'upload ajouté.
  */
 export async function apiUpload(path: string, file: File): Promise<{ url: string }> {
   const formData = new FormData();
-  formData.append('file', file);
+  formData.append('file', await optimiserImage(file));
 
   const response = await fetch(`${API_URL}${path}`, {
     method: 'POST',
