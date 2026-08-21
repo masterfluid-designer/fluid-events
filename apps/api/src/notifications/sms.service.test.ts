@@ -69,3 +69,67 @@ describe('SmsService.sendTicketReadySms()', () => {
     expect(createMock).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * Code de vérification (2026-08-21). Ce canal a remplacé WhatsApp, resté muet
+ * faute de template approuvé par Meta — et qui laissait tous les Manager sans
+ * moyen de se vérifier depuis le 16 août.
+ */
+describe('SmsService.sendVerificationCodeSms()', () => {
+  beforeEach(() => {
+    createMock.mockClear();
+    twilioFactoryMock.mockClear();
+    process.env.TWILIO_ACCOUNT_SID = 'AC123';
+    process.env.TWILIO_AUTH_TOKEN = 'token-123';
+    process.env.TWILIO_SMS_FROM = '+15017122661';
+  });
+
+  it('envoie le code, et le place en tête du message', async () => {
+    const { SmsService } = await import('./sms.service');
+    const service = new SmsService();
+
+    await service.sendVerificationCodeSms({ to: '+22890000000', code: '418209' });
+
+    const envoi = createMock.mock.calls[0][0];
+    expect(envoi.to).toBe('+22890000000');
+    expect(envoi.from).toBe('+15017122661');
+    // Sur un écran de verrouillage, seule la première ligne est lue : le code
+    // doit y être, pas après une formule de politesse.
+    expect(envoi.body.startsWith('418209')).toBe(true);
+  });
+
+  it('ne met aucun lien dans le message', async () => {
+    const { SmsService } = await import('./sms.service');
+    const service = new SmsService();
+
+    await service.sendVerificationCodeSms({ to: '+22890000000', code: '123456' });
+
+    // Un SMS de vérification contenant un lien ressemble à une arnaque — et
+    // c'est précisément le message que les arnaques imitent.
+    expect(createMock.mock.calls[0][0].body).not.toMatch(/https?:/);
+  });
+
+  it('LÈVE quand Twilio n’est pas configuré, au lieu de faire semblant', async () => {
+    delete process.env.TWILIO_ACCOUNT_SID;
+    const { SmsService, CanalSmsIndisponibleError } = await import('./sms.service');
+    const service = new SmsService();
+
+    // Les autres envois de ce service sont accessoires et avalent leurs
+    // erreurs. Celui-ci ne peut pas : la personne attend le code devant son
+    // écran. L'avaler la ferait patienter pour rien.
+    await expect(
+      service.sendVerificationCodeSms({ to: '+22890000000', code: '123456' }),
+    ).rejects.toBeInstanceOf(CanalSmsIndisponibleError);
+    expect(createMock).not.toHaveBeenCalled();
+  });
+
+  it('propage un échec Twilio', async () => {
+    const { SmsService } = await import('./sms.service');
+    const service = new SmsService();
+    createMock.mockRejectedValueOnce(new Error('numéro invalide'));
+
+    await expect(
+      service.sendVerificationCodeSms({ to: '+22890000000', code: '123456' }),
+    ).rejects.toThrow('numéro invalide');
+  });
+});

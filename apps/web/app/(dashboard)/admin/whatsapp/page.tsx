@@ -130,7 +130,7 @@ export default function AdminWhatsappPage() {
               ? 'Configurée ici — les messages partent avec ces réglages.'
               : data.environmentFallback
                 ? 'Non configurée ici, mais des variables d’environnement prennent le relais : les envois fonctionnent déjà.'
-                : 'Non configurée. Aucun message WhatsApp ne part — ni billets, ni codes de vérification.'}
+                : 'Non configurée. Aucun message WhatsApp ne part. Les codes de vérification, eux, passent par SMS depuis le 21 août.'}
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">

@@ -339,8 +339,13 @@ function makePhoneService() {
   };
 }
 
-function makeWhatsapp() {
-  return { sendVerificationCode: vi.fn().mockResolvedValue(undefined) };
+/**
+ * Le code de vérification part par SMS depuis le 2026-08-21 : WhatsApp
+ * exigeait un template approuvé par Meta, jamais obtenu, et laissait tous les
+ * Manager sans moyen de se vérifier.
+ */
+function makeSms() {
+  return { sendVerificationCodeSms: vi.fn().mockResolvedValue(undefined) };
 }
 
 describe('AuthOrchestratorService.savePhone()', () => {
@@ -351,7 +356,7 @@ describe('AuthOrchestratorService.savePhone()', () => {
       {} as any,
       makeAudit() as any,
       phoneService as any,
-      makeWhatsapp() as any,
+      makeSms() as any,
     );
   }
 
@@ -384,30 +389,30 @@ describe('AuthOrchestratorService.savePhone()', () => {
 });
 
 describe('AuthOrchestratorService.requestPhoneVerification()', () => {
-  it("rejette un numéro invalide (PHONE_INVALID) sans jamais appeler WhatsApp", async () => {
+  it("rejette un numéro invalide (PHONE_INVALID) sans jamais envoyer de SMS", async () => {
     const prisma = makePhoneVerificationPrisma();
     const phoneService = makePhoneService();
-    const whatsapp = makeWhatsapp();
+    const sms = makeSms();
     const service = new AuthOrchestratorService(
       prisma as any,
       {} as any,
       {} as any,
       makeAudit() as any,
       phoneService as any,
-      whatsapp as any,
+      sms as any,
     );
 
     await expect(service.requestPhoneVerification('u-1', 'invalid')).rejects.toMatchObject({
       response: expect.objectContaining({ code: ErrorCodes.PHONE_INVALID }),
     });
-    expect(whatsapp.sendVerificationCode).not.toHaveBeenCalled();
+    expect(sms.sendVerificationCodeSms).not.toHaveBeenCalled();
     expect(prisma.user.update).not.toHaveBeenCalled();
   });
 
-  it('normalise le numéro, déduit le pays, envoie le code par WhatsApp et invalide une vérification précédente', async () => {
+  it('normalise le numéro, déduit le pays, envoie le code par SMS et invalide une vérification précédente', async () => {
     const prisma = makePhoneVerificationPrisma();
     const phoneService = makePhoneService();
-    const whatsapp = makeWhatsapp();
+    const sms = makeSms();
     const audit = makeAudit();
     const service = new AuthOrchestratorService(
       prisma as any,
@@ -415,14 +420,16 @@ describe('AuthOrchestratorService.requestPhoneVerification()', () => {
       {} as any,
       audit as any,
       phoneService as any,
-      whatsapp as any,
+      sms as any,
     );
 
     const result = await service.requestPhoneVerification('u-1', '+228 90 12 34 56');
 
     expect(result).toEqual({ phone: '+22890123456', country: 'TG' });
-    expect(whatsapp.sendVerificationCode).toHaveBeenCalledWith(
-      expect.objectContaining({ to: '22890123456', code: expect.stringMatching(/^\d{6}$/) }),
+    // Twilio attend le format E.164 AVEC le « + » — contrairement au Cloud
+    // API de Meta, qui le voulait sans. Envoyer l’un pour l’autre échoue.
+    expect(sms.sendVerificationCodeSms).toHaveBeenCalledWith(
+      expect.objectContaining({ to: '+22890123456', code: expect.stringMatching(/^\d{6}$/) }),
     );
     const updateArgs = prisma.user.update.mock.calls[0][0];
     expect(updateArgs.where).toEqual({ id: 'u-1' });
@@ -436,17 +443,17 @@ describe('AuthOrchestratorService.requestPhoneVerification()', () => {
     });
   });
 
-  it("traduit un échec d'envoi WhatsApp en 503 explicite (jamais un 500 opaque)", async () => {
+  it("traduit un échec d'envoi SMS en 503 explicite (jamais un 500 opaque)", async () => {
     const prisma = makePhoneVerificationPrisma();
     const phoneService = makePhoneService();
-    const whatsapp = { sendVerificationCode: vi.fn().mockRejectedValue(new Error('WhatsApp non configuré')) };
+    const sms = { sendVerificationCodeSms: vi.fn().mockRejectedValue(new Error('Twilio non configuré')) };
     const service = new AuthOrchestratorService(
       prisma as any,
       {} as any,
       {} as any,
       makeAudit() as any,
       phoneService as any,
-      whatsapp as any,
+      sms as any,
     );
 
     // L’utilisateur attend activement ce code : l’échec doit lui remonter.
@@ -457,6 +464,24 @@ describe('AuthOrchestratorService.requestPhoneVerification()', () => {
     await expect(service.requestPhoneVerification('u-1', '+22890123456')).rejects.toMatchObject({
       response: { code: ErrorCodes.PHONE_VERIFICATION_UNAVAILABLE },
     });
+    expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it("n’écrit aucun code en base quand l’envoi échoue", async () => {
+    // Sans cette garantie, un code serait accepté à la saisie alors que la
+    // personne ne l’a jamais reçu — et le compte deviendrait vérifiable par
+    // qui devinerait six chiffres en dix minutes.
+    const prisma = makePhoneVerificationPrisma();
+    const service = new AuthOrchestratorService(
+      prisma as any,
+      {} as any,
+      {} as any,
+      makeAudit() as any,
+      makePhoneService() as any,
+      { sendVerificationCodeSms: vi.fn().mockRejectedValue(new Error('Twilio absent')) } as any,
+    );
+
+    await expect(service.requestPhoneVerification('u-1', '+22890123456')).rejects.toBeDefined();
     expect(prisma.user.update).not.toHaveBeenCalled();
   });
 });

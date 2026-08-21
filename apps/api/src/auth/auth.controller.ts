@@ -45,7 +45,7 @@ const authLogger = new Logger('AuthController');
  *  GET  /api/auth/me               → identité courante + statut impersonation
  *  POST /api/auth/stop-impersonation → retour à la session Admin d'origine
  *  POST /api/auth/phone                        → enregistre un numéro (sans vérif)
- *  POST /api/auth/phone/request-verification → envoie un code WhatsApp
+ *  POST /api/auth/phone/request-verification → envoie un code par SMS
  *  POST /api/auth/phone/confirm-verification → confirme le code reçu
  *  POST /api/auth/logout           → efface les cookies
  */
@@ -179,7 +179,7 @@ export class AuthController {
   }
 
   /**
-   * Envoie un code de vérification WhatsApp pour le numéro soumis (CDC —
+   * Envoie un code de vérification par SMS pour le numéro soumis (CDC —
    * décision produit 2026-07-15). Le pays est déduit de l'indicatif, jamais
    * demandé séparément. Non @Public() : le user courant (req.user.id) est la
    * cible de la vérification, jamais un id passé dans le body.
@@ -192,7 +192,7 @@ export class AuthController {
     return this.orchestrator.requestPhoneVerification(req.user!.id, dto.phone);
   }
 
-  /** Confirme le code de vérification WhatsApp reçu. */
+  /** Confirme le code de vérification reçu par SMS. */
   @Post('phone/confirm-verification')
   async confirmPhoneVerification(
     @Req() req: Request & { user?: RequestUser },

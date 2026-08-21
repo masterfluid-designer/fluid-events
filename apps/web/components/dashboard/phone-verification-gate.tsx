@@ -14,8 +14,10 @@ import { COUNTRIES } from '@/lib/countries';
 /**
  * PhoneVerificationGate — bloque tout le dashboard (Manager UNIQUEMENT)
  * tant que le téléphone n'est pas soumis ET vérifié par code
- * WhatsApp (décision produit 2026-07-15). Le pays est déduit automatiquement
- * de l'indicatif — jamais demandé séparément à l'utilisateur.
+ * SMS. Le canal était WhatsApp jusqu’au 2026-08-21 : il exigeait un template
+ * approuvé par Meta, jamais obtenu, et laissait donc tous les Manager sans
+ * moyen de se vérifier. Le pays est déduit automatiquement de l’indicatif —
+ * jamais demandé séparément à l'utilisateur.
  *
  * Rendu en overlay plein écran sans possibilité de fermeture : remplace
  * entièrement `children` plutôt que de les superposer (RULES.md — "bloque le
@@ -79,7 +81,7 @@ export function PhoneVerificationGate({ children }: { children: React.ReactNode 
       setSentTo(data.phone);
       setCode('');
       setStep('code');
-      toast.success('Code envoyé par WhatsApp');
+      toast.success('Code envoyé par SMS');
     },
     onError: (err) => {
       toast.error(err instanceof ApiError ? err.message : "Impossible d'envoyer le code — vérifiez le numéro");
@@ -125,7 +127,7 @@ export function PhoneVerificationGate({ children }: { children: React.ReactNode 
             className="space-y-3"
           >
             <p className="text-sm text-muted-foreground">
-              Requis pour continuer — un code de vérification vous sera envoyé par WhatsApp.
+              Requis pour continuer — un code de vérification vous sera envoyé par SMS.
             </p>
             <div className="flex gap-2">
               <CountryPicker value={countryIso2} onChange={setCountryIso2} />
@@ -152,7 +154,7 @@ export function PhoneVerificationGate({ children }: { children: React.ReactNode 
           >
             <p className="text-sm text-muted-foreground">
               Code envoyé au <span className="font-medium">{sentTo}</span>. Entrez les 6 chiffres reçus par
-              WhatsApp.
+              SMS.
             </p>
             <Input
               required

@@ -13,7 +13,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuthService } from './auth.service';
 import { AuditService } from '../common/audit.service';
 import { PhoneService } from '../notifications/phone.service';
-import { WhatsappService } from '../notifications/whatsapp.service';
+import { SmsService } from '../notifications/sms.service';
 import { GoogleProfile } from './strategies/google.strategy';
 import { LoginScannerDto } from './dto/login-scanner.dto';
 import { LoginDto } from './dto/login.dto';
@@ -43,7 +43,7 @@ export class AuthOrchestratorService {
     private readonly jwtService: JwtService,
     private readonly audit: AuditService,
     private readonly phoneService: PhoneService,
-    private readonly whatsapp: WhatsappService,
+    private readonly sms: SmsService,
   ) {}
 
   /**
@@ -417,18 +417,27 @@ export class AuthOrchestratorService {
     const code = String(Math.floor(100000 + Math.random() * 900000));
     const expiresAt = new Date(Date.now() + PHONE_VERIFICATION_CODE_TTL_MINUTES * 60 * 1000);
 
-    // Le canal WhatsApp est le SEUL moyen de recevoir ce code : s’il tombe,
-    // l’utilisateur est enfermé dehors sans recours. Une `Error` brute
-    // remontait en 500 « Erreur interne du serveur » — ni l’utilisateur ni
-    // l’exploitant n’apprenaient que la cause était une configuration Meta
-    // absente. On la traduit en 503 explicite, en conservant la cause réelle
-    // dans les journaux (jamais renvoyée au client : elle peut contenir des
-    // détails d’identifiants).
+    /*
+     * Le code part par SMS depuis le 2026-08-21, et non plus par WhatsApp.
+     *
+     * WhatsApp exige un template approuvé par Meta ; faute de cette
+     * approbation, le canal était hors service et le commentaire qui vivait
+     * ici le disait déjà : « s’il tombe, l’utilisateur est enfermé dehors
+     * sans recours ». C’était le cas depuis le 2026-08-16, et cela bloquait
+     * la vérification de tous les Manager.
+     *
+     * Le SMS ne demande aucun template, et il prouve ce que la vérification
+     * prétend vérifier : que la personne détient CE numéro. Un code envoyé
+     * par email n’aurait prouvé que l’adresse (décision produit 2026-08-21).
+     *
+     * L'erreur reste traduite en 503 explicite : une `Error` brute remontait
+     * en 500 « Erreur interne », et ni l’utilisateur ni l’exploitant
+     * n’apprenaient que la cause était une configuration absente. La cause
+     * réelle reste dans les journaux, jamais renvoyée au client — elle peut
+     * contenir des détails d’identifiants.
+     */
     try {
-      await this.whatsapp.sendVerificationCode({
-        to: phone.replace('+', ''),
-        code,
-      });
+      await this.sms.sendVerificationCodeSms({ to: phone, code });
     } catch (err) {
       this.logger.error(
         `Échec d’envoi du code de vérification à ${phone} : ${err instanceof Error ? err.message : String(err)}`,

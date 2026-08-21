@@ -16,6 +16,13 @@ import twilio from 'twilio';
  * d'envoi ne doit jamais bloquer la confirmation de paiement ni la
  * génération du billet — jamais de throw, seulement un log.
  */
+/**
+ * Erreur d'envoi du code de vérification. Distincte d'une panne Twilio :
+ * elle dit que le canal n'est pas configuré du tout, ce qui appelle une action
+ * d'exploitation et non une nouvelle tentative.
+ */
+export class CanalSmsIndisponibleError extends Error {}
+
 export interface TicketSmsParams {
   to: string; // E.164 AVEC le '+' (PhoneService.normalizeToE164) — format attendu par Twilio
   eventTitle: string;
@@ -55,5 +62,46 @@ export class SmsService {
         `Échec envoi SMS billets (commande ${orderNumber}) : ${(err as Error).message}`,
       );
     }
+  }
+
+  /**
+   * Code de vérification du numéro (2026-08-21).
+   *
+   * ⚠️ Contrairement au reste de ce service, cette méthode PROPAGE ses
+   * erreurs. Les autres envois sont accessoires — un billet reste
+   * téléchargeable sans SMS. Ici la personne attend le code devant son
+   * écran : un échec avalé la laisserait patienter devant un message qui
+   * ne viendra jamais.
+   *
+   * Le SMS remplace WhatsApp pour ce code (décision produit 2026-08-21) :
+   * il ne demande aucun template pré-approuvé, et surtout il prouve que la
+   * personne détient CE numéro — ce qu'un email n'aurait pas prouvé.
+   */
+  async sendVerificationCodeSms(params: { to: string; code: string }): Promise<void> {
+    const { to, code } = params;
+
+    const accountSid = process.env.TWILIO_ACCOUNT_SID;
+    const authToken = process.env.TWILIO_AUTH_TOKEN;
+    const from = process.env.TWILIO_SMS_FROM;
+
+    if (!accountSid || !authToken || !from) {
+      throw new CanalSmsIndisponibleError(
+        'Twilio non configuré (TWILIO_ACCOUNT_SID/TWILIO_AUTH_TOKEN/TWILIO_SMS_FROM manquants).',
+      );
+    }
+
+    const client = twilio(accountSid, authToken);
+    const message = await client.messages.create({
+      to,
+      from,
+      // Le code d’abord : sur l’écran de verrouillage, seule la première
+      // ligne est lue. Aucun lien — un SMS qui contient un lien ressemble
+      // à une arnaque, et les codes de vérification en sont la cible.
+      body: `${code} — votre code de vérification Fluid Events. Valable 10 minutes. Ne le communiquez à personne.`,
+    });
+
+    // Le code lui-même n’est jamais journalisé : les journaux sont lus par
+    // plus de monde que la boîte de réception de son destinataire.
+    this.logger.log(`SMS de vérification envoyé à ${to} — sid ${message.sid}`);
   }
 }

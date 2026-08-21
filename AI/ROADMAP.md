@@ -871,6 +871,44 @@ mono-événement retrouve exactement le tableau de bord qu’il avait — vérif
 l’écran, sans sélecteur, sans paramètre dans l’URL, liens de menu inchangés.
 
 Plan complet et alternatives écartées : `AI/PLAN-TYPES-EVENEMENTS.md`.
+### Le code de vérification passe au SMS (2026-08-21)
+
+Le code à six chiffres ne partait que par WhatsApp, qui exige un template
+approuvé par Meta — jamais obtenu. Le commentaire du code le disait déjà :
+« le canal WhatsApp est le SEUL moyen de recevoir ce code : s’il tombe,
+l’utilisateur est enfermé dehors sans recours ». C’était le cas depuis le
+2026-08-16, et **aucun Manager ne pouvait se vérifier**, donc aucun ne pouvait
+entrer dans son tableau de bord.
+
+Le SMS ne demande aucun template. Et il prouve ce que la vérification prétend
+vérifier : que la personne détient CE numéro. Un code envoyé par email n’aurait
+prouvé que l’adresse — l’email a été écarté pour cette raison (décision produit
+2026-08-21).
+
+`sendVerificationCodeSms` PROPAGE ses erreurs, contrairement au reste de
+`SmsService` : les autres envois sont accessoires — un billet reste
+téléchargeable sans SMS — alors qu’ici la personne attend le code devant son
+écran. Le message porte le code EN TÊTE (sur un écran de verrouillage, seule la
+première ligne est lue) et **aucun lien** : un SMS de vérification contenant un
+lien ressemble à une arnaque, et c’est précisément ce que les arnaques imitent.
+Le code lui-même n’est jamais journalisé — les journaux sont lus par plus de
+monde que la boîte de réception de son destinataire.
+
+⚠️ **`.env.example` documentait `TWILIO_WHATSAPP_NUMBER`, que rien ne lit.**
+Le code attend `TWILIO_SMS_FROM`. Cet écart explique probablement pourquoi
+Twilio n’a jamais été configuré en production. Corrigé.
+
+**Vérifié en conditions réelles** : sans identifiants Twilio, la route répond
+503 `PHONE_VERIFICATION_UNAVAILABLE` et **n’écrit aucun code en base** — sans
+quoi un code serait acceptable à la saisie sans avoir jamais été reçu, et le
+compte deviendrait vérifiable par qui devinerait six chiffres en dix minutes.
+Avec de faux identifiants, Twilio répond « Authentication Error » : la requête
+part bien jusqu’au bout.
+
+**Reste à faire, hors du code** : créer le compte Twilio et acheter un numéro
+expéditeur. Tant que `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` et
+`TWILIO_SMS_FROM` sont absents de la production, le verrou de la Phase 5 tient
+toujours.
 ## 4. Priorités immédiates (à date)
 
 | Module | Priorité | Référence CDC |
@@ -892,6 +930,8 @@ Plan complet et alternatives écartées : `AI/PLAN-TYPES-EVENEMENTS.md`.
 | Admin endpoints (invitation/self-service/rétention/impersonation Manager, vue plateforme paiements) | ✅ Fait (2026-07-14) | §6.11 |
 | Comptes Scanner créés par le Manager (invitation + promotion d’un client) | ✅ Fait (2026-08-19) | §9.5 |
 | Multi-événement Premium (8 max) + palier d’abonnement | ✅ Fait (2026-08-21) | §1.4 |
+| Code de vérification par SMS (remplace WhatsApp) | ✅ Fait (2026-08-21) — **en attente d’un compte Twilio** | §7.6 |
+| Code de vérification par SMS (remplace WhatsApp) | ✅ Fait (2026-08-21) — **en attente d’un compte Twilio** | §7.6 |
 | Plafond d’agents de contrôle réellement appliqué (3 FREE / 6 PREMIUM) | ✅ Fait (2026-08-21) | §9.5 |
 | Trois types d’événements (RSVP / GUEST / ACCOUNT) | 🟡 Planifié — lots 0 à 3 | — |
 | Identifiants WhatsApp réglables depuis l’Admin | ✅ Fait (2026-08-19) | §10 |
