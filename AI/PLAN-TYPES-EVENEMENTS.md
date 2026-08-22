@@ -287,3 +287,79 @@ Livré et vérifié contre l'API réelle, pas seulement en tests :
 
 **Reste à faire avant le lot 0** : rien. Le socle est en place, les trois
 types peuvent s’y poser.
+
+---
+
+## 7. Nouveaux moyens de paiement (demande du 2026-08-22)
+
+> Chantier distinct de celui des trois régimes. Consigné ici parce qu’il
+> touche le même tunnel, et qu’une erreur de modèle au départ coûterait une
+> migration plus tard.
+
+### 7.1 Google Pay et Apple Pay ne sont pas des fournisseurs
+
+C’est la décision qui structure tout le reste. `PaymentProviderType` est un
+enum de **fournisseurs** — Kkiapay, CinetPay, FedaPay. Y ajouter `GOOGLE_PAY`
+et `APPLE_PAY` serait une erreur de modèle : ce sont des **portefeuilles**,
+des façons de présenter une carte, et ils n’encaissent rien par eux-mêmes.
+Ils transitent par un fournisseur — Stripe chez nous.
+
+Concrètement : une intégration Stripe correcte les propose **toutes seules**.
+Le Payment Request Button affiche Apple Pay sur Safari/iOS et Google Pay sur
+Chrome/Android, selon ce que le navigateur et le portefeuille du visiteur
+permettent. Il n’y a rien à choisir côté organisateur, et rien à stocker.
+
+Les modéliser en fournisseurs distincts obligerait à leur inventer des clés
+d’API qui n’existent pas, et ferait apparaître dans l’espace Admin deux
+lignes à configurer que personne ne peut remplir.
+
+**Donc :** deux fournisseurs à ajouter, `STRIPE` et `PAYPAL`. Google Pay et
+Apple Pay arrivent avec Stripe, sans ligne de configuration.
+
+### 7.2 Ce que chacun demande
+
+| Fournisseur | Ce qu’il faut | Webhook | Remarque |
+|---|---|---|---|
+| **Stripe** | Clé publique + clé secrète | `checkout.session.completed`, signature `Stripe-Signature` (HMAC) | Apporte Google Pay et Apple Pay. Apple Pay exige de **vérifier le domaine** chez Apple : un fichier à servir sous `/.well-known/`. |
+| **PayPal** | Client ID + secret | `CHECKOUT.ORDER.APPROVED`, vérification par appel retour à PayPal | Pas de HMAC : la signature se vérifie en réinterrogeant leur API. |
+
+Les deux suivent le contrat déjà en place : `init` crée la session, le
+**webhook reste seule source de vérité** pour confirmer, jamais le retour de
+redirection côté client. C’est la règle qui a été posée pour Kkiapay et qui
+n’a aucune raison de changer.
+
+### 7.3 La vraie question : qui peut payer avec quoi
+
+Kkiapay, CinetPay et FedaPay servent le mobile money d’Afrique de l’Ouest.
+Stripe et PayPal servent la carte internationale. Ce ne sont pas des
+concurrents, ce sont **deux publics** : la diaspora qui achète un billet pour
+un proche, et le public local qui paie en mobile money.
+
+Or la configuration est aujourd’hui **un fournisseur actif par événement**.
+Ajouter Stripe sans toucher à ce modèle obligerait l’organisateur à choisir
+entre encaisser à Lomé ou encaisser à Paris.
+
+**À trancher avant d’implémenter :** garde-t-on un fournisseur unique par
+événement, ou permet-on d’en activer plusieurs et de laisser l’acheteur
+choisir ? La décision produit du 2026-07-13 disait explicitement « jamais de
+choix de provider côté client » — elle a été prise quand tous les
+fournisseurs faisaient la même chose. Ce n’est plus le cas.
+
+Recommandation : **plusieurs fournisseurs activables, un choix côté acheteur
+limité au moyen de paiement** (« Mobile money » / « Carte bancaire »), pas au
+nom du prestataire. L’acheteur n’a que faire de savoir si sa carte passe par
+Stripe ; il veut savoir s’il peut payer avec sa carte.
+
+### 7.4 Ordre proposé
+
+1. **Stripe d’abord.** Il apporte carte + Google Pay + Apple Pay d’un coup,
+   son webhook est signé en HMAC comme ceux qu’on gère déjà, et son bac à
+   sable est utilisable immédiatement sans validation de compte.
+2. **Le choix du moyen de paiement** côté acheteur, une fois deux
+   fournisseurs actifs sur un même événement.
+3. **PayPal ensuite**, dont la vérification de webhook est la plus
+   inhabituelle des trois et mérite d’être traitée seule.
+
+⚠️ **Rappel qui prime sur ce chantier** : `payment_provider_configs` est vide
+en production. Ajouter deux fournisseurs à une plateforme qui n’en a aucun de
+configuré n’avance à rien tant qu’un seul n’encaisse pour de vrai.
