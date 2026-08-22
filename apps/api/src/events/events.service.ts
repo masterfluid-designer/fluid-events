@@ -376,7 +376,19 @@ export class EventsService {
         message: 'Aucun événement associé à ce compte manager.',
       });
     }
-    return event;
+
+    /*
+     * Deux compteurs pour l'écran de changement de régime (lot 3) : il doit
+     * annoncer ce qui est CONSERVÉ avec des chiffres réels. Un avertissement
+     * générique laisserait croire à une perte, et ferait reculer un
+     * organisateur devant un changement inoffensif.
+     */
+    const [commandesPayees, inscriptions] = await Promise.all([
+      this.prisma.order.count({ where: { eventId: id, status: 'PAID' } }),
+      this.prisma.registration.count({ where: { eventId: id } }),
+    ]);
+
+    return { ...event, commandesPayees, inscriptions };
   }
 
   /**

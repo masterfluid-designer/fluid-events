@@ -9,6 +9,8 @@ import { Card } from '@/components/ui/card';
 import { Spinner } from '@/components/ui/spinner';
 import { api } from '@/lib/api';
 import { avecEvenement, useEvenementActif } from '@/lib/evenement-actif';
+import { EventAccessMode } from '@saas-events/types';
+import { ListeInscriptions } from './liste-inscriptions';
 
 /**
  * Participants (CDC §6.9). Données réelles via GET /api/events/:eventId/participants
@@ -34,7 +36,10 @@ export default function ParticipantsPage() {
 
   const { data: event } = useQuery({
     queryKey: ['manager-event', evenement],
-    queryFn: () => api<{ id: string }>(avecEvenement('/api/events/mine', evenement)),
+    queryFn: () =>
+      api<{ id: string; accessMode?: EventAccessMode }>(
+        avecEvenement('/api/events/mine', evenement),
+      ),
   });
 
   const { data: participants, isLoading, isError } = useQuery({
@@ -42,6 +47,14 @@ export default function ParticipantsPage() {
     queryFn: () => api<Participant[]>(`/api/events/${event!.id}/participants`),
     enabled: Boolean(event?.id),
   });
+
+  /*
+   * Un événement sur inscription n'a ni commande ni billet : cette page,
+   * bâtie sur les commandes payées, y resterait vide à jamais. On montre
+   * alors la liste des inscrits, qui est SA façon de répondre à la même
+   * question — qui vient ?
+   */
+  const surInscription = event?.accessMode === EventAccessMode.RSVP;
 
   const filtered = useMemo(() => {
     if (!participants) return [];
@@ -79,6 +92,8 @@ export default function ParticipantsPage() {
     link.click();
     URL.revokeObjectURL(url);
   }
+
+  if (surInscription) return <ListeInscriptions evenement={evenement} />;
 
   if (isLoading) {
     return (

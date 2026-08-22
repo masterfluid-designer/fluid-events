@@ -21,7 +21,9 @@ function makePrisma() {
   };
   return {
     event: { create: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
-    order: { findMany: vi.fn() },
+    // `getMyEvent` compte aussi ce que la bascule de régime conserve.
+    order: { findMany: vi.fn(), count: vi.fn().mockResolvedValue(0) },
+    registration: { count: vi.fn().mockResolvedValue(0) },
     user: { findUnique: vi.fn() },
     eventDay: { findMany: vi.fn().mockResolvedValue([]) },
     orderItem: { count: vi.fn().mockResolvedValue(0) },
@@ -218,8 +220,20 @@ describe('EventsService.getMyEvent()', () => {
 
   it("retourne l'événement du manager avec ses tickets", async () => {
     prisma.event.findUnique.mockResolvedValue({ id: 'ev-1', managerId: 'mgr-1', tickets: [] });
+    prisma.order.count.mockResolvedValue(4);
+    prisma.registration.count.mockResolvedValue(9);
+
     const result = await service.getMyEvent('mgr-1');
-    expect(result).toEqual({ id: 'ev-1', managerId: 'mgr-1', tickets: [] });
+
+    // Les deux compteurs accompagnent l’événement : l’écran de changement de
+    // régime doit annoncer ce qui est conservé avec des chiffres réels.
+    expect(result).toEqual({
+      id: 'ev-1',
+      managerId: 'mgr-1',
+      tickets: [],
+      commandesPayees: 4,
+      inscriptions: 9,
+    });
   });
 
   it("404 si le manager n'a pas d'événement", async () => {

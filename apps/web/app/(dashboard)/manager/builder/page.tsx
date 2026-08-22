@@ -36,7 +36,7 @@ import {
   ClipboardList,
 } from 'lucide-react';
 import type { Block, BlockType, EventTheme, TestimonialEntry, TimelineEntry } from '@saas-events/types';
-import { blocAutorise, type EventAccessMode,
+import { blocAutorise, EventAccessMode,
   SINGLETON_BLOCK_TYPES as SHARED_SINGLETON_BLOCK_TYPES,
   TicketPolicy,
 } from '@saas-events/types';
@@ -49,6 +49,7 @@ import { api, apiPatch, apiPut, ApiError } from '@/lib/api';
 import { PublicLink } from '@/components/dashboard/public-link';
 import { ConfigPanel, type EventConfig } from './config-panel';
 import { ThemePanel } from './theme-panel';
+import { PanneauRegime } from './panneau-regime';
 import { avecEvenement, useEvenementActif } from '@/lib/evenement-actif';
 
 /**
@@ -84,6 +85,9 @@ interface ManagerEventData extends Omit<EventConfig, 'days'> {
   days: Array<{ id: string; label: string; date: string; order: number }>;
   /** Régime d'accès — commande les blocs proposés (2026-08-21). */
   accessMode?: EventAccessMode;
+  /** Chiffres réels annoncés par l’écran de changement de régime. */
+  commandesPayees?: number;
+  inscriptions?: number;
 }
 
 const BLOCK_LIBRARY: { type: BlockType; icon: typeof ImageIcon; label: string }[] = [
@@ -645,7 +649,16 @@ export default function EventBuilderPage() {
                 days={eventData?.days ?? []}
               />
             ) : (
-              <div className="p-4">
+              <div className="flex flex-col gap-6 p-4">
+                {/* Le régime décide de CE QUI s’affiche ; le thème, de la
+                    façon dont ça s’affiche. Dans cet ordre. */}
+                <PanneauRegime
+                  actuel={eventData?.accessMode ?? EventAccessMode.TICKETED_ACCOUNT}
+                  evenement={evenement}
+                  commandesPayees={eventData?.commandesPayees ?? 0}
+                  inscriptions={eventData?.inscriptions ?? 0}
+                />
+
                 <ThemePanel
                   theme={theme}
                   onChange={(patch) => setTheme((prev) => ({ ...prev, ...patch }))}
