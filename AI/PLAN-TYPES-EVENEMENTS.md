@@ -363,3 +363,42 @@ Stripe ; il veut savoir s’il peut payer avec sa carte.
 ⚠️ **Rappel qui prime sur ce chantier** : `payment_provider_configs` est vide
 en production. Ajouter deux fournisseurs à une plateforme qui n’en a aucun de
 configuré n’avance à rien tant qu’un seul n’encaisse pour de vrai.
+
+---
+
+## 8. Ce qui a été livré (2026-08-22)
+
+Les quatre lots sont écrits, testés et poussés. Ce qui suit remplace le
+tableau du §6 comme état de référence.
+
+| Lot | Livré | Commit |
+|---|---|---|
+| **0-bis** | Multi-événement Premium : plan d’abonnement, quota, URL porteuse, plafond de scanners réellement appliqué | `1bc976a`, `3394f85` |
+| **0** | `EventAccessMode`, garde-fou de bascule, filtrage des blocs | `79b82fb`, `64d6be7` |
+| **1** | Achat sans compte : compte fantôme, lien signé, page du billet, email, tunnel | `db93b93`, `e7d85d0`, `79f9073`, `eda5e81` |
+| **2** | Inscription simple : table dédiée, formulaire public, bloc, confirmation | `e1ed369` |
+| **3** | Changement de régime assisté, liste des inscrits et son export | `56aa6da` |
+
+### Décisions confirmées à l’usage
+
+Trois choix du plan ont été vérifiés en conditions réelles plutôt que
+seulement raisonnés :
+
+- **Le compte fantôme tient sa promesse.** Le tunnel d’achat n’a pas bougé
+  d’une ligne : `initPayment` ne lit que l’identifiant du porteur. Aucun
+  `if (client === null)` n’a eu à être écrit nulle part.
+- **« La palette filtre, le rendu ignore, rien n’est supprimé »** a été
+  éprouvé sur un événement réel : sept blocs rendus en inscription, huit au
+  retour, `tickets` compris. La base ne l’avait jamais perdu.
+- **Refuser un bloc hors régime à l’ÉCRITURE aurait piégé le manager** — sa
+  page contient encore le bloc, chaque enregistrement le renvoie, chaque
+  enregistrement serait refusé. Le filtre porte sur l’affichage seul.
+
+### Ce qui reste ouvert
+
+- ⚠️ **`payment_provider_configs` est vide en production.** Aucun encaissement
+  n’aboutit, quel que soit le régime. C’est le seul vrai blocage produit.
+- Le canal du code de vérification (SMS via Twilio) est écrit mais Twilio
+  n’est pas configuré. Le gate de vérification s’efface tant que le canal est
+  absent, et se réactivera seul.
+- Les nouveaux moyens de paiement (§7) ne sont pas commencés.
