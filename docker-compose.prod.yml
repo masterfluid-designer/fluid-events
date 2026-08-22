@@ -108,9 +108,6 @@ services:
       # DOIT être écrasée ici, sinon le callback OAuth de production redirige
       # silencieusement vers localhost.
       GOOGLE_CALLBACK_URL: ${API_URL}/api/auth/google/callback
-      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
-      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
-      TWILIO_SMS_FROM: ${TWILIO_SMS_FROM:-}
       WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN:-}
       WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
       WHATSAPP_API_VERSION: ${WHATSAPP_API_VERSION:-v21.0}

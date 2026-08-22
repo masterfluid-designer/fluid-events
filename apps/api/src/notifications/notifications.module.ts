@@ -5,7 +5,6 @@ import { CryptoService } from '../common/crypto.service';
 import { PhoneService } from './phone.service';
 import { EmailService } from './email.service';
 import { WhatsappService } from './whatsapp.service';
-import { SmsService } from './sms.service';
 
 @Module({
   // AuthModule exporte AuditService (email.sent/failed, whatsapp.sent/failed
@@ -15,8 +14,8 @@ import { SmsService } from './sms.service';
   // PrismaModule + CryptoService (2026-08-19) : WhatsappService lit ses
   // réglages en base, où le jeton est stocké chiffré.
   imports: [AuthModule, PrismaModule],
-  providers: [PhoneService, EmailService, WhatsappService, SmsService, CryptoService],
+  providers: [PhoneService, EmailService, WhatsappService, CryptoService],
   controllers: [],
-  exports: [PhoneService, EmailService, WhatsappService, SmsService],
+  exports: [PhoneService, EmailService, WhatsappService],
 })
 export class NotificationsModule {}

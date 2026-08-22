@@ -55,7 +55,6 @@ function makeDeps(overrides: { orderItem?: any; order?: any } = {}) {
   const audit = { log: vi.fn().mockResolvedValue(undefined) };
   const emailService = { sendTicketReadyEmail: vi.fn().mockResolvedValue(undefined) };
   const whatsappService = { sendTicketReadyMessage: vi.fn().mockResolvedValue(undefined) };
-  const smsService = { sendTicketReadySms: vi.fn().mockResolvedValue(undefined) };
   const phoneService = {
     normalizeForWhatsapp: vi.fn((raw: string | null | undefined) =>
       raw ? raw.replace('+', '') : null,
@@ -69,7 +68,6 @@ function makeDeps(overrides: { orderItem?: any; order?: any } = {}) {
     audit,
     emailService,
     whatsappService,
-    smsService,
     phoneService,
   };
 }
@@ -82,7 +80,6 @@ function makeProcessor(deps: ReturnType<typeof makeDeps>) {
     deps.audit as any,
     deps.emailService as any,
     deps.whatsappService as any,
-    deps.smsService as any,
     deps.phoneService as any,
     // Le lien signé posé dans l'email des billets.
     { creerJeton: vi.fn().mockResolvedValue('jeton-de-test') } as never,
@@ -149,7 +146,6 @@ describe('PdfProcessor.handleGenerate()', () => {
     expect(deps.storageService.uploadBuffer).not.toHaveBeenCalled();
     expect(deps.emailService.sendTicketReadyEmail).not.toHaveBeenCalled();
     expect(deps.whatsappService.sendTicketReadyMessage).not.toHaveBeenCalled();
-    expect(deps.smsService.sendTicketReadySms).not.toHaveBeenCalled();
   });
 
   it('abandonne proprement si l\'OrderItem ou le QR est manquant (pas de crash)', async () => {
@@ -162,11 +158,10 @@ describe('PdfProcessor.handleGenerate()', () => {
     expect(deps.storageService.uploadBuffer).not.toHaveBeenCalled();
     expect(deps.emailService.sendTicketReadyEmail).not.toHaveBeenCalled();
     expect(deps.whatsappService.sendTicketReadyMessage).not.toHaveBeenCalled();
-    expect(deps.smsService.sendTicketReadySms).not.toHaveBeenCalled();
   });
 
   describe('notifications "billets prêts" (décision produit 2026-07-14)', () => {
-    it('envoie email + WhatsApp + SMS une fois que tous les OrderItem de la commande ont leur PDF (commande à 1 billet)', async () => {
+    it('envoie email + WhatsApp une fois que tous les OrderItem de la commande ont leur PDF (commande à 1 billet)', async () => {
       const deps = makeDeps();
       const processor = makeProcessor(deps);
 
@@ -192,12 +187,6 @@ describe('PdfProcessor.handleGenerate()', () => {
         eventTitle: 'Concert FESTA 2026',
         orderNumber: 'ORD-1',
       });
-      expect(deps.phoneService.normalizeToE164).toHaveBeenCalledWith('+22890000000');
-      expect(deps.smsService.sendTicketReadySms).toHaveBeenCalledWith({
-        to: '+22890000000',
-        eventTitle: 'Concert FESTA 2026',
-        orderNumber: 'ORD-1',
-      });
     }, 15000);
 
     it("n'envoie AUCUNE notification tant qu'un autre OrderItem de la même commande n'a pas encore son PDF", async () => {
@@ -218,7 +207,6 @@ describe('PdfProcessor.handleGenerate()', () => {
 
       expect(deps.emailService.sendTicketReadyEmail).not.toHaveBeenCalled();
       expect(deps.whatsappService.sendTicketReadyMessage).not.toHaveBeenCalled();
-      expect(deps.smsService.sendTicketReadySms).not.toHaveBeenCalled();
     }, 15000);
 
     it('envoie une seule notification récapitulative avec tous les billets quand ils sont tous prêts', async () => {
@@ -239,7 +227,6 @@ describe('PdfProcessor.handleGenerate()', () => {
 
       expect(deps.emailService.sendTicketReadyEmail).toHaveBeenCalledTimes(1);
       expect(deps.whatsappService.sendTicketReadyMessage).toHaveBeenCalledTimes(1);
-      expect(deps.smsService.sendTicketReadySms).toHaveBeenCalledTimes(1);
       expect(deps.emailService.sendTicketReadyEmail).toHaveBeenCalledWith(
         expect.objectContaining({
           items: [
@@ -259,7 +246,6 @@ describe('PdfProcessor.handleGenerate()', () => {
       ).resolves.toBeUndefined();
       expect(deps.emailService.sendTicketReadyEmail).not.toHaveBeenCalled();
       expect(deps.whatsappService.sendTicketReadyMessage).not.toHaveBeenCalled();
-      expect(deps.smsService.sendTicketReadySms).not.toHaveBeenCalled();
     }, 15000);
 
     it("n'envoie ni WhatsApp ni SMS si le client n'a pas de téléphone valide (envoie quand même l'email)", async () => {
@@ -277,7 +263,6 @@ describe('PdfProcessor.handleGenerate()', () => {
 
       expect(deps.emailService.sendTicketReadyEmail).toHaveBeenCalledTimes(1);
       expect(deps.whatsappService.sendTicketReadyMessage).not.toHaveBeenCalled();
-      expect(deps.smsService.sendTicketReadySms).not.toHaveBeenCalled();
     }, 15000);
   });
 });

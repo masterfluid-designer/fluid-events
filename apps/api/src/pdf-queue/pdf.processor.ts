@@ -9,7 +9,7 @@ import { StorageService } from '../storage/storage.service';
 import { AuditService } from '../common/audit.service';
 import { EmailService } from '../notifications/email.service';
 import { WhatsappService } from '../notifications/whatsapp.service';
-import { SmsService } from '../notifications/sms.service';
+
 import { PhoneService } from '../notifications/phone.service';
 import { TICKET_PDF_QUEUE, GENERATE_PDF_JOB, GeneratePdfJobData } from './pdf-queue.service';
 import { TicketAccessService } from '../payments/ticket-access.service';
@@ -35,7 +35,6 @@ export class PdfProcessor {
     private readonly audit: AuditService,
     private readonly emailService: EmailService,
     private readonly whatsappService: WhatsappService,
-    private readonly smsService: SmsService,
     private readonly phoneService: PhoneService,
     private readonly ticketAccess: TicketAccessService,
   ) {}
@@ -179,14 +178,9 @@ export class PdfProcessor {
       });
     }
 
-    const smsTo = this.phoneService.normalizeToE164(order.client.phone);
-    if (smsTo) {
-      await this.smsService.sendTicketReadySms({
-        to: smsTo,
-        eventTitle: order.event.title,
-        orderNumber: order.orderNumber,
-      });
-    }
+    // Le troisième canal (SMS Twilio) a été retiré le 2026-08-22 : son prix à
+    // l'unité vers le Togo et le Bénin ne se justifiait pas pour doubler un
+    // email et un message WhatsApp qui portent déjà le billet.
   }
 
   private async renderPdf(html: string): Promise<Buffer> {

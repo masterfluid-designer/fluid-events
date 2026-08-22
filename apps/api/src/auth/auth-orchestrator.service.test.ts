@@ -402,8 +402,11 @@ function makePhoneService() {
  * exigeait un template approuvé par Meta, jamais obtenu, et laissait tous les
  * Manager sans moyen de se vérifier.
  */
-function makeSms() {
-  return { sendVerificationCodeSms: vi.fn().mockResolvedValue(undefined) };
+function makeCanal() {
+  return {
+    sendVerificationCode: vi.fn().mockResolvedValue(undefined),
+    estDisponible: vi.fn().mockResolvedValue(true),
+  };
 }
 
 describe('AuthOrchestratorService.savePhone()', () => {
@@ -414,7 +417,7 @@ describe('AuthOrchestratorService.savePhone()', () => {
       {} as any,
       makeAudit() as any,
       phoneService as any,
-      makeSms() as any,
+      makeCanal() as any,
     );
   }
 
@@ -450,27 +453,27 @@ describe('AuthOrchestratorService.requestPhoneVerification()', () => {
   it("rejette un numéro invalide (PHONE_INVALID) sans jamais envoyer de SMS", async () => {
     const prisma = makePhoneVerificationPrisma();
     const phoneService = makePhoneService();
-    const sms = makeSms();
+    const canal = makeCanal();
     const service = new AuthOrchestratorService(
       prisma as any,
       {} as any,
       {} as any,
       makeAudit() as any,
       phoneService as any,
-      sms as any,
+      canal as any,
     );
 
     await expect(service.requestPhoneVerification('u-1', 'invalid')).rejects.toMatchObject({
       response: expect.objectContaining({ code: ErrorCodes.PHONE_INVALID }),
     });
-    expect(sms.sendVerificationCodeSms).not.toHaveBeenCalled();
+    expect(canal.sendVerificationCode).not.toHaveBeenCalled();
     expect(prisma.user.update).not.toHaveBeenCalled();
   });
 
-  it('normalise le numéro, déduit le pays, envoie le code par SMS et invalide une vérification précédente', async () => {
+  it('normalise le numéro, déduit le pays, envoie le code par WhatsApp et invalide une vérification précédente', async () => {
     const prisma = makePhoneVerificationPrisma();
     const phoneService = makePhoneService();
-    const sms = makeSms();
+    const canal = makeCanal();
     const audit = makeAudit();
     const service = new AuthOrchestratorService(
       prisma as any,
@@ -478,16 +481,16 @@ describe('AuthOrchestratorService.requestPhoneVerification()', () => {
       {} as any,
       audit as any,
       phoneService as any,
-      sms as any,
+      canal as any,
     );
 
     const result = await service.requestPhoneVerification('u-1', '+228 90 12 34 56');
 
     expect(result).toEqual({ phone: '+22890123456', country: 'TG' });
-    // Twilio attend le format E.164 AVEC le « + » — contrairement au Cloud
-    // API de Meta, qui le voulait sans. Envoyer l’un pour l’autre échoue.
-    expect(sms.sendVerificationCodeSms).toHaveBeenCalledWith(
-      expect.objectContaining({ to: '+22890123456', code: expect.stringMatching(/^\d{6}$/) }),
+    // Le Cloud API de Meta veut le numéro SANS le « + ». Twilio le voulait
+    // avec : envoyer l’un pour l’autre échoue silencieusement.
+    expect(canal.sendVerificationCode).toHaveBeenCalledWith(
+      expect.objectContaining({ to: '22890123456', code: expect.stringMatching(/^\d{6}$/) }),
     );
     const updateArgs = prisma.user.update.mock.calls[0][0];
     expect(updateArgs.where).toEqual({ id: 'u-1' });
@@ -504,14 +507,14 @@ describe('AuthOrchestratorService.requestPhoneVerification()', () => {
   it("traduit un échec d'envoi SMS en 503 explicite (jamais un 500 opaque)", async () => {
     const prisma = makePhoneVerificationPrisma();
     const phoneService = makePhoneService();
-    const sms = { sendVerificationCodeSms: vi.fn().mockRejectedValue(new Error('Twilio non configuré')) };
+    const canal = { sendVerificationCode: vi.fn().mockRejectedValue(new Error('WhatsApp non configuré')) };
     const service = new AuthOrchestratorService(
       prisma as any,
       {} as any,
       {} as any,
       makeAudit() as any,
       phoneService as any,
-      sms as any,
+      canal as any,
     );
 
     // L’utilisateur attend activement ce code : l’échec doit lui remonter.
@@ -536,7 +539,7 @@ describe('AuthOrchestratorService.requestPhoneVerification()', () => {
       {} as any,
       makeAudit() as any,
       makePhoneService() as any,
-      { sendVerificationCodeSms: vi.fn().mockRejectedValue(new Error('Twilio absent')) } as any,
+      { sendVerificationCode: vi.fn().mockRejectedValue(new Error('WhatsApp absent')) } as any,
     );
 
     await expect(service.requestPhoneVerification('u-1', '+22890123456')).rejects.toBeDefined();

@@ -13,7 +13,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuthService } from './auth.service';
 import { AuditService } from '../common/audit.service';
 import { PhoneService } from '../notifications/phone.service';
-import { SmsService } from '../notifications/sms.service';
+import { WhatsappService } from '../notifications/whatsapp.service';
 import { GoogleProfile } from './strategies/google.strategy';
 import { LoginScannerDto } from './dto/login-scanner.dto';
 import { LoginDto } from './dto/login.dto';
@@ -43,7 +43,7 @@ export class AuthOrchestratorService {
     private readonly jwtService: JwtService,
     private readonly audit: AuditService,
     private readonly phoneService: PhoneService,
-    private readonly sms: SmsService,
+    private readonly whatsapp: WhatsappService,
   ) {}
 
   /**
@@ -371,7 +371,7 @@ export class AuthOrchestratorService {
        * retirer. La vérification se réactive d’elle-même le jour où Twilio
        * est configuré.
        */
-      phoneVerificationAvailable: this.sms.estDisponible(),
+      phoneVerificationAvailable: await this.whatsapp.estDisponible(),
     };
   }
 
@@ -434,7 +434,14 @@ export class AuthOrchestratorService {
     const expiresAt = new Date(Date.now() + PHONE_VERIFICATION_CODE_TTL_MINUTES * 60 * 1000);
 
     /*
-     * Le code part par SMS depuis le 2026-08-21, et non plus par WhatsApp.
+     * Le code part par WhatsApp (2026-08-22). Le SMS Twilio, retenu la
+     * veille, a été abandonné : son prix à l’unité vers le Togo et le Bénin
+     * ne se justifie pas pour un code de vérification, là où WhatsApp est
+     * déjà installé sur les téléphones du public visé.
+     *
+     * Le canal reste dormant tant qu’aucun template n’est approuvé — et le
+     * tableau de bord n’exige alors aucune vérification, plutôt que de
+     * réclamer une preuve impossible à fournir.
      *
      * WhatsApp exige un template approuvé par Meta ; faute de cette
      * approbation, le canal était hors service et le commentaire qui vivait
@@ -453,7 +460,7 @@ export class AuthOrchestratorService {
      * contenir des détails d’identifiants.
      */
     try {
-      await this.sms.sendVerificationCodeSms({ to: phone, code });
+      await this.whatsapp.sendVerificationCode({ to: phone.replace('+', ''), code });
     } catch (err) {
       this.logger.error(
         `Échec d’envoi du code de vérification à ${phone} : ${err instanceof Error ? err.message : String(err)}`,

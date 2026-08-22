@@ -7,7 +7,7 @@ import { AuthOrchestratorService } from './auth-orchestrator.service';
 import { AuthController } from './auth.controller';
 import { AuditService } from '../common/audit.service';
 import { PhoneService } from '../notifications/phone.service';
-import { SmsService } from '../notifications/sms.service';
+import { WhatsappService } from '../notifications/whatsapp.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { GoogleStrategy } from './strategies/google.strategy';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -38,11 +38,11 @@ import { CryptoService } from '../common/crypto.service';
     AuthOrchestratorService,
     AuditService,
     PhoneService,
-    // Le code de vérification part par SMS depuis le 2026-08-21 : WhatsApp
-    // exigeait un template approuvé par Meta, jamais obtenu, et le canal
-    // restait donc muet. SmsService n’a besoin que de trois variables
-    // Twilio.
-    SmsService,
+    // Le code de vérification repart par WhatsApp (2026-08-22) : le SMS
+    // Twilio coûtait trop cher à l’unité pour ce seul usage. Le canal reste
+    // dormant tant qu’aucun template n’est approuvé, et le tableau de bord
+    // n'exige alors aucune vérification.
+    WhatsappService,
     // CryptoService reste : d’autres réglages lus en base y sont chiffrés,
     // et sans lui l'application ne démarre pas.
     CryptoService,

@@ -47,6 +47,20 @@ export class WhatsappService {
    * un accès au serveur et un redémarrage. Le repli garantit qu'une
    * installation déjà configurée continue de fonctionner sans rien saisir.
    */
+  /**
+   * Le canal est-il configuré ? Consulté avant d'EXIGER une vérification
+   * (2026-08-22, reprise du rôle tenu brièvement par Twilio).
+   *
+   * Imposer une preuve que personne ne peut fournir enferme tout le monde
+   * dehors — ce qui est arrivé du 16 au 21 août. Tant que Meta ou un
+   * partenaire n'a pas approuvé de template, la vérification s'efface, et
+   * elle se réactive d’elle-même le jour où les identifiants sont posés.
+   */
+  async estDisponible(): Promise<boolean> {
+    const settings = await this.resolveSettings();
+    return Boolean(settings.accessToken && settings.phoneNumberId);
+  }
+
   private async resolveSettings(): Promise<{
     accessToken?: string;
     phoneNumberId?: string;
