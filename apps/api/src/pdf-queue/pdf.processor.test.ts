@@ -84,6 +84,8 @@ function makeProcessor(deps: ReturnType<typeof makeDeps>) {
     deps.whatsappService as any,
     deps.smsService as any,
     deps.phoneService as any,
+    // Le lien signé posé dans l'email des billets.
+    { creerJeton: vi.fn().mockResolvedValue('jeton-de-test') } as never,
   );
 }
 
@@ -179,6 +181,9 @@ describe('PdfProcessor.handleGenerate()', () => {
         eventTitle: 'Concert FESTA 2026',
         orderNumber: 'ORD-1',
         items: [{ ticketName: 'VIP Or', qrCodeUrl: 'http://storage/tickets/oi-1.pdf' }],
+        // Le lien signé accompagne désormais chaque email de billets : un
+        // acheteur sans compte n'a que lui pour retrouver sa commande.
+        ticketUrl: 'http://localhost:3000/t/jeton-de-test',
       });
       expect(deps.phoneService.normalizeForWhatsapp).toHaveBeenCalledWith('+22890000000');
       expect(deps.whatsappService.sendTicketReadyMessage).toHaveBeenCalledWith({

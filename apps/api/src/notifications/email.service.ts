@@ -66,8 +66,14 @@ export class EmailService {
     eventTitle: string;
     orderNumber: string;
     items: TicketEmailItem[];
+    /**
+     * Lien signé vers la page du billet (2026-08-22). Indispensable à un
+     * acheteur sans compte, qui n'a aucun tableau de bord où retourner.
+     * Absent, le message reste celui d’avant.
+     */
+    ticketUrl?: string;
   }): Promise<void> {
-    const { to, clientName, eventTitle, orderNumber, items } = params;
+    const { to, clientName, eventTitle, orderNumber, items, ticketUrl } = params;
 
     const itemsHtml = items
       .map(
@@ -77,9 +83,27 @@ export class EmailService {
       .join('');
 
     const subject = `Vos billets pour ${eventTitle}`;
+
+    /*
+     * Le lien passe AVANT la liste des PDF quand il existe : un acheteur
+     * sans compte n’a que lui, et c’est aussi le seul repère qui survit à
+     * un téléphone changé ou à un PDF égaré.
+     */
+    const bloclien = ticketUrl
+      ? `<p style="margin:24px 0">
+           <a href="${ticketUrl}"
+              style="display:inline-block;background:#c0571e;color:#fff;text-decoration:none;
+                     padding:14px 32px;border-radius:999px;font-weight:700">
+             Voir mes billets
+           </a>
+         </p>
+         <p style="color:#6f645c;font-size:13px">Ce lien ouvre vos billets sans mot de passe. Gardez-le : il reste valable jusqu’à deux mois après l’événement.</p>`
+      : '';
+
     const html = `
       <p>Bonjour ${escapeHtml(clientName)},</p>
       <p>Votre paiement pour <strong>${escapeHtml(eventTitle)}</strong> est confirmé (commande ${escapeHtml(orderNumber)}).</p>
+      ${bloclien}
       <ul>${itemsHtml}</ul>
       <p>Présentez le QR contenu dans votre billet PDF à l'entrée de l'événement.</p>
     `;

@@ -13,18 +13,24 @@ import { CinetPayService } from './cinetpay.service';
 import { FedaPayService } from './fedapay.service';
 import { PaymentsService } from './payments.service';
 import { GuestCheckoutService } from './guest-checkout.service';
-import { TicketAccessService } from './ticket-access.service';
+import { TicketAccessModule } from './ticket-access.module';
 import { PaymentsController } from './payments.controller';
 
 @Module({
-  imports: [PrismaModule, AuthModule, NotificationsModule, TicketDesignModule, PdfQueueModule],
+  imports: [
+    PrismaModule,
+    AuthModule,
+    NotificationsModule,
+    TicketDesignModule,
+    PdfQueueModule,
+    TicketAccessModule,
+  ],
   providers: [
     CryptoService,
     StockService,
     WebhookIdempotencyService,
     ClientProfileService,
     GuestCheckoutService,
-    TicketAccessService,
     KkiapayService,
     CinetPayService,
     FedaPayService,

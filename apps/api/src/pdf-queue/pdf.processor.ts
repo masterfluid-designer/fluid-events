@@ -12,6 +12,10 @@ import { WhatsappService } from '../notifications/whatsapp.service';
 import { SmsService } from '../notifications/sms.service';
 import { PhoneService } from '../notifications/phone.service';
 import { TICKET_PDF_QUEUE, GENERATE_PDF_JOB, GeneratePdfJobData } from './pdf-queue.service';
+import { TicketAccessService } from '../payments/ticket-access.service';
+
+/** Adresse publique de l’application — le lien du billet y renvoie. */
+const APP_URL = process.env.APP_URL ?? 'http://localhost:3000';
 
 /**
  * PdfProcessor — Worker BullMQ : rendu HTML → PDF (Puppeteer) → upload S3.
@@ -33,6 +37,7 @@ export class PdfProcessor {
     private readonly whatsappService: WhatsappService,
     private readonly smsService: SmsService,
     private readonly phoneService: PhoneService,
+    private readonly ticketAccess: TicketAccessService,
   ) {}
 
   @Process(GENERATE_PDF_JOB)
@@ -119,6 +124,8 @@ export class PdfProcessor {
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
       select: {
+        // L’identifiant sert à fabriquer le lien signé du billet.
+        id: true,
         orderNumber: true,
         event: { select: { title: true } },
         client: { select: { name: true, email: true, phone: true } },
@@ -132,6 +139,24 @@ export class PdfProcessor {
 
     const clientName = order.client.name ?? 'Client';
 
+    /*
+     * Le lien est produit pour TOUTE commande, pas seulement pour un achat
+     * sans compte : un client qui en a un profite aussi d’un accès direct
+     * depuis son email, sans passer par une connexion. C'est le même lien,
+     * et il n’ouvre que cette commande.
+     */
+    let ticketUrl: string | undefined;
+    try {
+      const jeton = await this.ticketAccess.creerJeton(order.id);
+      ticketUrl = `${APP_URL}/t/${jeton}`;
+    } catch (err) {
+      // Un lien manquant ne doit pas retenir l'email : les PDF y sont
+      // toujours joints, et le billet reste téléchargeable.
+      this.logger.warn(
+        `Lien de billet non produit pour la commande ${order.orderNumber} : ${(err as Error).message}`,
+      );
+    }
+
     await this.emailService.sendTicketReadyEmail({
       to: order.client.email,
       clientName,
@@ -141,6 +166,7 @@ export class PdfProcessor {
         ticketName: item.ticket.name,
         qrCodeUrl: item.qrCodeUrl as string,
       })),
+      ticketUrl,
     });
 
     const whatsappTo = this.phoneService.normalizeForWhatsapp(order.client.phone);
