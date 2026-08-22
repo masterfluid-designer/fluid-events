@@ -51,8 +51,20 @@ export class AdminService {
   async getOverview() {
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
-    const [activeEvents, managersCount, revenueAgg, ticketsSold, recentPaidOrders, managers, recentLogs] =
-      await Promise.all([
+    const [
+      activeEvents,
+      managersCount,
+      revenueAgg,
+      ticketsSold,
+      recentPaidOrders,
+      managers,
+      recentLogs,
+      // Supervision (2026-08-22) : ce que l’Admin devait deviner jusqu’ici.
+      evenementsParRegime,
+      inscriptionsTotales,
+      evenementsSansPaiement,
+      commandesEchouees30j,
+    ] = await Promise.all([
       this.prisma.event.count({ where: { status: 'PUBLISHED' } }),
       this.prisma.user.count({ where: { role: 'MANAGER' } }),
       this.prisma.order.aggregate({
@@ -82,6 +94,7 @@ export class AdminService {
               id: true,
               title: true,
               status: true,
+              accessMode: true,
               paymentProviderConfigs: {
                 where: { isActive: true },
                 select: { provider: true },
@@ -96,6 +109,31 @@ export class AdminService {
         take: 10,
         select: { action: true, createdAt: true },
       }),
+
+      // Combien d’événements de chaque régime : la plateforme ne vend plus
+      // seulement des billets, et l’Admin n’avait aucun moyen de le voir.
+      this.prisma.event.groupBy({ by: ['accessMode'], _count: true }),
+
+      this.prisma.registration.count(),
+
+      /*
+       * Événements PUBLIÉS qui vendent des billets sans aucun fournisseur
+       * actif : ils affichent une billetterie qui n'encaissera rien. C'est le
+       * défaut le plus coûteux de la plateforme, et il était invisible.
+       */
+      this.prisma.event.count({
+        where: {
+          status: 'PUBLISHED',
+          accessMode: { not: 'RSVP' },
+          paymentProviderConfigs: { none: { isActive: true } },
+        },
+      }),
+
+      // Paiements échoués : une série d’échecs signale une configuration
+      // cassée bien avant qu’un organisateur ne s’en plaigne.
+      this.prisma.order.count({
+        where: { status: 'FAILED', updatedAt: { gte: thirtyDaysAgo } },
+      }),
     ]);
 
     const salesOverTime = bucketSalesByDay(
@@ -107,9 +145,19 @@ export class AdminService {
       SALES_TREND_DAYS,
     );
 
+    const parRegime = Object.fromEntries(
+      evenementsParRegime.map((ligne) => [ligne.accessMode, ligne._count]),
+    ) as Record<string, number>;
+
     return {
       activeEvents,
       managersCount,
+      /** Répartition des événements par régime d’accès. */
+      parRegime,
+      inscriptionsTotales,
+      /** Événements publiés qui vendent sans pouvoir encaisser. */
+      evenementsSansPaiement,
+      commandesEchouees30j,
       revenue30d: Number(revenueAgg._sum.totalAmount ?? 0),
       currency: 'XOF',
       ticketsSold,
@@ -123,6 +171,7 @@ export class AdminService {
           eventId: premier?.id ?? null,
           eventTitle: premier?.title ?? null,
           eventStatus: premier?.status ?? null,
+          eventAccessMode: premier?.accessMode ?? null,
           eventsCount: m.managedEvents.length,
           paymentProvider: premier?.paymentProviderConfigs[0]?.provider ?? null,
         };

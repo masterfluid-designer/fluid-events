@@ -4,7 +4,7 @@ import { StatGrid } from '@/components/dashboard/stat-grid';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { Sparkles, DollarSign, Ticket, ScanLine, Radio, Clock, AlertTriangle, Rocket, Plus } from 'lucide-react';
+import { UserCheck, Users, Sparkles, DollarSign, Ticket, ScanLine, Radio, Clock, AlertTriangle, Rocket, Plus } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -20,6 +20,7 @@ import { SalesTrendChart, type DailySalesPoint } from '@/components/ui/sales-tre
 import { api, apiPatch, apiPost, ApiError } from '@/lib/api';
 import { PublicLink } from '@/components/dashboard/public-link';
 import { avecEvenement, useEvenementActif, useMesEvenements } from '@/lib/evenement-actif';
+import { EventAccessMode } from '@saas-events/types';
 
 /**
  * Dashboard Manager (CDC §14.3 — KPIs événement géré).
@@ -28,7 +29,17 @@ import { avecEvenement, useEvenementActif, useMesEvenements } from '@/lib/evenem
  */
 
 interface Overview {
-  event: { id: string; title: string; slug: string; status: string };
+  event: {
+    id: string;
+    title: string;
+    slug: string;
+    status: string;
+    /** Régime d'accès — commande les chiffres montrés (2026-08-22). */
+    accessMode?: EventAccessMode;
+  };
+  inscriptions: number;
+  inscriptionsPresentes: number;
+  inscriptionsOverTime: DailySalesPoint[];
   totalRevenue: number;
   currency: string;
   ticketsSold: number;
@@ -38,6 +49,17 @@ interface Overview {
   scansByScanner: Array<{ name: string; scans: number; lastScanAt: string | null }>;
   paymentStatus: { configured: boolean; provider: string | null };
 }
+
+/**
+ * Le régime d'accès n'était affiché NULLE PART sur le tableau de bord
+ * (2026-08-22). Un organisateur ne pouvait pas savoir si sa page vendait des
+ * billets ou recueillait des inscriptions — sinon en la visitant.
+ */
+const REGIME_LABELS: Record<string, string> = {
+  TICKETED_ACCOUNT: 'Billetterie · compte requis',
+  TICKETED_GUEST: 'Billetterie · sans compte',
+  RSVP: 'Inscription simple',
+};
 
 const STATUS_LABELS: Record<string, string> = {
   DRAFT: 'Brouillon',
@@ -124,12 +146,48 @@ export default function ManagerDashboardPage() {
   const currencyFmt = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: overview.currency });
   const maxTicketRevenue = Math.max(1, ...overview.revenueByTicketType.map((r) => r.revenue));
 
-  const stats = [
-    { label: 'Revenus', value: currencyFmt.format(overview.totalRevenue), icon: <DollarSign className="size-4" /> },
-    { label: 'Billets vendus', value: overview.ticketsSold.toLocaleString('fr-FR'), icon: <Ticket className="size-4" /> },
-    { label: 'Taux de scan', value: `${scanRate}%`, icon: <ScanLine className="size-4" /> },
-    { label: 'Scanners actifs', value: overview.scansByScanner.length.toString(), icon: <Radio className="size-4" /> },
-  ];
+  const surInscription = overview.event.accessMode === EventAccessMode.RSVP;
+
+  /*
+   * Les indicateurs suivent le RÉGIME. Un événement sur inscription n'a ni
+   * revenus ni billets : lui montrer « 0 F · 0 billet vendu » pendant que sa
+   * liste se remplit était un écran qui ment. On répond à la même question —
+   * « où en suis-je ? » — avec les chiffres qui existent.
+   */
+  const tauxPresence =
+    overview.inscriptions > 0
+      ? Math.round((overview.inscriptionsPresentes / overview.inscriptions) * 100)
+      : 0;
+
+  const stats = surInscription
+    ? [
+        {
+          label: 'Inscrits',
+          value: overview.inscriptions.toLocaleString('fr-FR'),
+          icon: <Users className="size-4" />,
+        },
+        {
+          label: 'Arrivées',
+          value: overview.inscriptionsPresentes.toLocaleString('fr-FR'),
+          icon: <UserCheck className="size-4" />,
+        },
+        {
+          label: 'Taux de présence',
+          value: `${tauxPresence}%`,
+          icon: <ScanLine className="size-4" />,
+        },
+        {
+          label: 'Agents de contrôle',
+          value: overview.scansByScanner.length.toString(),
+          icon: <Radio className="size-4" />,
+        },
+      ]
+    : [
+        { label: 'Revenus', value: currencyFmt.format(overview.totalRevenue), icon: <DollarSign className="size-4" /> },
+        { label: 'Billets vendus', value: overview.ticketsSold.toLocaleString('fr-FR'), icon: <Ticket className="size-4" /> },
+        { label: 'Taux de scan', value: `${scanRate}%`, icon: <ScanLine className="size-4" /> },
+        { label: 'Scanners actifs', value: overview.scansByScanner.length.toString(), icon: <Radio className="size-4" /> },
+      ];
 
   return (
     <div className="space-y-6 p-4 sm:p-6">
@@ -154,6 +212,12 @@ export default function ManagerDashboardPage() {
             }
           >
             ● {STATUS_LABELS[overview.event.status] ?? overview.event.status}
+          </Badge>
+          {/* Le régime, jamais affiché jusqu’ici : il décide de ce que la page
+              publique propose, et donc de ce que ce tableau de bord montre. */}
+          <Badge variant="secondary" title="Modifiable depuis Apparence › Régime d’accès">
+            {REGIME_LABELS[overview.event.accessMode ?? 'TICKETED_ACCOUNT'] ??
+              overview.event.accessMode}
           </Badge>
           {me?.plan === 'PREMIUM' && (
             <Badge variant="success" title="Options avancées débloquées, dont les événements sur plusieurs jours">
@@ -216,7 +280,10 @@ export default function ManagerDashboardPage() {
         </div>
       )}
 
-      {overview.paymentStatus.configured ? (
+      {/* Sans billetterie, il n’y a rien à encaisser : afficher un statut de
+          paiement — ou en réclamer la configuration — est du bruit pour un
+          organisateur qui n’en veut pas. */}
+      {!surInscription && (overview.paymentStatus.configured ? (
         <div className="flex items-center gap-2 rounded-lg border border-border bg-secondary/50 px-4 py-2.5 text-sm">
           <span className="inline-block size-2 rounded-full bg-emerald-500" />
           Paiement actif : <span className="font-semibold">{overview.paymentStatus.provider}</span>
@@ -230,10 +297,16 @@ export default function ManagerDashboardPage() {
             activer les paiements.
           </span>
         </div>
-      )}
+      ))}
 
       <StatGrid stats={stats} />
 
+      {/* Les blocs suivants n’ont de sens que si l’on vend. En régime
+          « inscription simple », ils affichaient des cadres vides — un écran
+          qui laisse croire à une panne plutôt qu’à une absence de
+          billetterie. */}
+      {!surInscription && (
+      <>
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Revenus par type de billet</CardTitle>
@@ -301,6 +374,28 @@ export default function ManagerDashboardPage() {
           )}
         </CardContent>
       </Card>
+
+      </>
+      )}
+
+      {/* Ce qui progresse dans le temps sur un événement sur inscription, ce
+          sont les inscrits — même série, autre unité. */}
+      {surInscription && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Inscriptions dans le temps</CardTitle>
+            <CardDescription>Nouvelles inscriptions par jour, 30 derniers jours</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <SalesTrendChart
+              data={overview.inscriptionsOverTime}
+              currency={overview.currency}
+              unite="nombre"
+              messageVide="Aucune inscription sur les 30 derniers jours."
+            />
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

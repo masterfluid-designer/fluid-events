@@ -21,7 +21,10 @@ function makePrisma() {
       findUnique: vi.fn().mockResolvedValue(null),
       findMany: vi.fn().mockResolvedValue([]),
       update: vi.fn().mockResolvedValue({ id: 'ev-1', status: 'CANCELLED' }),
+      // Répartition par régime, pour la supervision (2026-08-22).
+      groupBy: vi.fn().mockResolvedValue([]),
     },
+    registration: { count: vi.fn().mockResolvedValue(0) },
     user: {
       count: vi.fn().mockResolvedValue(0),
       findMany: vi.fn().mockResolvedValue([]),
@@ -32,6 +35,8 @@ function makePrisma() {
     order: {
       aggregate: vi.fn().mockResolvedValue({ _sum: { totalAmount: null } }),
       findMany: vi.fn().mockResolvedValue([]),
+      // Paiements échoués sur 30 jours : signal de supervision (2026-08-22).
+      count: vi.fn().mockResolvedValue(0),
     },
     orderItem: { count: vi.fn().mockResolvedValue(0) },
     paymentProviderConfig: {
@@ -111,6 +116,9 @@ describe('AdminService.getOverview()', () => {
         eventId: 'ev-1',
         eventTitle: 'Concert FESTA',
         eventStatus: 'PUBLISHED',
+        // Le régime de l'événement : la plateforme ne vend plus seulement
+        // des billets, et l'Admin n'avait aucun moyen de le voir (2026-08-22).
+        eventAccessMode: null,
         // Un manager Premium en porte jusqu’à huit : la vue reste une ligne
         // par manager, et dit combien il en a (2026-08-21).
         eventsCount: 1,
@@ -123,6 +131,7 @@ describe('AdminService.getOverview()', () => {
         eventId: null,
         eventTitle: null,
         eventStatus: null,
+        eventAccessMode: null,
         eventsCount: 0,
         paymentProvider: null,
       },

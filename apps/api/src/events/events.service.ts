@@ -471,8 +471,44 @@ export class EventsService {
       return { name: scanner.name, scans: validLogs.length, lastScanAt };
     });
 
+    /*
+     * Chiffres du régime « inscription simple » (2026-08-22). Sans eux,
+     * l'accueil d'un événement sur inscription affiche « 0 F, 0 billet »
+     * pendant que la liste se remplit — un écran qui ment à l’organisateur
+     * est pire qu’un écran vide.
+     */
+    const [inscriptions, inscriptionsPresentes, inscriptionsRecentes] = await Promise.all([
+      this.prisma.registration.count({ where: { eventId: id } }),
+      this.prisma.registration.count({
+        where: { eventId: id, checkedInAt: { not: null } },
+      }),
+      this.prisma.registration.findMany({
+        where: { eventId: id },
+        select: { createdAt: true },
+      }),
+    ]);
+
     return {
-      event: { id: event.id, title: event.title, slug: event.slug, status: event.status },
+      event: {
+        id: event.id,
+        title: event.title,
+        slug: event.slug,
+        status: event.status,
+        // Le régime commande ce que l'accueil doit montrer, et il n'était
+        // affiché nulle part sur le tableau de bord.
+        accessMode: event.accessMode,
+      },
+      inscriptions,
+      inscriptionsPresentes,
+      // Même série que les ventes, pour que la courbe existe aussi sans
+      // billetterie : ce qui progresse dans le temps, ce sont les inscrits.
+      inscriptionsOverTime: bucketSalesByDay(
+        // `amount` porte ici un COMPTE, pas des francs : un montant nul
+        // ferait conclure au graphique que la série est vide, et il
+        // afficherait « rien à montrer » sur une liste qui se remplit.
+        inscriptionsRecentes.map((r) => ({ paidAt: r.createdAt, amount: 1, itemCount: 1 })),
+        SALES_TREND_DAYS,
+      ),
       totalRevenue,
       currency: 'XOF',
       ticketsSold,

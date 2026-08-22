@@ -20,9 +20,20 @@ export interface DailySalesPoint {
 export function SalesTrendChart({
   data,
   currency,
+  unite = 'montant',
+  messageVide,
 }: {
   data: DailySalesPoint[];
   currency: string;
+  /**
+   * Unité représentée (2026-08-22). Le même graphique sert aux ventes et
+   * aux inscriptions : sur un événement sans billetterie, ce qui progresse
+   * dans le temps se compte en personnes, pas en francs.
+   */
+  unite?: 'montant' | 'nombre';
+  /** Phrase affichée quand la série est vide — « aucune vente » n’a aucun
+   *  sens sur un événement qui n’en fait pas. */
+  messageVide?: string;
 }) {
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const currencyFmt = new Intl.NumberFormat('fr-FR', { style: 'currency', currency });
@@ -32,7 +43,7 @@ export function SalesTrendChart({
   if (totalRevenue === 0) {
     return (
       <p className="text-sm text-muted-foreground">
-        Aucune vente confirmée sur les 30 derniers jours.
+        {messageVide ?? 'Aucune vente confirmée sur les 30 derniers jours.'}
       </p>
     );
   }
@@ -86,7 +97,11 @@ export function SalesTrendChart({
           style={{ left: `${hoverIndex * barWidth + barWidth / 2}%` }}
         >
           <div className="font-semibold">{dateFmt.format(new Date(data[hoverIndex].date))}</div>
-          <div className="text-muted-foreground">{currencyFmt.format(data[hoverIndex].revenue)}</div>
+          <div className="text-muted-foreground">
+            {unite === 'nombre'
+              ? `${data[hoverIndex].revenue.toLocaleString('fr-FR')} inscription${data[hoverIndex].revenue > 1 ? 's' : ''}`
+              : currencyFmt.format(data[hoverIndex].revenue)}
+          </div>
           <div className="text-muted-foreground">
             {data[hoverIndex].ticketsSold} billet{data[hoverIndex].ticketsSold > 1 ? 's' : ''}
           </div>

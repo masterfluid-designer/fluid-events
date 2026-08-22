@@ -3,7 +3,7 @@
 import { StatGrid } from '@/components/dashboard/stat-grid';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Ticket, Users, DollarSign, TrendingUp, Activity, Settings2 } from 'lucide-react';
+import { AlertTriangle, UserCheck, Ticket, Users, DollarSign, TrendingUp, Activity, Settings2 } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -30,6 +30,12 @@ interface Overview {
   currency: string;
   ticketsSold: number;
   salesOverTime: DailySalesPoint[];
+  /** Répartition des événements par régime d'accès (2026-08-22). */
+  parRegime: Record<string, number>;
+  inscriptionsTotales: number;
+  /** Événements publiés qui vendent sans pouvoir encaisser. */
+  evenementsSansPaiement: number;
+  commandesEchouees30j: number;
   managers: Array<{
     name: string;
     email: string;
@@ -37,6 +43,7 @@ interface Overview {
     eventId: string | null;
     eventTitle: string | null;
     eventStatus: string | null;
+    eventAccessMode: string | null;
     paymentProvider: string | null;
   }>;
   recentLogs: Array<{ action: string; createdAt: string }>;
@@ -71,7 +78,18 @@ export default function AdminOverviewPage() {
     { label: 'Événements publiés', value: overview.activeEvents.toString(), icon: <Ticket className="size-4" /> },
     { label: 'Revenus (30j)', value: currencyFmt.format(overview.revenue30d), icon: <DollarSign className="size-4" /> },
     { label: 'Billets vendus', value: overview.ticketsSold.toLocaleString('fr-FR'), icon: <TrendingUp className="size-4" /> },
+    {
+      label: 'Inscrits',
+      value: overview.inscriptionsTotales.toLocaleString('fr-FR'),
+      icon: <UserCheck className="size-4" />,
+    },
     { label: 'Managers', value: overview.managersCount.toString(), icon: <Users className="size-4" /> },
+  ];
+
+  const REGIMES: Array<[string, string]> = [
+    ['TICKETED_ACCOUNT', 'Billetterie · compte'],
+    ['TICKETED_GUEST', 'Billetterie · sans compte'],
+    ['RSVP', 'Inscription simple'],
   ];
 
   return (
@@ -81,7 +99,55 @@ export default function AdminOverviewPage() {
         <p className="text-sm text-muted-foreground">Indicateurs clés de la plateforme</p>
       </div>
 
+      {/*
+        Ce que l'Admin devait deviner jusqu'ici. Ces deux alertes sont
+        remontées AVANT les chiffres : un événement qui vend sans pouvoir
+        encaisser perd de l’argent à chaque visiteur, et une série d’échecs
+        de paiement signale une configuration cassée bien avant qu’un
+        organisateur ne s’en plaigne.
+      */}
+      {overview.evenementsSansPaiement > 0 && (
+        <div className="flex items-start gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-400">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+          <span>
+            <strong>
+              {overview.evenementsSansPaiement} événement
+              {overview.evenementsSansPaiement > 1 ? 's' : ''} publié
+              {overview.evenementsSansPaiement > 1 ? 's' : ''}
+            </strong>{' '}
+            vend{overview.evenementsSansPaiement > 1 ? 'ent' : ''} des billets sans aucun
+            fournisseur de paiement actif —{' '}
+            {overview.evenementsSansPaiement > 1 ? 'leurs visiteurs' : 'ses visiteurs'} ne peuvent
+            rien acheter.
+          </span>
+        </div>
+      )}
+
+      {overview.commandesEchouees30j > 0 && (
+        <div className="flex items-start gap-3 rounded-lg border border-border bg-secondary/50 px-4 py-3 text-sm">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+          <span className="text-muted-foreground">
+            <strong className="text-foreground">{overview.commandesEchouees30j}</strong> paiement
+            {overview.commandesEchouees30j > 1 ? 's ont' : ' a'} échoué sur les 30 derniers jours.
+          </span>
+        </div>
+      )}
+
       <StatGrid stats={kpis} />
+
+      <Card className="overflow-hidden py-0">
+        <div className="flex items-center justify-between border-b border-border px-4.5 py-3.5">
+          <span className="text-sm font-bold">Événements par régime d’accès</span>
+        </div>
+        <div className="grid grid-cols-1 divide-y divide-border sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+          {REGIMES.map(([cle, libelle]) => (
+            <div key={cle} className="px-4.5 py-4">
+              <div className="text-2xl font-bold tabular-nums">{overview.parRegime[cle] ?? 0}</div>
+              <div className="text-xs text-muted-foreground">{libelle}</div>
+            </div>
+          ))}
+        </div>
+      </Card>
 
       <Card className="overflow-hidden py-0">
         <div className="flex items-center justify-between border-b border-border px-4.5 py-3.5">

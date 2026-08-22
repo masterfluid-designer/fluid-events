@@ -23,7 +23,12 @@ function makePrisma() {
     event: { create: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
     // `getMyEvent` compte aussi ce que la bascule de régime conserve.
     order: { findMany: vi.fn(), count: vi.fn().mockResolvedValue(0) },
-    registration: { count: vi.fn().mockResolvedValue(0) },
+    registration: {
+      count: vi.fn().mockResolvedValue(0),
+      // Série des inscriptions dans le temps, pour l'accueil d'un événement
+      // sur inscription (2026-08-22).
+      findMany: vi.fn().mockResolvedValue([]),
+    },
     user: { findUnique: vi.fn() },
     eventDay: { findMany: vi.fn().mockResolvedValue([]) },
     orderItem: { count: vi.fn().mockResolvedValue(0) },
