@@ -615,6 +615,12 @@ export const ErrorCodes = {
   EVENT_QUOTA_REACHED: 'EVENT_QUOTA_REACHED',
   /** Bascule refusée : des places ont déjà été vendues. */
   EVENT_ACCESS_MODE_LOCKED: 'EVENT_ACCESS_MODE_LOCKED',
+  /** Cette adresse figure déjà sur la liste des inscrits.
+   *
+   * Dit franchement : la liste n’est pas secrète pour qui y figure, et
+   * laisser croire à une seconde inscription ferait douter la personne de sa
+   * présence le soir venu. */
+  ALREADY_REGISTERED: 'ALREADY_REGISTERED',
   EVENT_NOT_ACTIVE: 'EVENT_NOT_ACTIVE',
   EVENT_EXPIRED: 'EVENT_EXPIRED',
   // Somme des stocks de billets > Event.expectedAttendees (plafond réel,

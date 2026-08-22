@@ -202,6 +202,7 @@ model Event {
   orders    Order[]
   scanners  Scanner[]
   eventPage EventPage?
+  registrations Registration[]
   analytics EventAnalytics?
   paymentProviderConfigs PaymentProviderConfig[]
 
@@ -459,6 +460,42 @@ enum PaymentProviderType {
   KKIAPAY
   CINETPAY
   FEDAPAY
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// INSCRIPTIONS (régime RSVP)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Inscription à un événement sans billetterie (lot 2, 2026-08-22).
+///
+/// Table dédiée, sans User ni Order. La tentation était de créer un billet
+/// gratuit et de réutiliser le tunnel : cela fabriquerait des commandes, des
+/// QR et des PDF pour rien, et ferait apparaître des « ventes à 0 F » dans
+/// l'analytique de l'organisateur.
+model Registration {
+  id        String   @id @default(cuid())
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  firstName String
+  lastName  String
+  email     String
+  phone     String?
+
+  /// Champ libre facultatif, nommé par l'organisateur (« Tu viens avec
+  /// combien de personnes ? »). Le libellé est stocké AVEC la réponse : le
+  /// changer plus tard ne doit pas réécrire le sens des réponses déjà
+  /// recueillies.
+  extraLabel String?
+  extraValue String?
+
+  createdAt DateTime @default(now())
+
+  /// Une adresse ne s'inscrit qu'une fois par événement. C'est le garde-fou
+  /// principal contre le remplissage automatique du formulaire public.
+  @@unique([eventId, email])
+  @@index([eventId, createdAt])
+  @@map("registrations")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

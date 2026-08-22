@@ -10,6 +10,7 @@ import { ScannerModule } from './scanner/scanner.module';
 import { BuilderModule } from './builder/builder.module';
 import { TicketsModule } from './tickets/tickets.module';
 import { PaymentsModule } from './payments/payments.module';
+import { RegistrationsModule } from './registrations/registrations.module';
 import { PdfQueueModule } from './pdf-queue/pdf-queue.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { AdminModule } from './admin/admin.module';
@@ -53,6 +54,7 @@ import { ResponseInterceptor } from './common/interceptors/response.interceptor'
     BuilderModule,
     TicketsModule,
     PaymentsModule,
+    RegistrationsModule,
     PdfQueueModule,
     NotificationsModule,
     AdminModule,

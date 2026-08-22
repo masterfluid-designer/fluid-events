@@ -218,6 +218,51 @@ export class EmailService {
   }
 
   /**
+   * Confirmation d'inscription — régime RSVP (lot 2, 2026-08-22).
+   *
+   * Ni QR ni PDF : à l’entrée, on pointe les noms sur la liste. Ce message
+   * n'est pas un billet, c'est une preuve d'inscription et un rappel de la
+   * date — les deux choses qu’un inviter cherche trois semaines plus tard.
+   *
+   * Best-effort, comme les billets : une inscription enregistrée ne doit
+   * pas être perdue parce que l'email n'est pas parti. Le nom figure sur la
+   * liste de toute façon.
+   */
+  async sendRegistrationConfirmationEmail(params: {
+    to: string;
+    firstName: string;
+    eventTitle: string;
+    dateLabel?: string;
+    placeLabel?: string;
+  }): Promise<void> {
+    const { to, firstName, eventTitle, dateLabel, placeLabel } = params;
+    const subject = `Votre inscription à ${eventTitle} est enregistrée`;
+
+    const details = [dateLabel, placeLabel].filter(Boolean).join(" · ");
+
+    const html = `
+      <div style="font-family:system-ui,-apple-system,'Segoe UI',sans-serif;font-size:15px;line-height:1.6;color:#1c1b1a">
+        <p style="margin:0 0 6px;font-size:13px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#c0571e">Inscription confirmée</p>
+        <h1 style="margin:0 0 12px;font-size:24px;line-height:1.2">Merci ${escapeHtml(firstName)}, vous êtes sur la liste</h1>
+        <p>Votre nom sera à l’accueil de <strong>${escapeHtml(eventTitle)}</strong>.</p>
+        ${details ? `<p style="color:#6f645c">${escapeHtml(details)}</p>` : ''}
+        <p style="color:#6f645c;font-size:13px;margin-top:24px">
+          Rien à imprimer, rien à présenter : donnez simplement votre nom à l’entrée.
+        </p>
+      </div>
+    `;
+
+    try {
+      await this.send(to, subject, html);
+      this.logger.log(`Email de confirmation d’inscription envoyé à ${to}`);
+    } catch (err) {
+      this.logger.warn(
+        `Échec envoi confirmation d’inscription à ${to} : ${(err as Error).message}`,
+      );
+    }
+  }
+
+  /**
    * Message du formulaire de contact public (/contact, /support —
    * 2026-07-24). Contrairement à `sendTicketReadyEmail`, l'échec est
    * remonté à l'appelant (même raisonnement que `sendManagerInviteEmail` :

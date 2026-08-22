@@ -1140,6 +1140,10 @@ export default function EventBuilderPage() {
                 />
               )}
 
+              {selected.type === 'registration' && (
+                <RegistrationEditor props={selected.props} onChange={updateSelectedProps} />
+              )}
+
               {selected.type === 'timeline' && (
                 <TimelineEditor
                   props={selected.props}
@@ -1202,6 +1206,110 @@ export default function EventBuilderPage() {
 }
 
 const TIMELINE_ENTRIES_MAX = 12;
+
+/**
+ * Éditeur du bloc « Formulaire d'inscription » (lot 2, 2026-08-22).
+ *
+ * Les champs du formulaire sont FIGÉS — prénom, nom, email, téléphone —
+ * plus un champ libre que l'organisateur active en le nommant. Un
+ * constructeur de formulaire complet est un chantier à part : validation
+ * dynamique, stockage variable, export à colonnes changeantes.
+ */
+function RegistrationEditor({
+  props,
+  onChange,
+}: {
+  props: Record<string, unknown>;
+  onChange: (patch: Record<string, unknown>) => void;
+}) {
+  const puces = (props.bullets as string[] | undefined) ?? [];
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div>
+        <label className="mb-1.5 block text-xs font-semibold">Sur-titre</label>
+        <Input
+          placeholder="Inscription"
+          value={(props.eyebrow as string) ?? ''}
+          onChange={(e) => onChange({ eyebrow: e.target.value })}
+        />
+      </div>
+
+      <div>
+        <label className="mb-1.5 block text-xs font-semibold">Titre</label>
+        <Input
+          placeholder="Liste des participants"
+          value={(props.title as string) ?? ''}
+          onChange={(e) => onChange({ title: e.target.value })}
+        />
+      </div>
+
+      <div>
+        <label className="mb-1.5 block text-xs font-semibold">Description</label>
+        <textarea
+          placeholder="On note simplement qui vient."
+          value={(props.description as string) ?? ''}
+          onChange={(e) => onChange({ description: e.target.value })}
+          rows={3}
+          className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        />
+      </div>
+
+      <div>
+        <label className="mb-1.5 block text-xs font-semibold">Liste à puces</label>
+        {/* Une ligne par puce : plus direct qu’un tableau à boutons pour trois
+            phrases, et le copier-coller depuis un message y fonctionne. */}
+        <textarea
+          placeholder={"Tarif unique : 5 000 FCFA\nTenue blanche exigée\nRamenez vos bouteilles"}
+          value={puces.join('\n')}
+          onChange={(e) =>
+            onChange({ bullets: e.target.value.split('\n').filter((l) => l.trim()) })
+          }
+          rows={4}
+          className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        />
+        <p className="mt-1 text-[11px] text-muted-foreground">Une ligne par point.</p>
+      </div>
+
+      <div className="mt-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+        Le formulaire
+      </div>
+
+      <div>
+        <label className="mb-1.5 block text-xs font-semibold">Titre du formulaire</label>
+        <Input
+          placeholder="Je m’inscris"
+          value={(props.formTitle as string) ?? ''}
+          onChange={(e) => onChange({ formTitle: e.target.value })}
+        />
+      </div>
+
+      <div>
+        <label className="mb-1.5 block text-xs font-semibold">Texte d’introduction</label>
+        <textarea
+          placeholder="Laissez vos coordonnées : la liste sert à l’accueil le soir même."
+          value={(props.formIntro as string) ?? ''}
+          onChange={(e) => onChange({ formIntro: e.target.value })}
+          rows={3}
+          className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        />
+      </div>
+
+      <div>
+        <label className="mb-1.5 block text-xs font-semibold">Question libre (optionnel)</label>
+        <Input
+          placeholder="Tu viens avec combien de personnes ?"
+          value={(props.extraLabel as string) ?? ''}
+          onChange={(e) => onChange({ extraLabel: e.target.value })}
+        />
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          Laissez vide pour ne poser aucune question supplémentaire. Prénom, nom, email et
+          téléphone sont toujours demandés.
+        </p>
+      </div>
+    </div>
+  );
+}
 
 function TimelineEditor({
   props,

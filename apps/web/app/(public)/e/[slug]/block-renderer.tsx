@@ -10,6 +10,7 @@ import { Countdown } from './countdown';
 import { SponsorsCarousel } from './sponsors-carousel';
 import { ScheduleTimeline } from './schedule-timeline';
 import { TicketSelector, type PublicEventDay, type PublicTicket } from './ticket-selector';
+import { RegistrationBlock } from './registration-block';
 import { SpeakersGrid } from './speakers-grid';
 import { TimelineStrip } from './timeline-strip';
 import { SectionShell, SectionHeading } from './section-shell';
@@ -275,6 +276,22 @@ function BlockItem({
           dangerouslySetInnerHTML={{ __html: (block.props.htmlContent as string) || '' }}
         />
       </SectionShell>
+    );
+  }
+
+  if (block.type === 'registration') {
+    return (
+      <RegistrationBlock
+        slug={slug}
+        isPublished={isPublished}
+        title={block.props.title as string | undefined}
+        eyebrow={block.props.eyebrow as string | undefined}
+        description={block.props.description as string | undefined}
+        bullets={(block.props.bullets as string[] | undefined) ?? []}
+        formTitle={block.props.formTitle as string | undefined}
+        formIntro={block.props.formIntro as string | undefined}
+        extraLabel={block.props.extraLabel as string | undefined}
+      />
     );
   }
 
