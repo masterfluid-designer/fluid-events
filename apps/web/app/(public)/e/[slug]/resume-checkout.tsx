@@ -75,6 +75,15 @@ export function ResumeCheckout({
     useKKiaPay();
   const [state, setState] = useState<FlowState>({ step: 'idle' });
   const startedRef = useRef(false);
+  /*
+   * Jeton du billet, reçu à l'initiation en régime sans compte.
+   *
+   * Il sert à DEUX choses : confirmer le paiement sans session — le tunnel
+   * interrogeait `/payments/orders/:id`, réservé aux comptes authentifiés,
+   * ce qu'un acheteur invité n'a pas — et mener droit au billet, dont le QR
+   * existe dès la confirmation, sans attendre le PDF ni l’email.
+   */
+  const ticketTokenRef = useRef<string | null>(null);
   /**
    * Identité de l’acheteur, pour pré-remplir le widget Kkiapay (les deux
    * autres providers sont pré-remplis côté serveur, leurs pages étant
@@ -133,6 +142,8 @@ export function ResumeCheckout({
             ...invite,
           })
         : await apiPost<PaymentInitResult>('/api/payments/init', { items });
+
+      ticketTokenRef.current = (init as { ticketToken?: string }).ticketToken ?? null;
 
       if (init.provider === 'KKIAPAY') {
         setState({ step: 'awaiting-payment' });
@@ -239,7 +250,14 @@ export function ResumeCheckout({
 
     const interval = setInterval(async () => {
       try {
-        const order = await api<OrderStatus>(`/api/payments/orders/${orderId}`);
+        /*
+         * Deux portes vers le même état. Le jeton est PUBLIC et signé : il
+         * répond sans session, ce qui est le seul chemin possible pour un
+         * acheteur sans compte.
+         */
+        const order = ticketTokenRef.current
+          ? await api<OrderStatus>(`/api/payments/ticket/${ticketTokenRef.current}`)
+          : await api<OrderStatus>(`/api/payments/orders/${orderId}`);
         if (order.status === 'PAID') {
           clearInterval(interval);
           setState({ step: 'success', order });
@@ -323,12 +341,50 @@ export function ResumeCheckout({
           <>
             <CheckCircle2 className="mx-auto size-10 text-green-600" />
             <h2 className="mt-3 font-event text-lg">Paiement confirmé !</h2>
-            <p className="mt-2 text-sm text-waterloo dark:text-manatee">
-              Vos billets sont en cours de génération. Vous les recevrez par email.
-            </p>
-            <Button className="mt-5 w-full rounded-full" onClick={() => setState({ step: 'idle' })}>
-              Fermer
-            </Button>
+            {/*
+              Le QR est produit à la confirmation, pas par la file : le billet
+              est donc consultable TOUT DE SUITE. Faire attendre un PDF pour
+              montrer un code déjà prêt était une attente inventée.
+            */}
+            {ticketTokenRef.current ? (
+              <>
+                <p className="mt-2 text-sm text-waterloo dark:text-manatee">
+                  Vos billets sont prêts. Le PDF et l’email suivent dans un instant.
+                </p>
+                <a
+                  href={`/t/${ticketTokenRef.current}`}
+                  className="btn-accent mt-5 inline-flex w-full items-center justify-center rounded-full px-6 py-3 text-sm font-bold text-white"
+                >
+                  Voir mes billets
+                </a>
+                <Button
+                  variant="outline"
+                  className="mt-2 w-full rounded-full"
+                  onClick={() => setState({ step: 'idle' })}
+                >
+                  Fermer
+                </Button>
+              </>
+            ) : (
+              <>
+                <p className="mt-2 text-sm text-waterloo dark:text-manatee">
+                  Vos billets sont prêts — retrouvez-les dans votre espace, et par email.
+                </p>
+                <a
+                  href="/client"
+                  className="btn-accent mt-5 inline-flex w-full items-center justify-center rounded-full px-6 py-3 text-sm font-bold text-white"
+                >
+                  Voir mes billets
+                </a>
+                <Button
+                  variant="outline"
+                  className="mt-2 w-full rounded-full"
+                  onClick={() => setState({ step: 'idle' })}
+                >
+                  Fermer
+                </Button>
+              </>
+            )}
           </>
         )}
         {state.step === 'error' && (

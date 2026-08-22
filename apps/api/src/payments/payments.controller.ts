@@ -51,7 +51,22 @@ export class PaymentsController {
       phone: dto.phone,
     });
 
-    return this.paymentsService.initPayment(acheteur, { items: dto.items });
+    const init = await this.paymentsService.initPayment(acheteur, { items: dto.items });
+
+    /*
+     * Le jeton du billet accompagne l'initiation (2026-08-22).
+     *
+     * Sans lui, l'acheteur sans compte était dans une impasse : le tunnel
+     * confirme le paiement en interrogeant `/payments/orders/:id`, réservé
+     * aux comptes authentifiés — et il n’en a pas. Il payait, puis attendait
+     * une confirmation qui ne pouvait pas venir.
+     *
+     * Le même jeton sert ensuite de lien vers le billet : l'acheteur y va
+     * directement, sans attendre le PDF ni l'email.
+     */
+    const ticketToken = await this.ticketAccess.creerJeton(init.orderId);
+
+    return { ...init, ticketToken };
   }
 
   /**

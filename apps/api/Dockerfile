@@ -11,6 +11,17 @@ WORKDIR /app
 # un moteur qui n'a jamais été généré, malgré binaryTargets dans schema.prisma).
 RUN apk add --no-cache openssl
 
+# Chromium pour la génération des billets PDF.
+#
+# Puppeteer télécharge un Chromium lié à glibc ; cette image est Alpine, qui
+# utilise musl. Le binaire téléchargé est là mais ne démarre pas — `spawn`
+# échoue en ENOENT, ce qui fait croire à un fichier absent alors que ce sont
+# ses bibliothèques qui manquent. On prend celui d'Alpine, et on interdit le
+# téléchargement : 300 Mo de moins, et un binaire qui fonctionne.
+RUN apk add --no-cache chromium nss freetype harfbuzz ca-certificates ttf-freefont
+ENV PUPPETEER_SKIP_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+
 # Installer pnpm
 RUN npm install -g pnpm@9.15.9
 
@@ -54,6 +65,17 @@ FROM node:20-alpine AS production
 WORKDIR /app
 
 RUN apk add --no-cache openssl
+
+# Chromium pour la génération des billets PDF.
+#
+# Puppeteer télécharge un Chromium lié à glibc ; cette image est Alpine, qui
+# utilise musl. Le binaire téléchargé est là mais ne démarre pas — `spawn`
+# échoue en ENOENT, ce qui fait croire à un fichier absent alors que ce sont
+# ses bibliothèques qui manquent. On prend celui d'Alpine, et on interdit le
+# téléchargement : 300 Mo de moins, et un binaire qui fonctionne.
+RUN apk add --no-cache chromium nss freetype harfbuzz ca-certificates ttf-freefont
+ENV PUPPETEER_SKIP_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
 RUN npm install -g pnpm@9.15.9
 

@@ -1,7 +1,7 @@
-import { Logger } from '@nestjs/common';
+import { Logger, type OnModuleDestroy } from '@nestjs/common';
 import { Process, Processor } from '@nestjs/bull';
 import type { Job } from 'bull';
-import puppeteer from 'puppeteer';
+import puppeteer, { type Browser } from 'puppeteer';
 import QRCode from 'qrcode';
 import { PrismaService } from '../prisma/prisma.service';
 import { TicketDesignService } from '../ticket-design/ticket-design.service';
@@ -24,8 +24,15 @@ const APP_URL = process.env.APP_URL ?? 'http://localhost:3000';
  * le job (`PdfQueueService.enqueueGeneratePdf`), tout le travail lourd
  * (lancement Chromium, rendu, upload) se fait ici, de façon asynchrone.
  */
+/**
+ * Délai d'inactivité avant de refermer le navigateur partagé. Les billets
+ * arrivent par salves — après un achat, la salve est finie en quelques
+ * secondes, et rien ne justifie de garder Chromium en mémoire.
+ */
+const INACTIVITE_AVANT_FERMETURE_MS = 2 * 60 * 1000;
+
 @Processor(TICKET_PDF_QUEUE)
-export class PdfProcessor {
+export class PdfProcessor implements OnModuleDestroy {
   private readonly logger = new Logger(PdfProcessor.name);
 
   constructor(
@@ -39,7 +46,13 @@ export class PdfProcessor {
     private readonly ticketAccess: TicketAccessService,
   ) {}
 
-  @Process(GENERATE_PDF_JOB)
+  /*
+   * Trois billets de front (2026-08-22). La file n'en traitait qu'un, ce qui
+   * sérialisait une commande de dix places. Trois est un compromis assumé :
+   * le VPS a un cœur, et chaque page ouverte coûte de la mémoire — au-delà,
+   * on échangerait de la latence contre du gonflement.
+   */
+  @Process({ name: GENERATE_PDF_JOB, concurrency: 3 })
   async handleGenerate(job: Job<GeneratePdfJobData>): Promise<void> {
     const { orderItemId } = job.data;
 
@@ -183,8 +196,27 @@ export class PdfProcessor {
     // email et un message WhatsApp qui portent déjà le billet.
   }
 
-  private async renderPdf(html: string): Promise<Buffer> {
-    const browser = await puppeteer.launch({
+  /**
+   * Navigateur PARTAGÉ entre les billets (2026-08-22).
+   *
+   * Il était lancé à chaque billet : une commande de cinq places démarrait
+   * cinq fois Chromium, en série, sur un VPS à un cœur. Le lancement coûte
+   * plus cher que le rendu lui-même — le réutiliser transforme des secondes
+   * en centaines de millisecondes.
+   *
+   * Il se referme après un temps d’inactivité : un Chromium laissé ouvert
+   * indéfiniment finit par peser sur une machine qui n’a pas de marge, et
+   * les billets arrivent par salves, pas en continu.
+   */
+  private navigateur: Browser | null = null;
+  private minuterieFermeture: NodeJS.Timeout | null = null;
+
+  private async obtenirNavigateur(): Promise<Browser> {
+    // `connected` : un navigateur peut mourir seul (OOM, crash de la page).
+    // Le réutiliser aveuglément ferait échouer tous les billets suivants.
+    if (this.navigateur?.connected) return this.navigateur;
+
+    this.navigateur = await puppeteer.launch({
       headless: true,
       args: [
         '--no-sandbox',
@@ -195,8 +227,42 @@ export class PdfProcessor {
         '--no-zygote',
       ],
     });
+
+    this.logger.log('Navigateur de rendu démarré (partagé entre les billets).');
+    return this.navigateur;
+  }
+
+  private programmerFermeture(): void {
+    if (this.minuterieFermeture) clearTimeout(this.minuterieFermeture);
+    this.minuterieFermeture = setTimeout(() => {
+      void this.fermerNavigateur();
+    }, INACTIVITE_AVANT_FERMETURE_MS);
+    // `unref` : cette minuterie ne doit pas retenir le process à l'arrêt.
+    this.minuterieFermeture.unref?.();
+  }
+
+  private async fermerNavigateur(): Promise<void> {
+    const navigateur = this.navigateur;
+    this.navigateur = null;
+    if (!navigateur) return;
     try {
-      const page = await browser.newPage();
+      await navigateur.close();
+      this.logger.log('Navigateur de rendu fermé après inactivité.');
+    } catch (err) {
+      this.logger.warn(`Fermeture du navigateur : ${(err as Error).message}`);
+    }
+  }
+
+  /** À l’arrêt du module : ne pas laisser un Chromium orphelin. */
+  async onModuleDestroy(): Promise<void> {
+    if (this.minuterieFermeture) clearTimeout(this.minuterieFermeture);
+    await this.fermerNavigateur();
+  }
+
+  private async renderPdf(html: string): Promise<Buffer> {
+    const navigateur = await this.obtenirNavigateur();
+    const page = await navigateur.newPage();
+    try {
       await page.setContent(html, { waitUntil: 'load' });
       const pdf = await page.pdf({
         format: (process.env.PDF_FORMAT as 'A4') || 'A4',
@@ -204,7 +270,9 @@ export class PdfProcessor {
       });
       return Buffer.from(pdf);
     } finally {
-      await browser.close();
+      // La PAGE se ferme, pas le navigateur : c’est tout le gain.
+      await page.close().catch(() => undefined);
+      this.programmerFermeture();
     }
   }
 }

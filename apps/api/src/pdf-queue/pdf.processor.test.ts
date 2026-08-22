@@ -10,8 +10,20 @@ import { PdfProcessor } from './pdf.processor';
 const setContentMock = vi.fn().mockResolvedValue(undefined);
 const pdfMock = vi.fn().mockResolvedValue(Buffer.from('pdf-bytes'));
 const closeMock = vi.fn().mockResolvedValue(undefined);
-const newPageMock = vi.fn().mockResolvedValue({ setContent: setContentMock, pdf: pdfMock });
-const launchMock = vi.fn().mockResolvedValue({ newPage: newPageMock, close: closeMock });
+const pageCloseMock = vi.fn().mockResolvedValue(undefined);
+const newPageMock = vi.fn().mockResolvedValue({
+  setContent: setContentMock,
+  pdf: pdfMock,
+  // La page se ferme après chaque billet ; le navigateur, lui, reste.
+  close: pageCloseMock,
+});
+const launchMock = vi.fn().mockResolvedValue({
+  newPage: newPageMock,
+  close: closeMock,
+  // Un navigateur peut mourir seul : le processeur le vérifie avant de le
+  // réutiliser.
+  connected: true,
+});
 
 vi.mock('puppeteer', () => ({ default: { launch: (...args: unknown[]) => launchMock(...args) } }));
 vi.mock('qrcode', () => ({
@@ -93,6 +105,7 @@ describe('PdfProcessor.handleGenerate()', () => {
     setContentMock.mockClear();
     pdfMock.mockClear();
     closeMock.mockClear();
+    pageCloseMock.mockClear();
   });
 
   it('génère le HTML, rend le PDF via Puppeteer, uploade et met à jour OrderItem.qrCodeUrl', async () => {
@@ -116,7 +129,11 @@ describe('PdfProcessor.handleGenerate()', () => {
     );
     expect(launchMock).toHaveBeenCalled();
     expect(setContentMock).toHaveBeenCalledWith('<html>ticket</html>', expect.any(Object));
-    expect(closeMock).toHaveBeenCalled();
+    // Le navigateur est PARTAGÉ (2026-08-22) : la page se ferme après chaque
+    // billet, lui reste ouvert. Le refermer à chaque fois annulerait tout le
+    // gain — le lancement coûte plus cher que le rendu.
+    expect(pageCloseMock).toHaveBeenCalled();
+    expect(closeMock).not.toHaveBeenCalled();
     expect(deps.storageService.uploadBuffer).toHaveBeenCalledWith(
       'tickets/oi-1.pdf',
       expect.any(Buffer),
@@ -142,7 +159,9 @@ describe('PdfProcessor.handleGenerate()', () => {
     await expect(processor.handleGenerate({ data: { orderItemId: 'oi-1' } } as any)).rejects.toThrow(
       'render failed',
     );
-    expect(closeMock).toHaveBeenCalled();
+    // Même en échec, la page se ferme : sinon chaque rendu raté laisserait
+    // un onglet ouvert dans le navigateur partagé, jusqu’à le saturer.
+    expect(pageCloseMock).toHaveBeenCalled();
     expect(deps.storageService.uploadBuffer).not.toHaveBeenCalled();
     expect(deps.emailService.sendTicketReadyEmail).not.toHaveBeenCalled();
     expect(deps.whatsappService.sendTicketReadyMessage).not.toHaveBeenCalled();
