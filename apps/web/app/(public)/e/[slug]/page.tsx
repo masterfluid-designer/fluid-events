@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
-import type { Block, EventTheme, FaqEntry, MediaEntry, ScheduleEntry, SpeakerEntry } from '@saas-events/types';
+import type { EventAccessMode, Block, EventTheme, FaqEntry, MediaEntry, ScheduleEntry, SpeakerEntry } from '@saas-events/types';
 import { resolveEventTheme } from '@/lib/event-theme';
 import { ResumeCheckout } from './resume-checkout';
 import { BlockRenderer, getVisibleNavItems, type EventConfigData, type NavItem } from './block-renderer';
@@ -23,6 +23,12 @@ import { EventFooter } from './event-footer';
 
 interface EventDetail {
   id: string;
+  /**
+   * Régime d'accès (2026-08-21) : commande les blocs rendus et le parcours
+   * d’achat. Optionnel — un événement servi par une API plus ancienne
+   * retombe sur la billetterie avec compte, le comportement historique.
+   */
+  accessMode?: EventAccessMode;
   title: string;
   description: string | null;
   location: string | null;
@@ -237,6 +243,7 @@ export default async function EventPage({
           eventConfig={eventConfig}
           navItems={navItems}
           eventDays={event.days}
+          accessMode={event.accessMode}
         />
       ) : (
         <>

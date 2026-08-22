@@ -5,6 +5,7 @@ import { formatEventAddress } from '@saas-events/utils';
 import { EventLocation } from './event-location';
 import { EventFaq } from './event-faq';
 import type { Block, FaqEntry, MediaEntry, ScheduleEntry, SpeakerEntry, TestimonialEntry, TimelineEntry } from '@saas-events/types';
+import { blocAutorise, type EventAccessMode } from '@saas-events/types';
 import { Countdown } from './countdown';
 import { SponsorsCarousel } from './sponsors-carousel';
 import { ScheduleTimeline } from './schedule-timeline';
@@ -141,6 +142,7 @@ export function BlockRenderer({
   eventConfig,
   navItems,
   eventDays = [],
+  accessMode,
 }: {
   blocks: Block[];
   tickets: PublicTicket[];
@@ -149,8 +151,23 @@ export function BlockRenderer({
   eventConfig: EventConfigData;
   navItems: NavItem[];
   eventDays?: PublicEventDay[];
+  /**
+   * Régime d'accès de l'événement (2026-08-21). Absent = billetterie avec
+   * compte, le comportement historique.
+   */
+  accessMode?: EventAccessMode;
 }) {
-  const sorted = [...blocks].sort((a, b) => a.order - b.order);
+  /*
+   * Le régime FILTRE ce qui est rendu, il n'efface rien. Un événement qui
+   * passe en inscription simple garde son bloc billetterie en base : il
+   * cesse d'être affiché, et revenir en arrière restitue la page à
+   * l'identique. Supprimer les blocs à la bascule ferait perdre à
+   * l’organisateur un travail de mise en page qu’il ne pourrait pas
+   * retrouver.
+   */
+  const sorted = [...blocks]
+    .filter((b) => blocAutorise(b.type, accessMode))
+    .sort((a, b) => a.order - b.order);
 
   return (
     <>

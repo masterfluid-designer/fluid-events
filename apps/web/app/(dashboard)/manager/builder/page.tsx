@@ -2,7 +2,7 @@
 
 import { MEDIA_ASPECT_LABEL, type MediaAspect } from '@/lib/media';
 import { BLOCK_NAV_LABELS } from '@/app/(public)/e/[slug]/block-renderer';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import {
@@ -33,9 +33,10 @@ import {
   Plus,
   Palette,
   Check,
+  ClipboardList,
 } from 'lucide-react';
 import type { Block, BlockType, EventTheme, TestimonialEntry, TimelineEntry } from '@saas-events/types';
-import {
+import { blocAutorise, type EventAccessMode,
   SINGLETON_BLOCK_TYPES as SHARED_SINGLETON_BLOCK_TYPES,
   TicketPolicy,
 } from '@saas-events/types';
@@ -81,12 +82,15 @@ interface ManagerEventData extends Omit<EventConfig, 'days'> {
   tickets: EventTicket[];
   /** Lignes `EventDay` telles que rendues par l’API (date ISO complète). */
   days: Array<{ id: string; label: string; date: string; order: number }>;
+  /** Régime d'accès — commande les blocs proposés (2026-08-21). */
+  accessMode?: EventAccessMode;
 }
 
 const BLOCK_LIBRARY: { type: BlockType; icon: typeof ImageIcon; label: string }[] = [
   { type: 'hero', icon: ImageIcon, label: 'Hero / Couverture' },
   { type: 'text', icon: Type, label: 'Texte' },
   { type: 'tickets', icon: Ticket, label: 'Billets' },
+  { type: 'registration', icon: ClipboardList, label: 'Formulaire d’inscription' },
   { type: 'countdown', icon: Timer, label: 'Compte à rebours' },
   { type: 'faq', icon: HelpCircle, label: 'FAQ' },
   { type: 'gallery', icon: Images, label: 'Galerie' },
@@ -104,6 +108,7 @@ const BLOCK_LABELS: Record<BlockType, string> = {
   hero: 'Hero',
   text: 'Texte',
   tickets: 'Billets',
+  registration: 'Formulaire d’inscription',
   countdown: 'Compte à rebours',
   faq: 'FAQ',
   gallery: 'Galerie',
@@ -184,6 +189,16 @@ export default function EventBuilderPage() {
     queryKey: ['manager-event', evenement],
     queryFn: () => api<ManagerEventData>(avecEvenement('/api/events/mine', evenement)),
   });
+
+  /*
+   * La palette ne propose que ce que le régime autorise (2026-08-21).
+   * Elle FILTRE l’offre, elle n’efface rien : un bloc déjà posé qui sort du
+   * régime reste en base et réapparaît si l’on revient en arrière.
+   */
+  const blocsProposes = useMemo(
+    () => BLOCK_LIBRARY.filter((b) => blocAutorise(b.type, eventData?.accessMode)),
+    [eventData?.accessMode],
+  );
 
   // Même clé que le gate de vérification : la réponse est déjà en cache.
   const { data: me } = useQuery({
@@ -558,7 +573,7 @@ export default function EventBuilderPage() {
                   Une seule par page. Cliquez pour l&apos;ajouter, recliquez pour la retirer.
                 </p>
                 <div className="flex flex-col gap-1.5">
-                  {BLOCK_LIBRARY.filter((b) => SINGLETON_BLOCK_TYPES.has(b.type)).map((b) => {
+                  {blocsProposes.filter((b) => SINGLETON_BLOCK_TYPES.has(b.type)).map((b) => {
                     const alreadyPlaced =
                       SINGLETON_BLOCK_TYPES.has(b.type) && blocks.some((bl) => bl.type === b.type);
                     return (
@@ -602,7 +617,7 @@ export default function EventBuilderPage() {
                   À volonté, chacun avec son propre contenu.
                 </p>
                 <div className="flex flex-col gap-1.5">
-                  {BLOCK_LIBRARY.filter((b) => !SINGLETON_BLOCK_TYPES.has(b.type)).map((b) => (
+                  {blocsProposes.filter((b) => !SINGLETON_BLOCK_TYPES.has(b.type)).map((b) => (
                     <button
                       key={b.type}
                       type="button"
