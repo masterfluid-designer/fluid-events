@@ -637,6 +637,8 @@ export const ErrorCodes = {
    * laisser croire à une seconde inscription ferait douter la personne de sa
    * présence le soir venu. */
   ALREADY_REGISTERED: 'ALREADY_REGISTERED',
+  /** Confirmation attendue non fournie ou incorrecte — rien n a été fait. */
+  CONFIRMATION_MISMATCH: 'CONFIRMATION_MISMATCH',
   EVENT_NOT_ACTIVE: 'EVENT_NOT_ACTIVE',
   EVENT_EXPIRED: 'EVENT_EXPIRED',
   // Somme des stocks de billets > Event.expectedAttendees (plafond réel,

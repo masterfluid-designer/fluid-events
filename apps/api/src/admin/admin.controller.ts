@@ -1,8 +1,9 @@
-import { Body, Controller, Delete, Get, Param, ParseEnumPipe, Patch, Post, Put, Query, Req, Res } from '@nestjs/common';
+import { Get, Delete, Body, Controller, Param, ParseEnumPipe, Patch, Post, Put, Query, Req, Res } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { PaymentProviderType, Role } from '@saas-events/types';
 import { Roles } from '../common/decorators/roles.decorator';
 import { RequestUser } from '../auth/strategies/jwt.strategy';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { setImpersonatedAccessCookie, setImpersonatorCookie } from '../common/cookies.util';
 import { AdminService } from './admin.service';
 import { UpsertPaymentConfigDto } from './dto/upsert-payment-config.dto';
@@ -12,6 +13,7 @@ import { SetManagerActiveDto } from './dto/set-manager-active.dto';
 import { SetManagerSubscriptionDto } from './dto/set-manager-subscription.dto';
 import { UpdateWhatsappConfigDto } from './dto/update-whatsapp-config.dto';
 import { SetManagerPlanDto } from './dto/set-manager-plan.dto';
+import { DeleteManagerDto } from './dto/delete-manager.dto';
 import { SetEventStatusDto } from './dto/set-event-status.dto';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
 import { UpdatePlatformSettingsDto } from '../platform-settings/dto/update-platform-settings.dto';
@@ -160,6 +162,40 @@ export class AdminController {
   @Patch('managers/:id/active')
   async setManagerActive(@Param('id') id: string, @Body() dto: SetManagerActiveDto) {
     return this.adminService.setManagerActive(id, dto.isActive);
+  }
+
+  /**
+   * GET /api/admin/managers/:id/deletion-preview — ce qu'une suppression
+   * emporterait, SANS rien supprimer (2026-08-22).
+   *
+   * « Supprimer un manager » ne dit rien. « Supprimer 3 événements, 187
+   * billets vendus et 2 340 000 F de commandes payées » dit ce qui se passe.
+   */
+  @Roles(Role.SUPER_ADMIN)
+  @Get('managers/:id/deletion-preview')
+  async previewManagerDeletion(@Param('id') id: string) {
+    return this.adminService.previewManagerDeletion(id);
+  }
+
+  /**
+   * DELETE /api/admin/managers/:id — suppression complète et IRRÉVERSIBLE.
+   *
+   * ⚠️ Emporte les événements, les commandes payées, les billets et les
+   * inscriptions. Les acheteurs perdent l'accès à ce qu'ils ont payé sans en
+   * être avertis. Réservé aux comptes de test et aux demandes d’effacement —
+   * pour le ménage courant, `PATCH /active` suspend et se rattrape.
+   *
+   * La confirmation reprend l'adresse email du manager : un identifiant
+   * collé au hasard ne suffit pas à déclencher ça.
+   */
+  @Roles(Role.SUPER_ADMIN)
+  @Delete('managers/:id')
+  async deleteManager(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Body() dto: DeleteManagerDto,
+  ) {
+    return this.adminService.deleteManagerCompletely(id, dto.confirmationEmail, user.id);
   }
 
   /** PATCH /api/admin/managers/:id/plan — palier d'abonnement (2026-08-21). */

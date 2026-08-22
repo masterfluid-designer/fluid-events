@@ -180,6 +180,160 @@ export class AdminService {
     };
   }
 
+  /**
+   * Ce qu'une suppression de manager emporterait — SANS rien supprimer.
+ *
+   * L'Admin doit voir les chiffres avant de décider. « Supprimer un
+   * manager » ne dit rien ; « supprimer 3 événements, 187 billets vendus et
+   * 2 340 000 F de commandes payées » dit ce qui se passe vraiment.
+   */
+  async previewManagerDeletion(managerId: string) {
+    const manager = await this.prisma.user.findUnique({
+      where: { id: managerId },
+      select: { id: true, name: true, email: true, role: true },
+    });
+
+    if (!manager || manager.role !== Role.MANAGER) {
+      throw new NotFoundException({
+        code: ErrorCodes.USER_NOT_FOUND,
+        message: 'Manager introuvable.',
+      });
+    }
+
+    const evenements = await this.prisma.event.findMany({
+      where: { managerId },
+      select: { id: true, title: true, slug: true, status: true },
+    });
+    const eventIds = evenements.map((e) => e.id);
+
+    const [commandesPayees, montantPaye, billets, inscriptions, agents] = await Promise.all([
+      this.prisma.order.count({ where: { eventId: { in: eventIds }, status: 'PAID' } }),
+      this.prisma.order.aggregate({
+        where: { eventId: { in: eventIds }, status: 'PAID' },
+        _sum: { totalAmount: true },
+      }),
+      this.prisma.orderItem.count({ where: { order: { eventId: { in: eventIds }, status: 'PAID' } } }),
+      this.prisma.registration.count({ where: { eventId: { in: eventIds } } }),
+      this.prisma.scanner.count({ where: { eventId: { in: eventIds } } }),
+    ]);
+
+    return {
+      manager: { id: manager.id, name: manager.name, email: manager.email },
+      evenements,
+      commandesPayees,
+      montantPaye: Number(montantPaye._sum.totalAmount ?? 0),
+      billetsVendus: billets,
+      inscriptions,
+      agents,
+    };
+  }
+
+  /**
+   * Supprime un manager et TOUT ce qui pend à lui : ses événements, leurs
+   * pages, billets, commandes, inscriptions et agents de contrôle.
+   *
+   * ⚠️ Irréversible, et destructeur de données de vente. Les acheteurs
+   * perdent l’accès à des billets qu’ils ont payés, sans en être avertis, et
+   * la trace comptable de ces transactions disparaît. À réserver aux comptes
+   * de test et aux demandes d'effacement — pas au ménage courant, pour
+   * lequel `setManagerActive(false)` suffit et se rattrape.
+   *
+   * Deux garde-fous, pas un :
+   *  - la confirmation doit reprendre l’ADRESSE EMAIL exacte du manager, que
+   *    l'appelant doit donc avoir lue ; un identifiant collé au hasard ne
+   *    suffit pas ;
+   *  - un Admin ne peut pas se supprimer lui-même, ni supprimer un compte
+   *    qui n’est pas un manager.
+   */
+  async deleteManagerCompletely(
+    managerId: string,
+    confirmationEmail: string,
+    adminId: string,
+  ) {
+    if (managerId === adminId) {
+      throw new BadRequestException({
+        code: ErrorCodes.FORBIDDEN,
+        message: 'Vous ne pouvez pas supprimer votre propre compte.',
+      });
+    }
+
+    const apercu = await this.previewManagerDeletion(managerId);
+
+    if (
+      confirmationEmail.trim().toLowerCase() !== apercu.manager.email.trim().toLowerCase()
+    ) {
+      throw new BadRequestException({
+        code: ErrorCodes.CONFIRMATION_MISMATCH,
+        message:
+          'La confirmation ne correspond pas à l’adresse du manager. Rien n’a été supprimé.',
+      });
+    }
+
+    /*
+     * L'audit est écrit AVANT la suppression, avec tous les chiffres. Écrit
+     * après, il risquerait de manquer si la transaction échoue à mi-chemin —
+     * et surtout, `AuditLog.userId` pointe vers l’utilisateur : les entrées du
+     * manager sont détachées ci-dessous plutôt que détruites, pour que la
+     * trace de ce qu’il a fait survive à son compte.
+     */
+    await this.audit.log('admin.manager.deleted', 'User', managerId, {
+      email: apercu.manager.email,
+      evenements: apercu.evenements.map((e) => e.slug),
+      commandesPayees: apercu.commandesPayees,
+      montantPaye: apercu.montantPaye,
+      billetsVendus: apercu.billetsVendus,
+      inscriptions: apercu.inscriptions,
+    }, adminId);
+
+    const eventIds = apercu.evenements.map((e) => e.id);
+
+    await this.prisma.$transaction(async (tx) => {
+      /*
+       * L'ordre suit les dépendances, du plus profond au plus superficiel.
+       * Les `onDelete: Cascade` du schéma couvrent la plupart des liens, mais
+       * pas ceux qui remontent vers `User` : commandes et journaux d’audit y
+       * pendent sans cascade, et bloqueraient la suppression.
+       */
+      if (eventIds.length > 0) {
+        await tx.scannerLog.deleteMany({ where: { scanner: { eventId: { in: eventIds } } } });
+        await tx.orderItem.deleteMany({ where: { order: { eventId: { in: eventIds } } } });
+        await tx.order.deleteMany({ where: { eventId: { in: eventIds } } });
+        await tx.registration.deleteMany({ where: { eventId: { in: eventIds } } });
+
+        // Les agents de contrôle sont des comptes à part entière : on
+        // supprime le profil ET le compte, qui n’a plus d’objet sans son
+        // événement.
+        const agents = await tx.scanner.findMany({
+          where: { eventId: { in: eventIds } },
+          select: { userId: true },
+        });
+        await tx.scanner.deleteMany({ where: { eventId: { in: eventIds } } });
+        if (agents.length > 0) {
+          await tx.auditLog.updateMany({
+            where: { userId: { in: agents.map((a) => a.userId) } },
+            data: { userId: null },
+          });
+          await tx.user.deleteMany({ where: { id: { in: agents.map((a) => a.userId) } } });
+        }
+
+        await tx.event.deleteMany({ where: { id: { in: eventIds } } });
+      }
+
+      // Les journaux du manager sont DÉTACHÉS, pas détruits : ce qu’il a fait
+      // reste consultable après son départ, sans le nommer.
+      await tx.auditLog.updateMany({ where: { userId: managerId }, data: { userId: null } });
+
+      await tx.user.delete({ where: { id: managerId } });
+    });
+
+    return {
+      deleted: true,
+      evenementsSupprimes: apercu.evenements.length,
+      commandesSupprimees: apercu.commandesPayees,
+      inscriptionsSupprimees: apercu.inscriptions,
+    };
+  }
+
   private async getOwnedEventOrThrow(eventId: string) {
     const event = await this.prisma.event.findUnique({
       where: { id: eventId },
