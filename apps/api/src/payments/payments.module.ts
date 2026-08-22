@@ -13,6 +13,7 @@ import { CinetPayService } from './cinetpay.service';
 import { FedaPayService } from './fedapay.service';
 import { PaymentsService } from './payments.service';
 import { GuestCheckoutService } from './guest-checkout.service';
+import { TicketAccessService } from './ticket-access.service';
 import { PaymentsController } from './payments.controller';
 
 @Module({
@@ -23,6 +24,7 @@ import { PaymentsController } from './payments.controller';
     WebhookIdempotencyService,
     ClientProfileService,
     GuestCheckoutService,
+    TicketAccessService,
     KkiapayService,
     CinetPayService,
     FedaPayService,

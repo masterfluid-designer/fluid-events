@@ -52,6 +52,13 @@ import { CryptoService } from '../common/crypto.service';
     RolesGuard,
   ],
   controllers: [AuthController],
-  exports: [AuthService, AuditService, JwtAuthGuard, RolesGuard],
+  /*
+   * JwtModule est réexporté (2026-08-22) pour que les liens de billet
+   * signés soient produits et vérifiés avec LE MÊME secret que les
+   * sessions. Redéclarer un JwtModule ailleurs marcherait aussi — jusqu'au
+   * jour où les deux configurations divergent, et où les liens déjà envoyés
+   * cessent silencieusement de fonctionner.
+   */
+  exports: [AuthService, AuditService, JwtAuthGuard, RolesGuard, JwtModule],
 })
 export class AuthModule {}

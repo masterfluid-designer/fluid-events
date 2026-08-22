@@ -9,6 +9,7 @@ import { PaymentsService } from './payments.service';
 import { InitPaymentDto } from './dto/init-payment.dto';
 import { InitGuestPaymentDto } from './dto/init-guest-payment.dto';
 import { GuestCheckoutService } from './guest-checkout.service';
+import { TicketAccessService } from './ticket-access.service';
 import { KkiapayWebhookDto } from './dto/kkiapay-webhook.dto';
 import { CinetPayNotificationDto } from './dto/cinetpay-notification.dto';
 
@@ -17,6 +18,7 @@ export class PaymentsController {
   constructor(
     private readonly paymentsService: PaymentsService,
     private readonly guestCheckout: GuestCheckoutService,
+    private readonly ticketAccess: TicketAccessService,
   ) {}
 
   /** POST /api/payments/init (CDC §8) — JwtAuthGuard + RolesGuard globaux (AppModule). */
@@ -50,6 +52,22 @@ export class PaymentsController {
     });
 
     return this.paymentsService.initPayment(acheteur, { items: dto.items });
+  }
+
+  /**
+   * GET /api/payments/ticket/:token — le billet par son lien signé
+   * (lot 1, 2026-08-22).
+   *
+   * Public parce qu'il n'y a personne à authentifier : un acheteur sans
+   * compte n'a pas de tableau de bord, et ce lien EST son accès. Le jeton
+   * ne désigne qu’une commande, et la réponse ne porte ni son email ni son
+   * nom — un lien se transfère, se retrouve dans un fil de discussion,
+   * s’ouvre sur un téléphone prêté.
+   */
+  @Public()
+  @Get('ticket/:token')
+  async getTicketByToken(@Param('token') token: string) {
+    return this.ticketAccess.lireCommande(token);
   }
 
   /**
