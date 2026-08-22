@@ -35,6 +35,15 @@ model User {
   /// pouvoir le lui rendre en le retirant.
   previousRole        Role?
   isActive            Boolean   @default(true)
+  /// Compte créé à la volée pour un achat sans compte (lot 1, 2026-08-22).
+  /// Le visiteur ne le voit jamais : ni mot de passe, ni connexion, ni page
+  /// « Mon billet ». Il existe pour que la commande ait un propriétaire —
+  /// `Order.clientId` est obligatoire, et le scan, l'export, la rétention et
+  /// les remboursements en dépendent tous.
+  ///
+  /// Si la personne se connecte plus tard avec la même adresse, elle retrouve
+  /// ses billets : le compte cesse alors d'être fantôme.
+  isGuest             Boolean   @default(false)
   /// Palier d’abonnement (2026-08-21) — remplace `isPremium`, qui ne
   /// commandait que le multi-jours et aurait fini par porter quatre
   /// privilèges sans les nommer. Voir `LIMITES_PLAN` (packages/types).

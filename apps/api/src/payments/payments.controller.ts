@@ -7,18 +7,49 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { RequestUser } from '../auth/strategies/jwt.strategy';
 import { PaymentsService } from './payments.service';
 import { InitPaymentDto } from './dto/init-payment.dto';
+import { InitGuestPaymentDto } from './dto/init-guest-payment.dto';
+import { GuestCheckoutService } from './guest-checkout.service';
 import { KkiapayWebhookDto } from './dto/kkiapay-webhook.dto';
 import { CinetPayNotificationDto } from './dto/cinetpay-notification.dto';
 
 @Controller('payments')
 export class PaymentsController {
-  constructor(private readonly paymentsService: PaymentsService) {}
+  constructor(
+    private readonly paymentsService: PaymentsService,
+    private readonly guestCheckout: GuestCheckoutService,
+  ) {}
 
   /** POST /api/payments/init (CDC §8) — JwtAuthGuard + RolesGuard globaux (AppModule). */
   @Roles(Role.CLIENT)
   @Post('init')
   async init(@CurrentUser() user: RequestUser, @Body() dto: InitPaymentDto) {
     return this.paymentsService.initPayment(user, dto);
+  }
+
+  /**
+   * POST /api/payments/init-guest — achat SANS COMPTE (lot 1, 2026-08-22).
+   *
+   * Public par nécessité : c'est tout l'objet du régime TICKETED_GUEST. La
+   * porte reste étroite — `resoudreAcheteur` relit le régime en base et
+   * refuse tout événement qui exige un compte. Le client ne choisit donc
+   * pas de se passer de compte : c’est l’organisateur qui l’a décidé.
+   *
+   * Le reste du tunnel est celui de tout le monde : `initPayment` ne lit que
+   * l'identifiant du porteur, et le webhook demeure seule source de vérité
+   * pour confirmer un paiement.
+   */
+  @Public()
+  @Post('init-guest')
+  async initGuest(@Body() dto: InitGuestPaymentDto) {
+    const acheteur = await this.guestCheckout.resoudreAcheteur({
+      eventSlug: dto.eventSlug,
+      email: dto.email,
+      firstName: dto.firstName,
+      lastName: dto.lastName,
+      phone: dto.phone,
+    });
+
+    return this.paymentsService.initPayment(acheteur, { items: dto.items });
   }
 
   /**

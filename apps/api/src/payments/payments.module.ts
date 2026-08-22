@@ -12,6 +12,7 @@ import { KkiapayService } from './kkiapay.service';
 import { CinetPayService } from './cinetpay.service';
 import { FedaPayService } from './fedapay.service';
 import { PaymentsService } from './payments.service';
+import { GuestCheckoutService } from './guest-checkout.service';
 import { PaymentsController } from './payments.controller';
 
 @Module({
@@ -21,6 +22,7 @@ import { PaymentsController } from './payments.controller';
     StockService,
     WebhookIdempotencyService,
     ClientProfileService,
+    GuestCheckoutService,
     KkiapayService,
     CinetPayService,
     FedaPayService,
