@@ -11,6 +11,8 @@ import { ClientProfileService } from './client-profile.service';
 import { KkiapayService } from './kkiapay.service';
 import { CinetPayService } from './cinetpay.service';
 import { FedaPayService } from './fedapay.service';
+import { StripeService } from './stripe.service';
+import { PayPalService } from './paypal.service';
 import { PaymentsService } from './payments.service';
 import { GuestCheckoutService } from './guest-checkout.service';
 import { TicketAccessModule } from './ticket-access.module';
@@ -34,6 +36,9 @@ import { PaymentsController } from './payments.controller';
     KkiapayService,
     CinetPayService,
     FedaPayService,
+    // Stripe apporte la carte, Google Pay et Apple Pay d’un seul tenant.
+    StripeService,
+    PayPalService,
     PaymentsService,
   ],
   controllers: [PaymentsController],

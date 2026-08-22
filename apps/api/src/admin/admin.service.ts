@@ -396,7 +396,8 @@ export class AdminService {
     if (dto.provider === PaymentProviderType.CINETPAY && dto.siteId) config.siteId = dto.siteId;
     if (
       (dto.provider === PaymentProviderType.FEDAPAY ||
-        dto.provider === PaymentProviderType.KKIAPAY) &&
+        dto.provider === PaymentProviderType.KKIAPAY ||
+        dto.provider === PaymentProviderType.PAYPAL) &&
       dto.environment
     ) {
       config.environment = dto.environment;

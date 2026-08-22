@@ -18,6 +18,8 @@ import { ClientProfileService } from './client-profile.service';
 import { KkiapayService } from './kkiapay.service';
 import { CinetPayService, computeCinetPayHmac } from './cinetpay.service';
 import { FedaPayService } from './fedapay.service';
+import { StripeService } from './stripe.service';
+import { PayPalService } from './paypal.service';
 import { PdfQueueService } from '../pdf-queue/pdf-queue.service';
 import { InitPaymentDto } from './dto/init-payment.dto';
 import { KkiapayWebhookDto } from './dto/kkiapay-webhook.dto';
@@ -98,6 +100,8 @@ export class PaymentsService {
     private readonly kkiapayService: KkiapayService,
     private readonly cinetPayService: CinetPayService,
     private readonly fedaPayService: FedaPayService,
+    private readonly stripeService: StripeService,
+    private readonly payPalService: PayPalService,
     private readonly ticketDesignService: TicketDesignService,
     private readonly pdfQueueService: PdfQueueService,
   ) {}
@@ -314,6 +318,91 @@ export class PaymentsService {
         return { provider: PaymentProviderType.CINETPAY, orderId: order.id, checkoutUrl: paymentUrl };
       } catch (err) {
         return this.abortFailedInit(order.id, tickets, mergedQuantities, PaymentProviderType.CINETPAY, err as Error);
+      }
+    }
+
+    if (providerConfig.provider === PaymentProviderType.STRIPE) {
+      try {
+        const { sessionId, checkoutUrl } = await this.stripeService.initPayment(
+          {
+            secretKey: this.crypto.decrypt(providerConfig.privateKey),
+            webhookSecret: providerConfig.webhookSecret
+              ? this.crypto.decrypt(providerConfig.webhookSecret)
+              : '',
+          },
+          {
+            description: `Billets ${event.title}`,
+            amount: totalAmount,
+            currency,
+            successUrl: `${FRONTEND_URL}/e/${event.slug}?resume=1&orderId=${order.id}`,
+            cancelUrl: `${FRONTEND_URL}/e/${event.slug}`,
+            orderId: order.id,
+            customerEmail: buyer?.email,
+          },
+        );
+
+        // Stripe choisit son identifiant de session : on le garde pour
+        // corréler la commande au webhook, comme pour FedaPay.
+        await this.prisma.order.update({
+          where: { id: order.id },
+          data: { paymentRef: sessionId },
+        });
+        return { provider: PaymentProviderType.STRIPE, orderId: order.id, checkoutUrl };
+      } catch (err) {
+        return this.abortFailedInit(
+          order.id,
+          tickets,
+          mergedQuantities,
+          PaymentProviderType.STRIPE,
+          err as Error,
+        );
+      }
+    }
+
+    if (providerConfig.provider === PaymentProviderType.PAYPAL) {
+      const configPayPal =
+        (providerConfig.config as { environment?: "sandbox" | "live"; webhookId?: string } | null) ??
+        {};
+      try {
+        const { paypalOrderId, approveUrl } = await this.payPalService.initPayment(
+          {
+            clientId: providerConfig.publicKey ?? "",
+            clientSecret: this.crypto.decrypt(providerConfig.privateKey),
+            // Le Webhook ID arrive par le champ secret du formulaire Admin :
+            // ce n’est pas un secret au sens strict, mais il voyage avec les
+            // identifiants et se chiffre au même titre.
+            webhookId: providerConfig.webhookSecret
+              ? this.crypto.decrypt(providerConfig.webhookSecret)
+              : (configPayPal.webhookId ?? ""),
+            environment: configPayPal.environment ?? "sandbox",
+          },
+          {
+            description: `Billets ${event.title}`,
+            amount: totalAmount,
+            currency,
+            returnUrl: `${FRONTEND_URL}/e/${event.slug}?resume=1&orderId=${order.id}`,
+            cancelUrl: `${FRONTEND_URL}/e/${event.slug}`,
+            orderId: order.id,
+          },
+        );
+
+        await this.prisma.order.update({
+          where: { id: order.id },
+          data: { paymentRef: paypalOrderId },
+        });
+        return {
+          provider: PaymentProviderType.PAYPAL,
+          orderId: order.id,
+          checkoutUrl: approveUrl,
+        };
+      } catch (err) {
+        return this.abortFailedInit(
+          order.id,
+          tickets,
+          mergedQuantities,
+          PaymentProviderType.PAYPAL,
+          err as Error,
+        );
       }
     }
 
@@ -801,6 +890,248 @@ export class PaymentsService {
         transactionId,
         reason: amountMatches ? 'payment_failed' : 'verification_mismatch',
         provider: 'FEDAPAY',
+      });
+    }
+  }
+
+  /**
+   * Webhook Stripe (2026-08-22).
+   *
+   * La signature porte sur le CORPS BRUT : un JSON re-sérialisé par le
+   * body-parser ne correspondrait plus, à un espace près. Même contrainte
+   * que FedaPay, même précaution.
+   *
+   * `client_reference_id` porte notre identifiant de commande : on ne se fie
+   * jamais à ce que le navigateur rapporte au retour de la redirection.
+   */
+  async handleStripeWebhook(rawBody: string, signatureHeader: string | undefined): Promise<void> {
+    if (!signatureHeader) {
+      throw new UnauthorizedException({
+        code: ErrorCodes.WEBHOOK_SIGNATURE_INVALID,
+        message: 'Signature webhook manquante.',
+      });
+    }
+
+    let unsafeParsed: {
+      type?: string;
+      data?: { object?: { id?: string; client_reference_id?: string; amount_total?: number } };
+    };
+    try {
+      unsafeParsed = JSON.parse(rawBody);
+    } catch {
+      this.logger.warn('Webhook Stripe — corps JSON invalide.');
+      return;
+    }
+
+    // ⚠️ Pas encore vérifié : sert seulement à retrouver quel événement,
+    // donc quel secret, doit valider la signature.
+    const sessionId = unsafeParsed.data?.object?.id;
+    const orderRef = unsafeParsed.data?.object?.client_reference_id;
+    if (!sessionId && !orderRef) {
+      this.logger.warn('Webhook Stripe sans identifiant exploitable — ignoré.');
+      await this.audit.log('payment.webhook.failed', 'Order', null, {
+        reason: 'missing_transaction_id',
+        provider: 'STRIPE',
+      });
+      return;
+    }
+
+    const order = await this.prisma.order.findFirst({
+      where: {
+        paymentProvider: PaymentProviderType.STRIPE,
+        ...(orderRef ? { id: orderRef } : { paymentRef: sessionId }),
+      },
+      include: {
+        event: { select: { id: true, endDate: true } },
+        items: { select: { id: true, ticketId: true } },
+      },
+    });
+    if (!order) {
+      this.logger.warn(`Webhook Stripe — Order introuvable (${orderRef ?? sessionId}).`);
+      await this.audit.log('payment.webhook.failed', 'Order', null, {
+        reason: "order_not_found",
+        provider: 'STRIPE',
+      });
+      return;
+    }
+
+    const providerConfig = await this.prisma.paymentProviderConfig.findUnique({
+      where: {
+        eventId_provider: { eventId: order.event.id, provider: PaymentProviderType.STRIPE },
+      },
+    });
+    if (!providerConfig || !providerConfig.webhookSecret) {
+      throw new UnauthorizedException({
+        code: ErrorCodes.WEBHOOK_SIGNATURE_INVALID,
+        message: 'Webhook Stripe non configuré.',
+      });
+    }
+
+    const valide = this.stripeService.verifierSignature(
+      rawBody,
+      signatureHeader,
+      this.crypto.decrypt(providerConfig.webhookSecret),
+    );
+    if (!valide) {
+      this.logger.warn(`Signature Stripe invalide (commande ${order.id}).`);
+      throw new UnauthorizedException({
+        code: ErrorCodes.WEBHOOK_SIGNATURE_INVALID,
+        message: 'Signature webhook invalide.',
+      });
+    }
+
+    const reference = sessionId ?? order.id;
+    const idempotency = await this.webhookIdempotency.recordOrSkip(
+      PaymentProviderType.STRIPE,
+      reference,
+    );
+    if (idempotency === ALREADY_PROCESSED) return;
+    if (order.status !== 'PENDING') return;
+
+    /*
+     * Anti-fraude : le montant annoncé doit correspondre au dû. Stripe le
+     * donne dans la plus petite unité — pour le franc CFA, qui n’en a pas,
+     * c’est le montant tel quel. Comparer sans cette conversion accepterait
+     * un paiement cent fois trop petit.
+     */
+    const attendu = StripeService.versPlusPetiteUnite(
+      Number(order.totalAmount),
+      order.currency,
+    );
+    const recu = unsafeParsed.data?.object?.amount_total;
+    const montantCorrespond = recu != null && Number(recu) === attendu;
+    const succeeded = unsafeParsed.type === 'checkout.session.completed' && montantCorrespond;
+
+    if (succeeded) {
+      await this.finalizeOrderPaid(order, reference, unsafeParsed);
+      await this.audit.log('payment.webhook.success', 'Order', order.id, {
+        transactionId: reference,
+        provider: 'STRIPE',
+      });
+    } else {
+      await this.finalizeOrderFailed(order, unsafeParsed);
+      await this.audit.log('payment.webhook.failed', 'Order', order.id, {
+        transactionId: reference,
+        reason: montantCorrespond ? 'payment_failed' : 'verification_mismatch',
+        provider: 'STRIPE',
+      });
+    }
+  }
+
+  /**
+   * Webhook PayPal (2026-08-22).
+   *
+   * ⚠️ PayPal ne signe pas en HMAC : la vérification RENVOIE l'appel à PayPal,
+   * qui répond s'il en est l'auteur. Un aller-retour réseau de plus sur le
+   * chemin d’une confirmation de paiement — mais rien d’autre ne prouve
+   * l'origine, et accepter sans vérifier laisserait n'importe qui marquer une
+   * commande comme payée.
+   */
+  async handlePayPalWebhook(
+    corps: Record<string, unknown>,
+    entetes: Record<string, string | undefined>,
+  ): Promise<void> {
+    const ressource = (corps?.resource ?? {}) as {
+      custom_id?: string;
+      id?: string;
+      purchase_units?: Array<{ custom_id?: string; amount?: { value?: string } }>;
+      amount?: { value?: string };
+    };
+
+    // Le `custom_id` posé à la création porte notre identifiant de commande.
+    const orderRef = ressource.custom_id ?? ressource.purchase_units?.[0]?.custom_id;
+    if (!orderRef) {
+      this.logger.warn('Webhook PayPal sans custom_id — ignoré.');
+      await this.audit.log('payment.webhook.failed', 'Order', null, {
+        reason: 'missing_transaction_id',
+        provider: 'PAYPAL',
+      });
+      return;
+    }
+
+    const order = await this.prisma.order.findFirst({
+      where: { paymentProvider: PaymentProviderType.PAYPAL, id: orderRef },
+      include: {
+        event: { select: { id: true, endDate: true } },
+        items: { select: { id: true, ticketId: true } },
+      },
+    });
+    if (!order) {
+      this.logger.warn(`Webhook PayPal — Order introuvable (${orderRef}).`);
+      await this.audit.log('payment.webhook.failed', 'Order', null, {
+        reason: "order_not_found",
+        provider: 'PAYPAL',
+      });
+      return;
+    }
+
+    const providerConfig = await this.prisma.paymentProviderConfig.findUnique({
+      where: {
+        eventId_provider: { eventId: order.event.id, provider: PaymentProviderType.PAYPAL },
+      },
+    });
+    if (!providerConfig) {
+      throw new UnauthorizedException({
+        code: ErrorCodes.WEBHOOK_SIGNATURE_INVALID,
+        message: 'Webhook PayPal non configuré.',
+      });
+    }
+
+    const configPayPal =
+      (providerConfig.config as { environment?: "sandbox" | "live"; webhookId?: string } | null) ??
+      {};
+
+    const authentique = await this.payPalService.verifierWebhook(
+      {
+        clientId: providerConfig.publicKey ?? "",
+        clientSecret: this.crypto.decrypt(providerConfig.privateKey),
+        webhookId: providerConfig.webhookSecret
+          ? this.crypto.decrypt(providerConfig.webhookSecret)
+          : (configPayPal.webhookId ?? ""),
+        environment: configPayPal.environment ?? "sandbox",
+      },
+      entetes,
+      corps,
+    );
+
+    if (!authentique) {
+      this.logger.warn(`Webhook PayPal non authentifié (commande ${order.id}).`);
+      throw new UnauthorizedException({
+        code: ErrorCodes.WEBHOOK_SIGNATURE_INVALID,
+        message: 'Signature webhook invalide.',
+      });
+    }
+
+    const reference = ressource.id ?? order.id;
+    const idempotency = await this.webhookIdempotency.recordOrSkip(
+      PaymentProviderType.PAYPAL,
+      reference,
+    );
+    if (idempotency === ALREADY_PROCESSED) return;
+    if (order.status !== 'PENDING') return;
+
+    const valeur =
+      ressource.amount?.value ?? ressource.purchase_units?.[0]?.amount?.value;
+    const montantCorrespond =
+      valeur != null && Number(valeur) === Number(order.totalAmount);
+
+    const type = String(corps?.event_type ?? "");
+    const succeeded =
+      (type === "CHECKOUT.ORDER.APPROVED" || type === "PAYMENT.CAPTURE.COMPLETED") &&
+      montantCorrespond;
+
+    if (succeeded) {
+      await this.finalizeOrderPaid(order, reference, corps);
+      await this.audit.log('payment.webhook.success', 'Order', order.id, {
+        transactionId: reference,
+        provider: 'PAYPAL',
+      });
+    } else {
+      await this.finalizeOrderFailed(order, corps);
+      await this.audit.log('payment.webhook.failed', 'Order', order.id, {
+        transactionId: reference,
+        reason: montantCorrespond ? 'payment_failed' : 'verification_mismatch',
+        provider: 'PAYPAL',
       });
     }
   }

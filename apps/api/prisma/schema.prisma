@@ -456,10 +456,20 @@ model PaymentProviderConfig {
   @@map("payment_provider_configs")
 }
 
+/// Fournisseurs de PAIEMENT — ceux qui encaissent réellement.
+///
+/// ⚠️ Google Pay et Apple Pay n'y figurent pas, et c'est délibéré : ce sont
+/// des portefeuilles qui présentent une carte, ils n’encaissent rien par
+/// eux-mêmes. Stripe Checkout les affiche de lui-même selon le navigateur du
+/// visiteur. Les inscrire ici aurait obligé à leur inventer des clés qui
+/// n'existent pas, et fait apparaître dans l'espace Admin deux lignes que
+/// personne ne peut remplir.
 enum PaymentProviderType {
   KKIAPAY
   CINETPAY
   FEDAPAY
+  STRIPE
+  PAYPAL
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

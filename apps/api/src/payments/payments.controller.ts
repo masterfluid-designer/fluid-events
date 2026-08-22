@@ -142,4 +142,43 @@ export class PaymentsController {
     await this.paymentsService.handleFedaPayWebhook(rawBody, signature);
     return { received: true };
   }
+
+  /**
+   * POST /api/payments/webhook/stripe — carte, Google Pay, Apple Pay.
+   *
+   * Le CORPS BRUT est indispensable : la signature porte dessus, et un JSON
+   * re-sérialisé ne correspondrait plus à un espace près.
+   */
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @Post('webhook/stripe')
+  async webhookStripe(
+    @Req() req: RawBodyRequest<Request>,
+    @Headers('stripe-signature') signature: string | undefined,
+  ) {
+    const rawBody = req.rawBody?.toString('utf8') ?? '';
+    await this.paymentsService.handleStripeWebhook(rawBody, signature);
+    return { received: true };
+  }
+
+  /**
+   * POST /api/payments/webhook/paypal.
+   *
+   * Ici le corps PARSÉ suffit : PayPal ne signe pas l'appel, il le
+   * ré-authentifie sur demande — c'est l'objet JSON qu'on lui renvoie.
+   */
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @Post('webhook/paypal')
+  async webhookPayPal(@Req() req: Request, @Body() corps: Record<string, unknown>) {
+    const entetes = req.headers as Record<string, string | undefined>;
+    await this.paymentsService.handlePayPalWebhook(corps, {
+      'paypal-transmission-id': entetes['paypal-transmission-id'],
+      'paypal-transmission-time': entetes['paypal-transmission-time'],
+      'paypal-transmission-sig': entetes['paypal-transmission-sig'],
+      'paypal-cert-url': entetes['paypal-cert-url'],
+      'paypal-auth-algo': entetes['paypal-auth-algo'],
+    });
+    return { received: true };
+  }
 }

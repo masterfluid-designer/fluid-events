@@ -167,10 +167,21 @@ export const OrderStatus = {
 
 export type OrderStatus = (typeof OrderStatus)[keyof typeof OrderStatus];
 
+/**
+ * Fournisseurs qui ENCAISSENT réellement.
+ *
+ * ⚠️ Google Pay et Apple Pay n'y figurent pas, et c'est délibéré : ce sont
+ * des portefeuilles présentant une carte, ils n’encaissent rien par
+ * eux-mêmes. Stripe Checkout les propose de lui-même selon le navigateur du
+ * visiteur — rien à configurer, aucune clé à demander à l’organisateur.
+ */
 export const PaymentProviderType = {
   KKIAPAY: 'KKIAPAY',
   CINETPAY: 'CINETPAY',
   FEDAPAY: 'FEDAPAY',
+  /** Carte, Google Pay et Apple Pay (2026-08-22). */
+  STRIPE: 'STRIPE',
+  PAYPAL: 'PAYPAL',
 } as const;
 
 export type PaymentProviderType = (typeof PaymentProviderType)[keyof typeof PaymentProviderType];
@@ -266,7 +277,12 @@ export interface KkiapayInitResult {
  * frontend redirige simplement le navigateur, pas de widget JS embarqué.
  */
 export interface RedirectPaymentInitResult {
-  provider: 'CINETPAY' | 'FEDAPAY';
+  /**
+   * Fournisseurs à page hébergée : le tunnel redirige, il n’ouvre pas de
+   * widget. Stripe et PayPal les rejoignent (2026-08-22) — chez eux aussi
+   * le paiement se fait sur leur domaine, pas sur le nôtre.
+   */
+  provider: 'CINETPAY' | 'FEDAPAY' | 'STRIPE' | 'PAYPAL';
   orderId: string;
   checkoutUrl: string;
 }

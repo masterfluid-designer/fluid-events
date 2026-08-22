@@ -11,6 +11,14 @@ import { PaymentProviderType } from '@saas-events/types';
  *  - KKIAPAY   : publicKey (widget client) + privateKey + webhookSecret
  *  - CINETPAY  : siteId + privateKey (= apikey) + webhookSecret (= secret HMAC x-token)
  *  - FEDAPAY   : publicKey + privateKey (= clé secrète) + webhookSecret + environment
+ *  - STRIPE    : privateKey (= sk_…) + webhookSecret (= whsec_…)
+ *  - PAYPAL    : publicKey (= Client ID) + privateKey (= secret) +
+ *                webhookSecret (= Webhook ID) + environment
+ *
+ * ⚠️ Google Pay et Apple Pay n'ont PAS d'entrée ici : ce sont des
+ * portefeuilles présentant une carte, et Stripe Checkout les affiche de
+ * lui-même selon le navigateur du visiteur. Leur inventer une ligne de
+ * configuration aurait demandé des clés qui n’existent pas.
  *
  * `privateKey`/`webhookSecret` sont chiffrés (AES-256-GCM, CryptoService)
  * avant stockage — jamais renvoyés en clair par aucun endpoint (RULES.md §9).
@@ -24,7 +32,14 @@ export class UpsertPaymentConfigDto {
   isActive?: boolean;
 
   // KKIAPAY et FEDAPAY exposent une clé publique au widget/SDK client.
-  @ValidateIf((o) => o.provider === PaymentProviderType.KKIAPAY || o.provider === PaymentProviderType.FEDAPAY)
+  // KKIAPAY, FEDAPAY : clé publique. PAYPAL : Client ID, qui joue le même
+  // rôle — un identifiant public qui accompagne le secret.
+  @ValidateIf(
+    (o) =>
+      o.provider === PaymentProviderType.KKIAPAY ||
+      o.provider === PaymentProviderType.FEDAPAY ||
+      o.provider === PaymentProviderType.PAYPAL,
+  )
   @IsString()
   @MinLength(1)
   publicKey?: string;
@@ -56,7 +71,9 @@ export class UpsertPaymentConfigDto {
    */
   @ValidateIf(
     (o) =>
-      o.provider === PaymentProviderType.FEDAPAY || o.provider === PaymentProviderType.KKIAPAY,
+      o.provider === PaymentProviderType.FEDAPAY ||
+      o.provider === PaymentProviderType.KKIAPAY ||
+      o.provider === PaymentProviderType.PAYPAL,
   )
   @IsIn(['sandbox', 'live'])
   environment?: 'sandbox' | 'live';

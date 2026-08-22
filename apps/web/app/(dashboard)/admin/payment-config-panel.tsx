@@ -20,7 +20,7 @@ import { api, apiPut, apiPatch, ApiError } from '@/lib/api';
  * provider redevenait "identifiants seulement" à l'avenir.
  */
 
-type Provider = 'KKIAPAY' | 'CINETPAY' | 'FEDAPAY';
+type Provider = 'KKIAPAY' | 'CINETPAY' | 'FEDAPAY' | 'STRIPE' | 'PAYPAL';
 
 interface ProviderConfig {
   id: string;
@@ -35,6 +35,20 @@ const PROVIDER_LABELS: Record<Provider, string> = {
   KKIAPAY: 'Kkiapay',
   CINETPAY: 'CinetPay',
   FEDAPAY: 'FedaPay',
+  STRIPE: 'Stripe — carte, Google Pay, Apple Pay',
+  PAYPAL: 'PayPal',
+};
+
+/**
+ * Ce que chaque fournisseur demande vraiment. Écrit ici plutôt qu'appris
+ * par essais : un administrateur qui colle une clé au mauvais endroit ne le
+ * découvre qu’au premier paiement raté.
+ */
+const PROVIDER_AIDES: Partial<Record<Provider, string>> = {
+  STRIPE:
+    'Clé secrète (sk_…) et secret de webhook (whsec_…) depuis le tableau de bord Stripe. Google Pay et Apple Pay s’affichent d’eux-mêmes selon le navigateur du visiteur — rien à configurer. Apple Pay demande en plus de vérifier le domaine chez Stripe.',
+  PAYPAL:
+    'Client ID, secret, et l’identifiant du webhook (Webhook ID) créé dans votre application PayPal. La vérification interroge PayPal à chaque appel : sans ce Webhook ID, aucun paiement ne sera confirmé.',
 };
 
 export function PaymentConfigPanel({ eventId }: { eventId: string }) {
@@ -177,10 +191,16 @@ export function PaymentConfigPanel({ eventId }: { eventId: string }) {
           ))}
         </select>
 
-        {(provider === 'KKIAPAY' || provider === 'FEDAPAY') && (
+        {PROVIDER_AIDES[provider] && (
+          <p className="md:col-span-2 -mt-1 text-[11px] leading-relaxed text-muted-foreground">
+            {PROVIDER_AIDES[provider]}
+          </p>
+        )}
+
+        {(provider === 'KKIAPAY' || provider === 'FEDAPAY' || provider === 'PAYPAL') && (
           <Input
             required
-            placeholder="Clé publique"
+            placeholder={provider === 'PAYPAL' ? 'Client ID' : 'Clé publique'}
             value={publicKey}
             onChange={(e) => setPublicKey(e.target.value)}
           />
@@ -188,21 +208,37 @@ export function PaymentConfigPanel({ eventId }: { eventId: string }) {
         <Input
           required
           type="password"
-          placeholder={provider === 'CINETPAY' ? 'API key' : 'Clé secrète'}
+          placeholder={
+            provider === 'CINETPAY'
+              ? 'API key'
+              : provider === 'STRIPE'
+                ? 'Clé secrète (sk_…)'
+                : provider === 'PAYPAL'
+                  ? 'Secret client'
+                  : 'Clé secrète'
+          }
           value={privateKey}
           onChange={(e) => setPrivateKey(e.target.value)}
         />
         <Input
           required
           type="password"
-          placeholder={provider === 'CINETPAY' ? 'Secret HMAC (x-token)' : 'Secret webhook'}
+          placeholder={
+            provider === 'CINETPAY'
+              ? 'Secret HMAC (x-token)'
+              : provider === 'STRIPE'
+                ? 'Secret de webhook (whsec_…)'
+                : provider === 'PAYPAL'
+                  ? 'Webhook ID'
+                  : 'Secret webhook'
+          }
           value={webhookSecret}
           onChange={(e) => setWebhookSecret(e.target.value)}
         />
         {provider === 'CINETPAY' && (
           <Input required placeholder="Site ID" value={siteId} onChange={(e) => setSiteId(e.target.value)} />
         )}
-        {(provider === 'FEDAPAY' || provider === 'KKIAPAY') && (
+        {(provider === 'FEDAPAY' || provider === 'KKIAPAY' || provider === 'PAYPAL') && (
           <label className="flex flex-col gap-1 text-xs text-muted-foreground">
             Environnement
             <select

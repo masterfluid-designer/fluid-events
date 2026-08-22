@@ -82,7 +82,15 @@ function makeDeps() {
     kkiapayService: { verifyTransaction: vi.fn() },
     cinetPayService: { initPayment: vi.fn(), checkTransaction: vi.fn() },
     fedaPayService: { initPayment: vi.fn(), getTransactionStatus: vi.fn(), constructWebhookEvent: vi.fn() },
-    ticketDesignService: { generateQrToken: vi.fn().mockReturnValue('qr-token') },
+
+    stripeService: {
+      initPayment: vi.fn().mockResolvedValue({ sessionId: 'cs_1', checkoutUrl: 'https://checkout.stripe.com/cs_1' }),
+      verifierSignature: vi.fn().mockReturnValue(true),
+    },
+    payPalService: {
+      initPayment: vi.fn().mockResolvedValue({ paypalOrderId: 'PP-1', approveUrl: 'https://paypal.com/approve/PP-1' }),
+      verifierWebhook: vi.fn().mockResolvedValue(true),
+    },    ticketDesignService: { generateQrToken: vi.fn().mockReturnValue('qr-token') },
     pdfQueueService: { enqueueGeneratePdf: vi.fn().mockResolvedValue(undefined) },
   };
 }
@@ -144,6 +152,9 @@ function makeService(deps: ReturnType<typeof makeDeps>, prisma: ReturnType<typeo
     deps.kkiapayService as any,
     deps.cinetPayService as any,
     deps.fedaPayService as any,
+    // Stripe et PayPal (2026-08-22) : injectés dans l’ordre du constructeur.
+    deps.stripeService as any,
+    deps.payPalService as any,
     deps.ticketDesignService as any,
     deps.pdfQueueService as any,
   );
