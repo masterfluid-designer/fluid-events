@@ -20,6 +20,10 @@ function makePrisma() {
         createdAt: new Date(),
       }),
       findMany: vi.fn().mockResolvedValue([]),
+      findUnique: vi.fn(),
+      count: vi.fn().mockResolvedValue(0),
+      update: vi.fn().mockResolvedValue({ id: 'reg-1', checkedInAt: null }),
+      delete: vi.fn().mockResolvedValue({}),
     },
   };
 }
@@ -224,5 +228,90 @@ describe('RegistrationsService.listerPourManager()', () => {
     );
 
     await expect(service.listerPourManager('mgr-1', 'evt-autre')).rejects.toThrow(NotFoundException);
+  });
+});
+
+describe('RegistrationsService — pointage, retrait, pagination (2026-08-22)', () => {
+  let prisma: ReturnType<typeof makePrisma>;
+  let acces: { resoudreEvenementDuManager: ReturnType<typeof vi.fn> };
+  let audit: { log: ReturnType<typeof vi.fn> };
+  let service: RegistrationsService;
+
+  beforeEach(() => {
+    prisma = makePrisma();
+    acces = { resoudreEvenementDuManager: vi.fn().mockResolvedValue('evt-1') };
+    audit = { log: vi.fn().mockResolvedValue(undefined) };
+    service = new RegistrationsService(
+      prisma as never,
+      audit as never,
+      acces as never,
+      phoneService as never,
+      { sendRegistrationConfirmationEmail: vi.fn() } as never,
+    );
+    prisma.registration.findUnique.mockResolvedValue({
+      id: 'reg-1',
+      eventId: 'evt-1',
+      email: 'ama@example.com',
+    });
+  });
+
+  it('pointe un inscrit avec un horodatage', async () => {
+    await service.pointer('mgr-1', 'reg-1', true);
+
+    const data = prisma.registration.update.mock.calls[0][0].data;
+    expect(data.checkedInAt).toBeInstanceOf(Date);
+  });
+
+  it('dépointe en remettant à null — on se trompe de ligne, debout, dans le bruit', async () => {
+    await service.pointer('mgr-1', 'reg-1', false);
+
+    expect(prisma.registration.update.mock.calls[0][0].data).toEqual({ checkedInAt: null });
+  });
+
+  it("refuse de pointer l'inscrit d'un autre organisateur", async () => {
+    acces.resoudreEvenementDuManager.mockRejectedValue(new NotFoundException());
+
+    await expect(service.pointer('mgr-autre', 'reg-1', true)).rejects.toThrow(NotFoundException);
+    expect(prisma.registration.update).not.toHaveBeenCalled();
+  });
+
+  it("vérifie l'appartenance AVANT d'écrire, pas après", async () => {
+    await service.pointer('mgr-1', 'reg-1', true);
+
+    // L’événement contrôlé est celui de l’INSCRIPTION, jamais un identifiant
+    // fourni par l’appelant.
+    expect(acces.resoudreEvenementDuManager).toHaveBeenCalledWith('mgr-1', 'evt-1');
+  });
+
+  it('supprime réellement un désistement — pas un drapeau', async () => {
+    await service.retirer('mgr-1', 'reg-1');
+
+    expect(prisma.registration.delete).toHaveBeenCalledWith({ where: { id: 'reg-1' } });
+  });
+
+  it("refuse de retirer l'inscrit d'un autre organisateur", async () => {
+    acces.resoudreEvenementDuManager.mockRejectedValue(new NotFoundException());
+
+    await expect(service.retirer('mgr-autre', 'reg-1')).rejects.toThrow(NotFoundException);
+    expect(prisma.registration.delete).not.toHaveBeenCalled();
+  });
+
+  it('borne la pagination — une limite qu’on peut demander à 100 000 n’en est pas une', async () => {
+    await service.listerPourManager('mgr-1', undefined, { limit: 100000, offset: -5 });
+
+    const appel = prisma.registration.findMany.mock.calls[0][0];
+    expect(appel.take).toBe(200);
+    expect(appel.skip).toBe(0);
+  });
+
+  it('compte TOUTE la liste, pas la page rendue', async () => {
+    prisma.registration.count.mockResolvedValueOnce(812).mockResolvedValueOnce(140);
+    prisma.registration.findMany.mockResolvedValue([{ id: 'reg-1' }]);
+
+    const r = await service.listerPourManager('mgr-1', undefined, { limit: 50 });
+
+    expect(r.total).toBe(812);
+    expect(r.presents).toBe(140);
+    expect(r.items).toHaveLength(1);
   });
 });

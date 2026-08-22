@@ -491,6 +491,14 @@ model Registration {
 
   createdAt DateTime @default(now())
 
+  /// Pointage à l'entrée (2026-08-22). L'horodatage plutôt qu'un booléen :
+  /// savoir QUAND quelqu'un est arrivé sert à l'organisateur, et distingue
+  /// un pointage du soir même d’une case cochée trois jours plus tard.
+  ///
+  /// `null` = pas encore arrivé. Dépointer remet à null, car on se trompe de
+  /// ligne sur un téléphone, debout, dans le bruit.
+  checkedInAt DateTime?
+
   /// Une adresse ne s'inscrit qu'une fois par événement. C'est le garde-fou
   /// principal contre le remplissage automatique du formulaire public.
   @@unique([eventId, email])

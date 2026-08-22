@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { Role } from '@saas-events/types';
 import { Public } from '../common/decorators/public.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -32,7 +32,37 @@ export class RegistrationsController {
    */
   @Roles(Role.MANAGER)
   @Get('registrations')
-  async lister(@CurrentUser() user: RequestUser, @Query('eventId') eventId?: string) {
-    return this.registrations.listerPourManager(user.id, eventId);
+  async lister(
+    @CurrentUser() user: RequestUser,
+    @Query('eventId') eventId?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    return this.registrations.listerPourManager(user.id, eventId, {
+      limit: limit ? Number(limit) : undefined,
+      offset: offset ? Number(offset) : undefined,
+    });
+  }
+
+  /**
+   * PATCH /api/registrations/:id/check-in — pointage à l'entrée.
+   * Réversible : on se trompe de ligne sur un téléphone, debout, dans le
+   * bruit.
+   */
+  @Roles(Role.MANAGER)
+  @Patch('registrations/:id/check-in')
+  async pointer(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Body() body: { present?: boolean },
+  ) {
+    return this.registrations.pointer(user.id, id, body.present !== false);
+  }
+
+  /** DELETE /api/registrations/:id — désistement. */
+  @Roles(Role.MANAGER)
+  @Delete('registrations/:id')
+  async retirer(@CurrentUser() user: RequestUser, @Param('id') id: string) {
+    return this.registrations.retirer(user.id, id);
   }
 }

@@ -141,24 +141,117 @@ export class RegistrationsService {
    * L'appartenance passe par le contrôle partagé — un manager ne lit jamais
    * la liste d'un événement qui n'est pas le sien.
    */
-  async listerPourManager(managerId: string, eventId?: string) {
+  async listerPourManager(
+    managerId: string,
+    eventId?: string,
+    options?: { limit?: number; offset?: number },
+  ) {
     const id = await this.acces.resoudreEvenementDuManager(managerId, eventId);
 
-    const inscriptions = await this.prisma.registration.findMany({
-      where: { eventId: id },
-      orderBy: { createdAt: 'desc' },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        email: true,
-        phone: true,
-        extraLabel: true,
-        extraValue: true,
-        createdAt: true,
-      },
+    /*
+     * Pagination bornée (2026-08-22). Une soirée à huit cents inscrits
+     * chargeait tout d’un coup — sur le téléphone de l’accueil, la veille,
+     * en 3G. Le plafond est appliqué ICI et non côté client : une limite
+     * qu’on peut demander à 100 000 n’est pas une limite.
+     */
+    const limit = Math.min(Math.max(options?.limit ?? 50, 1), 200);
+    const offset = Math.max(options?.offset ?? 0, 0);
+
+    const [total, presents, inscriptions] = await Promise.all([
+      this.prisma.registration.count({ where: { eventId: id } }),
+      this.prisma.registration.count({ where: { eventId: id, checkedInAt: { not: null } } }),
+      this.prisma.registration.findMany({
+        where: { eventId: id },
+        orderBy: { createdAt: 'desc' },
+        skip: offset,
+        take: limit,
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          phone: true,
+          extraLabel: true,
+          extraValue: true,
+          createdAt: true,
+          checkedInAt: true,
+        },
+      }),
+    ]);
+
+    /*
+     * `total` compte TOUTE la liste, pas la page rendue : l’organisateur
+     * veut savoir combien de monde vient, pas combien de lignes il a sous
+     * les yeux. `presents` répond à la question du soir même.
+     */
+    return { total, presents, items: inscriptions, offset, limit };
+  }
+
+  /**
+   * Pointe ou dépointe un inscrit à l'entrée (2026-08-22).
+   *
+   * Réversible, parce qu’on se trompe de ligne sur un téléphone, debout,
+   * dans le bruit. Un pointage irréversible obligerait à tenir une liste
+   * parallèle sur papier — exactement ce qu’on remplace.
+   */
+  async pointer(managerId: string, registrationId: string, present: boolean) {
+    const inscription = await this.prisma.registration.findUnique({
+      where: { id: registrationId },
+      select: { id: true, eventId: true },
     });
 
-    return { total: inscriptions.length, items: inscriptions };
+    if (!inscription) {
+      throw new NotFoundException({
+        code: 'REGISTRATION_NOT_FOUND',
+        message: 'Inscription introuvable.',
+      });
+    }
+
+    // L’appartenance passe par le contrôle partagé : on ne pointe jamais un
+    // inscrit sur l’événement de quelqu’un d’autre.
+    await this.acces.resoudreEvenementDuManager(managerId, inscription.eventId);
+
+    const misAJour = await this.prisma.registration.update({
+      where: { id: registrationId },
+      data: { checkedInAt: present ? new Date() : null },
+      select: { id: true, checkedInAt: true },
+    });
+
+    await this.audit.log('registration.checked_in', 'Registration', registrationId, {
+      present,
+    }, managerId);
+
+    return misAJour;
+  }
+
+  /**
+   * Retire un inscrit de la liste (désistement).
+   *
+   * Une vraie suppression, pas un drapeau : la personne a demandé à ne plus
+   * figurer sur une liste nominative, et la garder « masquée » ne répondrait
+   * pas à cette demande.
+   */
+  async retirer(managerId: string, registrationId: string) {
+    const inscription = await this.prisma.registration.findUnique({
+      where: { id: registrationId },
+      select: { id: true, eventId: true, email: true },
+    });
+
+    if (!inscription) {
+      throw new NotFoundException({
+        code: 'REGISTRATION_NOT_FOUND',
+        message: 'Inscription introuvable.',
+      });
+    }
+
+    await this.acces.resoudreEvenementDuManager(managerId, inscription.eventId);
+
+    await this.prisma.registration.delete({ where: { id: registrationId } });
+
+    await this.audit.log('registration.removed', 'Registration', registrationId, {
+      eventId: inscription.eventId,
+    }, managerId);
+
+    return { removed: true };
   }
 }

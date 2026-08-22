@@ -1,12 +1,13 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Search, Users } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
+import { Search, Users, Check, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Spinner } from '@/components/ui/spinner';
-import { api } from '@/lib/api';
+import { api, apiPatch, apiDelete, ApiError } from '@/lib/api';
 import { avecEvenement } from '@/lib/evenement-actif';
 
 /**
@@ -25,19 +26,50 @@ interface Inscription {
   extraLabel: string | null;
   extraValue: string | null;
   createdAt: string;
+  checkedInAt: string | null;
 }
+
+const PAR_PAGE = 50;
 
 export function ListeInscriptions({ evenement }: { evenement?: string }) {
   const [recherche, setRecherche] = useState('');
+  const [limite, setLimite] = useState(PAR_PAGE);
+  const queryClient = useQueryClient();
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['manager-inscriptions', evenement],
-    queryFn: () => api<{ total: number; items: Inscription[] }>(
-      avecEvenement('/api/registrations', evenement),
-    ),
+    queryKey: ['manager-inscriptions', evenement, limite],
+    queryFn: () => {
+      const base = avecEvenement('/api/registrations', evenement);
+      const separateur = base.includes('?') ? '&' : '?';
+      return api<{ total: number; presents: number; items: Inscription[] }>(
+        `${base}${separateur}limit=${limite}`,
+      );
+    },
   });
 
   const inscriptions = data?.items ?? [];
+
+  function rafraichir() {
+    void queryClient.invalidateQueries({ queryKey: ['manager-inscriptions'] });
+  }
+
+  const pointer = useMutation({
+    mutationFn: ({ id, present }: { id: string; present: boolean }) =>
+      apiPatch(`/api/registrations/${id}/check-in`, { present }),
+    onSuccess: rafraichir,
+    onError: (err) =>
+      toast.error(err instanceof ApiError ? err.message : 'Le pointage n’a pas été enregistré.'),
+  });
+
+  const retirer = useMutation({
+    mutationFn: (id: string) => apiDelete(`/api/registrations/${id}`),
+    onSuccess: () => {
+      toast.success('Inscription retirée');
+      rafraichir();
+    },
+    onError: (err) =>
+      toast.error(err instanceof ApiError ? err.message : 'Le retrait n’a pas abouti.'),
+  });
 
   const filtrees = useMemo(() => {
     const q = recherche.trim().toLowerCase();
@@ -54,7 +86,7 @@ export function ListeInscriptions({ evenement }: { evenement?: string }) {
    */
   function exporterCsv() {
     const colonneLibre = inscriptions.find((i) => i.extraLabel)?.extraLabel ?? null;
-    const entete = ['Prénom', 'Nom', 'Email', 'Téléphone', 'Inscrit le'];
+    const entete = ['Prénom', 'Nom', 'Email', 'Téléphone', 'Inscrit le', 'Présent'];
     if (colonneLibre) entete.push(colonneLibre);
 
     const lignes = filtrees.map((i) => {
@@ -64,6 +96,7 @@ export function ListeInscriptions({ evenement }: { evenement?: string }) {
         i.email,
         i.phone ?? '',
         new Date(i.createdAt).toLocaleString('fr-FR'),
+        i.checkedInAt ? new Date(i.checkedInAt).toLocaleString('fr-FR') : '',
       ];
       if (colonneLibre) ligne.push(i.extraValue ?? '');
       return ligne;
@@ -106,6 +139,14 @@ export function ListeInscriptions({ evenement }: { evenement?: string }) {
           <h1 className="text-xl font-semibold">Inscrits</h1>
           <p className="text-sm text-muted-foreground">
             {data?.total ?? 0} personne{(data?.total ?? 0) > 1 ? 's' : ''} sur la liste
+            {(data?.presents ?? 0) > 0 && (
+              <>
+                {' · '}
+                <span className="font-medium text-foreground">
+                  {data?.presents} arrivée{(data?.presents ?? 0) > 1 ? 's' : ''}
+                </span>
+              </>
+            )}
           </p>
         </div>
         <Button variant="outline" onClick={exporterCsv} disabled={filtrees.length === 0}>
@@ -143,6 +184,7 @@ export function ListeInscriptions({ evenement }: { evenement?: string }) {
                 <th className="px-4 py-3 font-semibold">Contact</th>
                 <th className="px-4 py-3 font-semibold">Inscrit le</th>
                 <th className="px-4 py-3 font-semibold">Réponse</th>
+                <th className="px-4 py-3 text-right font-semibold">Entrée</th>
               </tr>
             </thead>
             <tbody>
@@ -159,11 +201,75 @@ export function ListeInscriptions({ evenement }: { evenement?: string }) {
                     {new Date(i.createdAt).toLocaleDateString('fr-FR')}
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">{i.extraValue ?? '—'}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-end gap-1.5">
+                      {/*
+                        Le pointage est une BASCULE, pas une action définitive :
+                        on se trompe de ligne sur un téléphone, debout, dans le
+                        bruit. Un bouton large, atteignable au pouce.
+                      */}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          pointer.mutate({ id: i.id, present: !i.checkedInAt })
+                        }
+                        disabled={pointer.isPending}
+                        aria-pressed={Boolean(i.checkedInAt)}
+                        title={
+                          i.checkedInAt
+                            ? `Arrivé·e à ${new Date(i.checkedInAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })} — cliquer pour annuler`
+                            : 'Marquer comme arrivé·e'
+                        }
+                        className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-50 ${
+                          i.checkedInAt
+                            ? 'bg-primary text-white'
+                            : 'border border-border hover:bg-accent'
+                        }`}
+                      >
+                        <Check className="size-3.5" />
+                        {i.checkedInAt
+                          ? new Date(i.checkedInAt).toLocaleTimeString('fr-FR', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })
+                          : 'Arrivé·e'}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          // Une suppression nominative se confirme : la ligne
+                          // ne se récupère pas, et le geste est voisin du
+                          // pointage.
+                          if (
+                            window.confirm(
+                              `Retirer ${i.firstName} ${i.lastName} de la liste ? Cette inscription sera supprimée.`,
+                            )
+                          ) {
+                            retirer.mutate(i.id);
+                          }
+                        }}
+                        disabled={retirer.isPending}
+                        title="Retirer de la liste"
+                        className="rounded-full border border-border p-1.5 text-muted-foreground transition-colors hover:border-destructive hover:text-destructive disabled:opacity-50"
+                      >
+                        <Trash2 className="size-3.5" />
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </Card>
+      )}
+
+      {/* Une soirée à huit cents inscrits ne se charge pas d’un coup sur le
+          téléphone de l’accueil, la veille, en 3G. */}
+      {inscriptions.length < (data?.total ?? 0) && (
+        <Button variant="outline" onClick={() => setLimite((l) => l + PAR_PAGE)}>
+          Afficher plus ({inscriptions.length} sur {data?.total})
+        </Button>
       )}
     </div>
   );
