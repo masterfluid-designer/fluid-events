@@ -3,8 +3,9 @@
 import { useMemo, useState } from 'react';
 import { Check, MessageCircle, Minus, Plus, Sparkles, Ticket } from 'lucide-react';
 import type { TicketSaleMode } from '@saas-events/types';
-import { CHECKOUT_RESUME_EVENT, openGoogleAuthPopup } from '@/lib/auth';
+import { saveIntent, CHECKOUT_RESUME_EVENT, openGoogleAuthPopup } from '@/lib/auth';
 import { SectionShell, SectionHeading } from './section-shell';
+import { EventAccessMode } from '@saas-events/types';
 
 /**
  * TicketSelector — Panier multi-billets (décision produit "panier
@@ -217,10 +218,13 @@ export function TicketSelector({
   isPublished,
   contactPhone,
   eventDays = [],
+  accessMode,
 }: {
   tickets: PublicTicket[];
   slug: string;
   isPublished: boolean;
+  /** Régime d’accès — commande la porte d’entrée du tunnel (2026-08-22). */
+  accessMode?: EventAccessMode;
   /** Numéro de l'événement — seul canal des formules sur demande. */
   contactPhone?: string | null;
   eventDays?: PublicEventDay[];
@@ -350,6 +354,24 @@ export function TicketSelector({
   // sélectionné, ne bougent pas. En cas de succès, `ResumeCheckout` prend le
   // relais via CHECKOUT_RESUME_EVENT.
   async function handleContinue() {
+    /*
+     * Régime sans compte : aucune connexion à demander. On passe la main
+     * au tunnel, qui recueille les coordonnées puis ouvre le paiement.
+     * Ouvrir une pop-up Google ici demanderait à l’acheteur exactement ce
+     * que l’organisateur a choisi de ne pas exiger.
+     */
+    if (accessMode === EventAccessMode.TICKETED_GUEST) {
+      /*
+       * Le panier passe par le même dépôt que le parcours avec compte :
+       * `openGoogleAuthPopup` l’y écrivait avant d’ouvrir la pop-up, et le
+       * tunnel le relit à la reprise. Sauter la pop-up sans écrire le panier
+       * laissait le tunnel annoncer une session expirée.
+       */
+      saveIntent(slug, cartItems);
+      window.dispatchEvent(new CustomEvent(CHECKOUT_RESUME_EVENT));
+      return;
+    }
+
     setAuthPending(true);
     try {
       const authenticated = await openGoogleAuthPopup(slug, cartItems);

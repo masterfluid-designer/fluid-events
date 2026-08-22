@@ -185,6 +185,7 @@ export function BlockRenderer({
             eventConfig={eventConfig}
             navItems={navItems}
             eventDays={eventDays}
+            accessMode={accessMode}
           />
         </div>
       ))}
@@ -200,6 +201,7 @@ function BlockItem({
   eventConfig,
   navItems,
   eventDays,
+  accessMode,
 }: {
   block: Block;
   tickets: PublicTicket[];
@@ -208,6 +210,7 @@ function BlockItem({
   eventDays: PublicEventDay[];
   eventConfig: EventConfigData;
   navItems: NavItem[];
+  accessMode?: EventAccessMode;
 }) {
   const textAlign = block.styles?.textAlign;
 
@@ -283,6 +286,7 @@ function BlockItem({
         isPublished={isPublished}
         contactPhone={eventConfig.contactPhone}
         eventDays={eventDays}
+        accessMode={accessMode}
       />
     );
   }

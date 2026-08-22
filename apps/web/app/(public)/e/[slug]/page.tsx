@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
-import type { EventAccessMode, Block, EventTheme, FaqEntry, MediaEntry, ScheduleEntry, SpeakerEntry } from '@saas-events/types';
+import type {  Block, EventTheme, FaqEntry, MediaEntry, ScheduleEntry, SpeakerEntry } from '@saas-events/types';
+import { EventAccessMode } from '@saas-events/types';
 import { resolveEventTheme } from '@/lib/event-theme';
 import { ResumeCheckout } from './resume-checkout';
 import { BlockRenderer, getVisibleNavItems, type EventConfigData, type NavItem } from './block-renderer';
@@ -229,7 +230,16 @@ export default async function EventPage({
         navItems={navItems.filter(
           (i) => !(themeRaw?.headerHiddenNav ?? []).includes(i.id.replace('block-', '')),
         )}
-        showMyTicket={themeRaw?.headerShowMyTicket !== false}
+        /*
+         * « Mon ticket » mène à un tableau de bord que l’acheteur sans
+         * compte n’a pas. Le régime l’emporte sur le réglage : une case à
+         * cocher se laisse cocher par mégarde, un régime non — et le lien
+         * mènerait alors à une page de connexion impossible à franchir.
+         */
+        showMyTicket={
+          event.accessMode !== EventAccessMode.TICKETED_GUEST &&
+          themeRaw?.headerShowMyTicket !== false
+        }
         showBuy={themeRaw?.headerShowBuy !== false}
         showThemeToggle={themeRaw?.headerShowThemeToggle !== false}
       />
@@ -282,7 +292,12 @@ export default async function EventPage({
         dateLabel={dateLabel}
         navItems={navItems}
       />
-      <ResumeCheckout slug={slug} resume={resume === '1'} orderId={orderId} />
+      <ResumeCheckout
+        slug={slug}
+        resume={resume === '1'}
+        orderId={orderId}
+        accessMode={event.accessMode}
+      />
     </main>
   );
 }

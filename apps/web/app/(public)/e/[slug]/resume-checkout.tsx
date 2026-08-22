@@ -10,6 +10,8 @@ import { api, apiPost, ApiError } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { CheckoutPhoneDialog } from './checkout-phone-dialog';
+import { EventAccessMode } from '@saas-events/types';
+import { GuestCheckoutForm, type IdentiteInvite } from './guest-checkout-form';
 
 /**
  * ResumeCheckout — Reprise du tunnel d'achat après retour d'OAuth (CDC §7.4, §8).
@@ -41,6 +43,8 @@ type FlowState =
   | { step: 'idle' }
   /** Numéro manquant : on le demande avant d’ouvrir le paiement. */
   | { step: 'phone'; items: CartItem[] }
+  /** Régime sans compte : on recueille de quoi envoyer le billet. */
+  | { step: 'guest'; items: CartItem[] }
   | { step: 'initializing' }
   | { step: 'awaiting-payment' }
   | { step: 'confirming'; orderId: string }
@@ -54,9 +58,16 @@ export function ResumeCheckout({
   slug,
   resume,
   orderId,
+  accessMode,
 }: {
   slug: string;
   resume: boolean;
+  /**
+   * Régime d'accès de l'événement (2026-08-22). En « sans compte », le
+   * tunnel ne passe plus par la connexion : il demande de quoi envoyer le
+   * billet, et rien de plus.
+   */
+  accessMode?: EventAccessMode;
   /** Présent au retour d'une redirection CinetPay/FedaPay — reprend directement le polling. */
   orderId?: string;
 }) {
@@ -78,6 +89,16 @@ export function ResumeCheckout({
    * client qui rachète ne resaisit jamais son numéro.
    */
   async function startCheckout(items: CartItem[]) {
+    /*
+     * Régime sans compte : personne n'est authentifié, `/api/auth/me`
+     * n’aurait rien à dire. On recueille les coordonnées, puis on part
+     * directement au paiement.
+     */
+    if (accessMode === EventAccessMode.TICKETED_GUEST) {
+      setState({ step: 'guest', items });
+      return;
+    }
+
     setState({ step: 'initializing' });
     try {
       const me = await api<{ name: string | null; email: string; phone: string | null }>(
@@ -96,10 +117,22 @@ export function ResumeCheckout({
     await initPayment(items);
   }
 
-  async function initPayment(items: CartItem[]) {
+  async function initPayment(items: CartItem[], invite?: IdentiteInvite) {
     setState({ step: 'initializing' });
     try {
-      const init = await apiPost<PaymentInitResult>('/api/payments/init', { items });
+      /*
+       * Deux portes, un seul tunnel derrière : `init-guest` fabrique le
+       * porteur de la commande puis rejoint exactement le même chemin. Le
+       * serveur relit le régime en base — le client ne décide pas de se
+       * passer de compte.
+       */
+      const init = invite
+        ? await apiPost<PaymentInitResult>('/api/payments/init-guest', {
+            eventSlug: slug,
+            items,
+            ...invite,
+          })
+        : await apiPost<PaymentInitResult>('/api/payments/init', { items });
 
       if (init.provider === 'KKIAPAY') {
         setState({ step: 'awaiting-payment' });
@@ -234,6 +267,28 @@ export function ResumeCheckout({
   }, [state]);
 
   if (state.step === 'idle') return null;
+
+  if (state.step === 'guest') {
+    const { items } = state;
+    return (
+      <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 sm:items-center">
+        <div className="w-full max-w-lg rounded-2xl border border-stroke bg-alabaster p-6 shadow-solid-2 dark:border-strokedark dark:bg-blackho">
+          <GuestCheckoutForm
+            pending={false}
+            onCancel={() => setState({ step: 'idle' })}
+            onSubmit={(identite) => {
+              buyerRef.current = {
+                name: `${identite.firstName} ${identite.lastName}`,
+                email: identite.email,
+                phone: identite.phone || null,
+              };
+              void initPayment(items, identite);
+            }}
+          />
+        </div>
+      </div>
+    );
+  }
 
   if (state.step === 'phone') {
     const { items } = state;
