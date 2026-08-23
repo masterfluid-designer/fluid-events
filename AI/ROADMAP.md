@@ -1076,9 +1076,9 @@ ramènent tous Aïcha Konaté ; « n’guessan » tapé avec une apostrophe droi
 trouve « N’Guessan » (l’apostrophe typographique est elle aussi normalisée) ;
 « % » et « _ » ne ramènent rien, comme il se doit.
 
-> **À faire au déploiement** : `npx prisma migrate deploy` (voir
-> `AI/DEPLOYMENT.md` §5). Sans la migration, la recherche du tableau de bord
-> échouera — `unaccent` n’existera pas.
+> **Déployé le 2026-08-23 à 15h22 UTC.** Sauvegarde prise avant migration
+> (`sauvegardes/avant-deploiement-20260823-1506.sql.gz`), migration appliquée,
+> `unaccent(lower(&laquo; Konaté &raquo;))` vérifié sur la base de production.
 ## 4. Priorités immédiates (à date)
 
 | Module | Priorité | Référence CDC |
@@ -1108,7 +1108,7 @@ trouve « N’Guessan » (l’apostrophe typographique est elle aussi normalisé
 | Invitation Manager : briefing plateforme + paliers et leurs limites | ✅ Fait (2026-08-23) | §7.6 |
 | Contrôle d’accès des événements sur inscription (liste d’émargement) | ✅ Fait (2026-08-23) | §9.5 |
 | Garde de démarrage sur les URLs publiques en production | ✅ Fait (2026-08-23) | — |
-| Recherche d’inscrits insensible aux accents côté serveur (`unaccent`) | ✅ Fait (2026-08-23) — **migration à déployer** | §9.5 |
+| Recherche d’inscrits insensible aux accents côté serveur (`unaccent`) | ✅ Fait et **en production** (2026-08-23) | §9.5 |
 | Identifiants WhatsApp réglables depuis l’Admin | ✅ Fait (2026-08-19) | §10 |
 | Thème clair/sombre de la page publique + en-tête paramétrable | ✅ Fait (2026-08-20) | §11 |
 | Uploads : contenu vérifié, poids et dimensions plafonnés, images optimisées | ✅ Fait (2026-08-21) | §6 |
