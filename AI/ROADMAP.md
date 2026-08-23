@@ -1177,10 +1177,28 @@ POURQUOI il a été déconnecté — sinon il conclura à une panne.
 primaire, sur une seule colonne : **0,12 ms** mesurées côté Postgres. C’est le
 prix de la révocation, et il est payé sur chaque requête authentifiée.
 
-⚠️ **`isActive` n’est toujours pas vérifié** dans la stratégie, alors que la
-lecture est désormais faite : un compte désactivé garde sa session jusqu’à
-expiration, soit sept jours. Le corriger met des gens dehors sur-le-champ au
-déploiement — c’est une décision produit, pas un ajout technique. À trancher.
+**`isActive` est vérifié dans la même lecture** (tranché le jour même).
+
+Désactiver un compte ne coupait rien : la session en cours vivait jusqu’à sept
+jours, et pour un agent jusqu’à la fin de l’événement. La seule mesure
+réellement efficace restait la suppression, qui emporte les événements, les
+billets et les inscrits — une disproportion absurde pour « retirer l’accès ».
+Le contrôle ne coûte rien de plus : la ligne était déjà chargée.
+
+Il passe **avant** celui de la version. Répondre « reconnectez-vous » à
+quelqu’un dont le compte est fermé — donc à qui la reconnexion est justement
+refusée — serait une impasse. D’où `ACCOUNT_DISABLED`, et non `FORBIDDEN` qui
+parle d’un droit manquant sur une ressource : ici le compte entier est clos, et
+aucune autre page ne répondra mieux.
+
+⚠️ **L’impersonation refuse un compte désactivé.** Le jeton produit serait
+rejeté à la première requête ; une session qui échoue partout sans expliquer
+vaut moins qu’un refus qui dit quoi faire.
+
+Vérifié contre l’API réelle : session ouverte → `401 ACCOUNT_DISABLED` dès la
+désactivation, impersonation en `403`, et tout revient à la réactivation — la
+session d’origine comprise, puisque son jeton n’a jamais cessé d’être valide,
+seulement d’être accepté.
 
 **Vérifié contre l’API réelle** : une session ouverte AVANT la réinitialisation
 répond `401 SESSION_REVOKED` après, son refresh token aussi, et une nouvelle
@@ -1221,6 +1239,7 @@ connexion fonctionne normalement.
 | Uploads : contenu vérifié, poids et dimensions plafonnés, images optimisées | ✅ Fait (2026-08-21) | §6 |
 | Récupération de mot de passe (demande + réinitialisation) | ✅ Fait (2026-08-23) | §7 |
 | Révocation des sessions après réinitialisation (`tokenVersion`) | ✅ Fait (2026-08-23) | §7 |
+| Compte désactivé mis dehors immédiatement (`isActive` dans le JWT guard) | ✅ Fait (2026-08-23) | §7 |
 | Fournisseur de paiement configuré en production | 🔴 À faire (bloque tout encaissement réel) | §8 |
 | Déploiement production (VPS, TLS, cookies inter-sous-domaines) | ✅ Fait (2026-08-16, en service) | — |
 | Tunnel d’achat : récapitulatif détaillé + « Payer » | ✅ Fait (2026-08-16) | §8 |
