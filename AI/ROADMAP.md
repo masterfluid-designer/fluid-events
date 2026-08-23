@@ -965,6 +965,74 @@ l’invitation ouvrira un compte Premium, l’email dira vrai sans être retouch
 
 Rendu vérifié dans un vrai client mail (Mailpit), invitation envoyée puis compte
 de test supprimé par la suppression définitive Admin.
+
+### Les agents des événements sur inscription avaient une caméra pour rien (2026-08-23)
+
+**Un événement sur inscription n’émet aucun billet, donc aucun QR.** Ses
+agents de contrôle ouvraient malgré tout la page du scanner, qui démarrait la
+caméra sans se demander ce qu’elle allait lire. Le régime existait depuis le
+2026-08-22 ; son contrôle d’accès, non.
+
+Le geste à la porte n’est pas « scanner », c’est **chercher un nom et le
+cocher**. D’où une liste d’émargement, et non un scanner dégradé : compteur
+arrivés/total en tête, filtres Tous / Attendus / Arrivés, ligne entière
+cliquable — viser une case de vingt pixels au pouce, dans le noir, ne marche
+pas —, pointage réversible et horodaté.
+
+**La liste est chargée en entier et filtrée dans le téléphone**, à rebours de
+celle du tableau de bord. Une recherche qui repasse par le réseau à chaque
+lettre est inutilisable sous la connexion d’une salle des fêtes ; chargée une
+fois, elle répond instantanément et survit à une coupure — seul le pointage a
+encore besoin du réseau. Elle ignore accents et casse : on tape « konate »
+d’une main pour trouver « Konaté ». Plafond à 2 000 lignes, et la troncature
+est DITE : un agent qui cherche un nom jamais chargé conclurait que la
+personne n’est pas inscrite.
+
+**L’événement de l’agent vient de son compte, jamais de la requête.** Une
+liste d’inscrits est nominative — noms, emails, téléphones — et un agent
+recruté pour une soirée ne doit pas lire celle d’à côté en changeant un
+paramètre. `resoudreEvenementDeLAgent` est le pendant exact de
+`resoudreEvenementDuManager`, y compris sur la réponse : « inexistant » et
+« pas le vôtre » sont indiscernables. `isActive` y est vérifié — révoquer un
+agent la veille doit lui fermer la liste, pas seulement le scan.
+
+Vérifié en conditions réelles : sept inscrits, pointage depuis le téléphone de
+l’agent retrouvé à l’identique sur le tableau de bord de l’organisateur ;
+l’agent d’un événement à billetterie reçoit `EVENT_ACCESS_MODE_MISMATCH`, un
+Manager et un Admin reçoivent 403 sur la route de l’agent.
+
+⚠️ **Le scanner affichait « Entrée Nord »** pour tous les événements et toutes
+les portes de la plateforme — un libellé de maquette jamais remplacé. Il porte
+désormais le titre réel, désormais exposé par `/api/auth/me`.
+
+Côté organisateur, **la recherche d’inscrits part au serveur**. Elle filtrait
+les cinquante lignes chargées sur trois cents : chercher quelqu’un inscrit en
+deux-centième position ne renvoyait rien, et l’organisateur en concluait que
+la personne ne s’était pas inscrite. Un filtre qui ment est pire que pas de
+filtre.
+
+> **Limite connue** : cette recherche serveur est accent-SENSIBLE (`contains`
+> Prisma), là où celle de l’agent ne l’est pas. « konate » trouve « Konaté »
+> par son email, pas par son nom. La lever proprement demande l’extension
+> Postgres `unaccent` et une requête brute — un chantier à part entière, à
+> décider plutôt qu’à glisser.
+
+### Les URLs publiques ne peuvent plus rester en localhost (2026-08-23)
+
+Le repli `localhost` des constantes est indispensable en développement, et
+silencieux en production : une invitation serait partie avec « Tableau de
+bord : http://localhost:3000/manager », un lien mort chez son destinataire,
+sans rien dans les logs. Pire avec un `APP_URL=` vide dans le `.env` — `??` ne
+rattrape pas la chaîne vide, et les liens deviennent relatifs, donc morts dans
+un client mail sans même contenir le mot « localhost ».
+
+`verifierUrlsPubliques()` refuse le démarrage en production si `APP_URL`,
+`FRONTEND_URL` ou `API_URL` sont absentes, vides, ou pointent sur localhost —
+même parti pris que `GOOGLE_CLIENT_ID`. Un démarrage refusé se voit tout de
+suite ; un email parti ne se rattrape pas.
+
+**La production allait bien** : elle renvoie `https://fluidevent.online` en
+en-tête CORS, lu depuis le même `${APP_URL}` que les emails.
 ## 4. Priorités immédiates (à date)
 
 | Module | Priorité | Référence CDC |
@@ -992,6 +1060,9 @@ de test supprimé par la suppression définitive Admin.
 | Trois types d’événements (RSVP / GUEST / ACCOUNT) | 🟡 Planifié — lots 0 à 3 | — |
 | Page « Mes événements » + contexte de travail visible dès un événement | ✅ Fait (2026-08-23) | §1.4 |
 | Invitation Manager : briefing plateforme + paliers et leurs limites | ✅ Fait (2026-08-23) | §7.6 |
+| Contrôle d’accès des événements sur inscription (liste d’émargement) | ✅ Fait (2026-08-23) | §9.5 |
+| Garde de démarrage sur les URLs publiques en production | ✅ Fait (2026-08-23) | — |
+| Recherche d’inscrits insensible aux accents côté serveur (`unaccent`) | 🟡 Limite connue | §9.5 |
 | Identifiants WhatsApp réglables depuis l’Admin | ✅ Fait (2026-08-19) | §10 |
 | Thème clair/sombre de la page publique + en-tête paramétrable | ✅ Fait (2026-08-20) | §11 |
 | Uploads : contenu vérifié, poids et dimensions plafonnés, images optimisées | ✅ Fait (2026-08-21) | §6 |
