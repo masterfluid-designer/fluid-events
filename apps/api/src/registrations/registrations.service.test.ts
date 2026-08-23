@@ -25,7 +25,23 @@ function makePrisma() {
       update: vi.fn().mockResolvedValue({ id: 'reg-1', checkedInAt: null }),
       delete: vi.fn().mockResolvedValue({}),
     },
+    /*
+     * La recherche passe par du SQL brut depuis le 2026-08-23 : `unaccent`
+     * n’a pas d’équivalent dans le langage de requête de Prisma. Le double
+     * capture donc la requête telle qu’elle part.
+     */
+    $queryRaw: vi.fn().mockResolvedValue([]),
   };
+}
+
+/** Recompose le SQL d’un appel `$queryRaw` (gabarit balisé). */
+function sqlDe(appel: unknown[]): string {
+  return (appel[0] as string[]).join('?');
+}
+
+/** Les valeurs liées d’un appel `$queryRaw`, dans leur ordre. */
+function parametresDe(appel: unknown[]): unknown[] {
+  return appel.slice(1);
 }
 
 const phoneService = { normalizeToE164: (v: string) => (v.startsWith('+') ? v : null) };
@@ -228,6 +244,125 @@ describe('RegistrationsService.listerPourManager()', () => {
     );
 
     await expect(service.listerPourManager('mgr-1', 'evt-autre')).rejects.toThrow(NotFoundException);
+  });
+});
+
+
+describe('RegistrationsService.listerPourManager() — recherche sans accents (2026-08-23)', () => {
+  let prisma: ReturnType<typeof makePrisma>;
+  let service: RegistrationsService;
+
+  beforeEach(() => {
+    prisma = makePrisma();
+    service = new RegistrationsService(
+      prisma as never,
+      { log: vi.fn() } as never,
+      { resoudreEvenementDuManager: vi.fn().mockResolvedValue('evt-1') } as never,
+      phoneService as never,
+      { sendRegistrationConfirmationEmail: vi.fn() } as never,
+    );
+    // Comptes puis lignes : deux appels, dans cet ordre.
+    prisma.$queryRaw
+      .mockResolvedValueOnce([{ total: 1, presents: 0 }])
+      .mockResolvedValueOnce([{ id: 'reg-1' }]);
+  });
+
+  /*
+   * Le cas courant ne doit rien payer pour la recherche : sans terme, on
+   * reste sur du Prisma ordinaire.
+   */
+  it('ne passe par le SQL brut que s’il y a un terme', async () => {
+    prisma.$queryRaw.mockReset();
+
+    await service.listerPourManager('mgr-1', undefined, { limit: 50 });
+
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
+    expect(prisma.registration.findMany).toHaveBeenCalled();
+  });
+
+  it('bascule sur le SQL brut dès qu’un terme est fourni', async () => {
+    await service.listerPourManager('mgr-1', undefined, { q: 'konate' });
+
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
+    expect(prisma.registration.findMany).not.toHaveBeenCalled();
+  });
+
+  /*
+   * LE point du chantier : `contains` de Prisma compare octet par octet, donc
+   * « konate » ne trouvait pas « Konaté ». La comparaison doit passer des
+   * DEUX côtés par `unaccent(lower(...))` — la colonne comme le motif.
+   */
+  it('déaccentue la colonne ET le motif', async () => {
+    await service.listerPourManager('mgr-1', undefined, { q: 'konate' });
+
+    const sql = sqlDe(prisma.$queryRaw.mock.calls[0]);
+    expect(sql).toMatch(/unaccent\(lower\(\s*"firstName"/);
+    expect(sql).toContain('LIKE unaccent(lower(');
+  });
+
+  /*
+   * Un terme n'est jamais concaténé dans le texte de la requête : il voyage
+   * en paramètre lié. La règle vaut pour toute requête brute (RULES.md §9).
+   */
+  it('lie les valeurs au lieu de les coudre dans le SQL', async () => {
+    await service.listerPourManager('mgr-1', undefined, { q: "Robert'); DROP TABLE registrations;--" });
+
+    const sql = sqlDe(prisma.$queryRaw.mock.calls[0]);
+    expect(sql).not.toContain('DROP TABLE');
+    expect(parametresDe(prisma.$queryRaw.mock.calls[0])).toEqual(
+      expect.arrayContaining([expect.stringContaining('DROP TABLE')]),
+    );
+  });
+
+  /*
+   * `%` et `_` sont les jokers de LIKE. Un organisateur qui les tape cherche
+   * ces caractères-là, il ne compose pas une expression.
+   */
+  it('neutralise les jokers de LIKE dans le terme', async () => {
+    await service.listerPourManager('mgr-1', undefined, { q: '100%_promo' });
+
+    const [, , motif] = prisma.$queryRaw.mock.calls[0];
+    expect(motif).toBe('%100!%!_promo%');
+  });
+
+  it('annonce le nombre de RÉSULTATS, pas la taille de la liste', async () => {
+    prisma.$queryRaw
+      .mockReset()
+      .mockResolvedValueOnce([{ total: 3, presents: 2 }])
+      .mockResolvedValueOnce([{ id: 'a' }, { id: 'b' }, { id: 'c' }]);
+
+    const r = await service.listerPourManager('mgr-1', undefined, { q: 'a' });
+
+    expect(r.total).toBe(3);
+    expect(r.presents).toBe(2);
+    expect(r.items).toHaveLength(3);
+  });
+
+  /*
+   * Le plafond s'applique aussi au chemin de recherche : sans lui, `q=a`
+   * ramènerait huit cents lignes sur le téléphone de l’accueil.
+   */
+  it('borne la pagination du chemin de recherche comme celle de l’autre', async () => {
+    await service.listerPourManager('mgr-1', undefined, { q: 'a', limit: 100000, offset: -5 });
+
+    const parametres = parametresDe(prisma.$queryRaw.mock.calls[1]);
+    expect(parametres).toEqual(expect.arrayContaining([200, 0]));
+  });
+
+  it('passe par le contrôle d’appartenance avant de chercher', async () => {
+    const acces = { resoudreEvenementDuManager: vi.fn().mockRejectedValue(new NotFoundException()) };
+    const refuse = new RegistrationsService(
+      prisma as never,
+      { log: vi.fn() } as never,
+      acces as never,
+      phoneService as never,
+      { sendRegistrationConfirmationEmail: vi.fn() } as never,
+    );
+
+    await expect(
+      refuse.listerPourManager('mgr-1', 'evt-autre', { q: 'konate' }),
+    ).rejects.toThrow(NotFoundException);
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
   });
 });
 

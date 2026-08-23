@@ -1,0 +1,17 @@
+-- Recherche d'inscrits insensible aux accents (2026-08-23)
+--
+-- La recherche du tableau de bord passe par `contains` Prisma, qui compare
+-- octet par octet : « konate » ne trouvait pas « Konate » ecrit avec son
+-- accent, et l'organisateur en concluait que la personne ne s'etait pas
+-- inscrite. Sur une liste de noms ouest-africains et francais, c'est le cas
+-- courant, pas le cas limite.
+--
+-- `unaccent` est une extension contrib livree avec PostgreSQL et TRUSTED
+-- depuis la version 13 : le proprietaire de la base peut la creer, sans
+-- privilege superutilisateur. `IF NOT EXISTS` rend la migration rejouable.
+--
+-- Pas de fonction wrapper IMMUTABLE ni d'index d'expression : `unaccent()`
+-- est STABLE, ce qui suffit dans un WHERE. Un index ne se justifiera que le
+-- jour ou une liste depassera quelques milliers de lignes -- et ce jour-la,
+-- le plafond de la liste d'emargement se posera d'abord.
+CREATE EXTENSION IF NOT EXISTS unaccent;

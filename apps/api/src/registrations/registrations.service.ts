@@ -168,14 +168,19 @@ export class RegistrationsService {
      * La recherche porte sur la BASE, pas sur la page rendue : chercher
      * « Konaté » dans les cinquante lignes affichées ne le trouverait pas
      * s'il s'est inscrit en trois centième position.
+     *
+     * Elle emprunte un chemin à part parce qu'elle a besoin d'`unaccent`,
+     * qui ne s’exprime pas dans le langage de requête de Prisma. Sans
+     * recherche, rien ne change — le cas courant reste du Prisma ordinaire.
      */
-    const filtre = this.filtreRecherche(id, options?.q);
+    const terme = options?.q?.trim();
+    if (terme) return this.rechercher(id, terme, limit, offset);
 
     const [total, presents, inscriptions] = await Promise.all([
-      this.prisma.registration.count({ where: filtre }),
-      this.prisma.registration.count({ where: { ...filtre, checkedInAt: { not: null } } }),
+      this.prisma.registration.count({ where: { eventId: id } }),
+      this.prisma.registration.count({ where: { eventId: id, checkedInAt: { not: null } } }),
       this.prisma.registration.findMany({
-        where: filtre,
+        where: { eventId: id },
         orderBy: { createdAt: 'desc' },
         skip: offset,
         take: limit,
@@ -202,28 +207,68 @@ export class RegistrationsService {
   }
 
   /**
-   * Construit le filtre d'une recherche sur nom, prénom, email ou
-   * téléphone. Sans terme, il ne filtre que sur l’événement.
+   * Recherche d'inscrits, insensible à la casse ET AUX ACCENTS
+   * (2026-08-23).
+   *
+   * `contains` de Prisma compare octet par octet : « konate » ne trouvait
+   * pas « Konaté ». Sur une liste de noms ouest-africains et français,
+   * c'est le cas courant, pas le cas limite — et une recherche qui ne
+   * trouve pas fait conclure que la personne ne s'est pas inscrite.
+   *
+   * `unaccent()` est une fonction SQL sans équivalent dans le langage de
+   * requête de Prisma : ce chemin passe donc par du SQL brut. Les valeurs
+   * restent des paramètres liés — jamais concaténées dans le texte de la
+   * requête.
    */
-  private filtreRecherche(eventId: string, q?: string): Prisma.RegistrationWhereInput {
-    const terme = q?.trim();
-    if (!terme) return { eventId };
+  private async rechercher(eventId: string, terme: string, limit: number, offset: number) {
+    /*
+     * `%` et `_` sont les jokers de LIKE : un organisateur qui cherche
+     * « 100_%_promo » ne demande pas une expression, il tape ce qu’il lit.
+     * On les neutralise avec un caractère d’échappement à nous — « ! »
+     * plutôt que l’antislash, qui traverserait trois couches de citation
+     * (expression régulière, littéral gabarit, chaîne SQL) avant d’arriver
+     * à destination.
+     */
+    const motif = `%${terme.replace(/[!%_]/g, '!$&')}%`;
 
     /*
-     * `insensitive` parce qu'à l'accueil on tape en minuscules, et sur les
-     * quatre colonnes parce qu’on cherche indifféremment par un nom, une
-     * adresse lue sur un écran de téléphone ou les quatre derniers
-     * chiffres d’un numéro.
+     * Les quatre colonnes concaténées en une seule, parce qu'on cherche
+     * indifféremment par un nom, une adresse lue sur un écran de téléphone
+     * ou les quatre derniers chiffres d’un numéro. Le séparateur empêche
+     * un faux positif à cheval sur deux champs.
      */
-    const contient = { contains: terme, mode: 'insensitive' as const };
+    const [compte] = await this.prisma.$queryRaw<Array<{ total: number; presents: number }>>`
+      SELECT count(*)::int AS total,
+             count(*) FILTER (WHERE "checkedInAt" IS NOT NULL)::int AS presents
+        FROM "registrations"
+       WHERE "eventId" = ${eventId}
+         AND unaccent(lower(
+               "firstName" || ' ' || "lastName" || ' ' || "email" || ' ' || coalesce("phone", '')
+             )) LIKE unaccent(lower(${motif})) ESCAPE '!'
+    `;
+
+    const items = await this.prisma.$queryRaw<Array<Record<string, unknown>>>`
+      SELECT "id", "firstName", "lastName", "email", "phone",
+             "extraLabel", "extraValue", "createdAt", "checkedInAt"
+        FROM "registrations"
+       WHERE "eventId" = ${eventId}
+         AND unaccent(lower(
+               "firstName" || ' ' || "lastName" || ' ' || "email" || ' ' || coalesce("phone", '')
+             )) LIKE unaccent(lower(${motif})) ESCAPE '!'
+       ORDER BY "createdAt" DESC
+       LIMIT ${limit} OFFSET ${offset}
+    `;
+
+    /*
+     * `total` compte ici les RÉSULTATS, pas la liste entière — le
+     * tableau de bord l'annonce comme tel pendant une recherche.
+     */
     return {
-      eventId,
-      OR: [
-        { firstName: contient },
-        { lastName: contient },
-        { email: contient },
-        { phone: contient },
-      ],
+      total: compte?.total ?? 0,
+      presents: compte?.presents ?? 0,
+      items,
+      offset,
+      limit,
     };
   }
 

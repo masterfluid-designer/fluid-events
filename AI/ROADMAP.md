@@ -1011,11 +1011,8 @@ deux-centième position ne renvoyait rien, et l’organisateur en concluait que
 la personne ne s’était pas inscrite. Un filtre qui ment est pire que pas de
 filtre.
 
-> **Limite connue** : cette recherche serveur est accent-SENSIBLE (`contains`
-> Prisma), là où celle de l’agent ne l’est pas. « konate » trouve « Konaté »
-> par son email, pas par son nom. La lever proprement demande l’extension
-> Postgres `unaccent` et une requête brute — un chantier à part entière, à
-> décider plutôt qu’à glisser.
+> **Levée le jour même** : cette recherche était accent-SENSIBLE (`contains`
+> Prisma). Voir « La recherche d’inscrits ignore les accents » ci-dessous.
 
 ### Les URLs publiques ne peuvent plus rester en localhost (2026-08-23)
 
@@ -1033,6 +1030,55 @@ suite ; un email parti ne se rattrape pas.
 
 **La production allait bien** : elle renvoie `https://fluidevent.online` en
 en-tête CORS, lu depuis le même `${APP_URL}` que les emails.
+
+### La recherche d’inscrits ignore les accents (2026-08-23)
+
+`contains` de Prisma compare **octet par octet** : « konate » ne trouvait pas
+« Konaté ». Sur une liste de noms ouest-africains et français, c’est le cas
+courant, pas le cas limite — et une recherche qui ne trouve pas fait conclure
+que la personne ne s’est pas inscrite.
+
+`unaccent` est une extension contrib livrée avec PostgreSQL et **TRUSTED**
+depuis la version 13 : le propriétaire de la base la crée sans privilège
+superutilisateur. La migration tient en une ligne, et `IF NOT EXISTS` la rend
+rejouable.
+
+**La comparaison passe des deux côtés par `unaccent(lower(...))`** — la
+colonne comme le motif. Déaccentuer seulement le terme saisi ne réglerait que
+la moitié du problème (« Konaté » trouverait « Konate », mais pas l’inverse,
+qui est le sens dont on a besoin).
+
+`unaccent()` n’ayant pas d’équivalent dans le langage de requête de Prisma, ce
+chemin passe par du **SQL brut** — mais lui seul : sans terme de recherche,
+rien ne change, le cas courant reste du Prisma ordinaire. Les valeurs
+voyagent en paramètres liés, jamais cousues dans le texte de la requête, et un
+test le garde.
+
+Les quatre colonnes sont concaténées en une seule expression — on cherche
+indifféremment par un nom, une adresse lue sur un écran de téléphone ou les
+quatre derniers chiffres d’un numéro. Le séparateur empêche un faux positif à
+cheval sur deux champs.
+
+⚠️ **`%` et `_` sont les jokers de LIKE.** Un organisateur qui tape
+« 100%_promo » ne compose pas une expression, il recopie ce qu’il lit : ils
+sont neutralisés, avec `!` comme caractère d’échappement plutôt que
+l’antislash — qui aurait traversé trois couches de citation (expression
+régulière, littéral gabarit, chaîne SQL) avant d’arriver à destination.
+
+**Pas de fonction wrapper IMMUTABLE ni d’index d’expression** : `unaccent()`
+est STABLE, ce qui suffit dans un WHERE. Un index ne se justifiera que le jour
+où une liste dépassera quelques milliers de lignes — et ce jour-là, le plafond
+de la liste d’émargement se posera d’abord.
+
+Vérifié contre la base réelle, dans les deux sens et sur les deux casses :
+« konate », « KONATE », « Konaté », « KONATÉ », « aicha » et « Aïcha »
+ramènent tous Aïcha Konaté ; « n’guessan » tapé avec une apostrophe droite
+trouve « N’Guessan » (l’apostrophe typographique est elle aussi normalisée) ;
+« % » et « _ » ne ramènent rien, comme il se doit.
+
+> **À faire au déploiement** : `npx prisma migrate deploy` (voir
+> `AI/DEPLOYMENT.md` §5). Sans la migration, la recherche du tableau de bord
+> échouera — `unaccent` n’existera pas.
 ## 4. Priorités immédiates (à date)
 
 | Module | Priorité | Référence CDC |
@@ -1062,7 +1108,7 @@ en-tête CORS, lu depuis le même `${APP_URL}` que les emails.
 | Invitation Manager : briefing plateforme + paliers et leurs limites | ✅ Fait (2026-08-23) | §7.6 |
 | Contrôle d’accès des événements sur inscription (liste d’émargement) | ✅ Fait (2026-08-23) | §9.5 |
 | Garde de démarrage sur les URLs publiques en production | ✅ Fait (2026-08-23) | — |
-| Recherche d’inscrits insensible aux accents côté serveur (`unaccent`) | 🟡 Limite connue | §9.5 |
+| Recherche d’inscrits insensible aux accents côté serveur (`unaccent`) | ✅ Fait (2026-08-23) — **migration à déployer** | §9.5 |
 | Identifiants WhatsApp réglables depuis l’Admin | ✅ Fait (2026-08-19) | §10 |
 | Thème clair/sombre de la page publique + en-tête paramétrable | ✅ Fait (2026-08-20) | §11 |
 | Uploads : contenu vérifié, poids et dimensions plafonnés, images optimisées | ✅ Fait (2026-08-21) | §6 |
