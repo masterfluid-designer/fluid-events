@@ -2,8 +2,9 @@
 
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { DialogueSuppression } from './dialogue-suppression';
 import toast from 'react-hot-toast';
-import { LogIn, UserPlus } from 'lucide-react';
+import { Trash2, LogIn, UserPlus } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -40,6 +41,8 @@ const QUERY_KEY = ['admin-managers'];
 
 export default function AdminManagersPage() {
   const queryClient = useQueryClient();
+  /** Manager dont la suppression est en cours de confirmation. */
+  const [suppressionDe, setSuppressionDe] = useState<string | null>(null);
   const { data: managers, isLoading, isError } = useQuery({
     queryKey: QUERY_KEY,
     queryFn: () => api<ManagerRow[]>('/api/admin/managers'),
@@ -238,12 +241,35 @@ export default function AdminManagersPage() {
                     <LogIn className="size-3.5" />
                     Se connecter en tant que
                   </Button>
+
+                  {/*
+                    Séparé des autres actions par un trait : celles-ci sont des
+                    bascules qui se rattrapent, celle-ci ne se rattrape pas.
+                    Les mettre côte à côte inviterait à la confondre.
+                  */}
+                  <span className="mx-1 hidden h-6 w-px bg-border sm:block" aria-hidden="true" />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-destructive hover:border-destructive hover:text-destructive"
+                    onClick={() => setSuppressionDe(m.id)}
+                  >
+                    <Trash2 className="size-3.5" />
+                    Supprimer
+                  </Button>
                 </div>
               </div>
             </div>
           ))
         )}
       </Card>
+
+      {suppressionDe && (
+        <DialogueSuppression
+          managerId={suppressionDe}
+          onFerme={() => setSuppressionDe(null)}
+        />
+      )}
     </div>
   );
 }
