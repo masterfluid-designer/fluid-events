@@ -1079,6 +1079,71 @@ trouve « N’Guessan » (l’apostrophe typographique est elle aussi normalisé
 > **Déployé le 2026-08-23 à 15h22 UTC.** Sauvegarde prise avant migration
 > (`sauvegardes/avant-deploiement-20260823-1506.sql.gz`), migration appliquée,
 > `unaccent(lower(&laquo; Konaté &raquo;))` vérifié sur la base de production.
+
+### Une porte de retour pour les comptes sans mot de passe (2026-08-23)
+
+**Il n’existait aucune récupération de mot de passe.** Les routes d’auth se
+lisaient d’une traite : `google`, `login`, `login/scanner`, `logout`, `me`,
+`phone*`, `refresh`, `set-password`, `stop-impersonation`. Rien d’autre.
+
+Et `set-password` exige un jeton d’invitation qu’aucune route ne savait
+régénérer — `POST /admin/managers` refuse une adresse déjà connue. Un
+organisateur qui oubliait son mot de passe la veille de sa soirée était donc
+dehors **définitivement** : la seule sortie était que l’Admin supprime le
+compte et le recrée, ce qui emportait ses événements, ses billets vendus et
+ses inscrits.
+
+Trois règles gouvernent `PasswordResetService`, et ce sont elles que gardent
+les tests — aucune ne se voit à l’écran, donc aucune ne survivrait seule à une
+retouche pressée :
+
+1. **La réponse ne dit jamais si le compte existe.** Adresse inconnue, compte
+   désactivé, compte fantôme, demande trop rapprochée : même statut, même
+   corps. L’écran de confirmation dit « **si** un compte utilise cette
+   adresse », jamais « email envoyé » — l’affirmer rendrait au visiteur
+   l’oracle qu’on vient de lui retirer, et ferait de ce formulaire public
+   l’annuaire des organisateurs de la plateforme. Même un échec d’envoi reste
+   dans les logs plutôt que de remonter.
+2. **Le jeton est stocké haché** (SHA-256), contrairement à `inviteToken` qui
+   l’est en clair : une copie de la base suffirait sinon à prendre la main sur
+   n’importe quel compte. Un jeton de réinitialisation vaut un mot de passe,
+   il se range comme un mot de passe. Il porte l’identifiant du compte en
+   préfixe — c’est ce qui permet de retrouver la ligne sans chercher par le
+   hachage — et la comparaison se fait à temps constant.
+3. **Un compte fantôme ne se réclame pas.** Les comptes `isGuest`, créés à la
+   volée pour un achat sans compte, portent les billets de quelqu’un : leur
+   ouvrir une porte par email les offrirait au premier venu qui connaît
+   l’adresse de l’acheteur.
+
+Une heure de validité, usage unique, une demande par minute et par adresse —
+sans quoi ce formulaire public devient un moyen d’inonder la boîte de
+quelqu’un et d’épuiser le quota d’envoi au passage. Une invitation encore en
+cours est périmée au passage : la personne vient de prouver qu’elle tient
+l’adresse, un second chemin d’accès n’apporterait qu’un risque de plus.
+
+**Pas de route Admin de relance d’invitation**, envisagée puis écartée : ce
+parcours la rend inutile. Un compte invité qui n’a jamais cliqué, ou dont le
+lien de sept jours a expiré, se sert lui-même — `demander()` ne réclame pas de
+`passwordHash` existant.
+
+Le lien est posé sur **les deux** formulaires de connexion : un agent de
+contrôle oublie son mot de passe comme n’importe qui, et la veille d’une
+soirée.
+
+**Vérifié de bout en bout contre l’API réelle** : adresse connue et inconnue
+répondent à l’identique ; un seul email part ; la seconde demande immédiate
+n’en envoie pas un deuxième ; un secret modifié d’un caractère est refusé ; le
+vrai jeton réinitialise ; le nouveau mot de passe ouvre la session et l’ancien
+ne l’ouvre plus ; le rejeu du même jeton est refusé. Puis à l’écran, du
+formulaire à l’email et de l’email au nouveau mot de passe.
+
+⚠️ **`refresh_token` n’est pas révoqué.** Les jetons sont des JWT sans état :
+une session ouverte avant la réinitialisation survit jusqu’à son expiration.
+Y remédier demande un numéro de version par compte, vérifié à chaque requête —
+un chantier à part entière, pas un ajout discret. À décider.
+
+> **À faire au déploiement** : `npx prisma migrate deploy` (trois colonnes sur
+> `users`).
 ## 4. Priorités immédiates (à date)
 
 | Module | Priorité | Référence CDC |
@@ -1100,8 +1165,7 @@ trouve « N’Guessan » (l’apostrophe typographique est elle aussi normalisé
 | Admin endpoints (invitation/self-service/rétention/impersonation Manager, vue plateforme paiements) | ✅ Fait (2026-07-14) | §6.11 |
 | Comptes Scanner créés par le Manager (invitation + promotion d’un client) | ✅ Fait (2026-08-19) | §9.5 |
 | Multi-événement Premium (8 max) + palier d’abonnement | ✅ Fait (2026-08-21) | §1.4 |
-| Code de vérification par SMS (remplace WhatsApp) | ✅ Fait (2026-08-21) — **en attente d’un compte Twilio** | §7.6 |
-| Code de vérification par SMS (remplace WhatsApp) | ✅ Fait (2026-08-21) — **en attente d’un compte Twilio** | §7.6 |
+| Code de vérification du téléphone | 🔴 Revenu sur WhatsApp (2026-08-22, Twilio retiré pour son coût) — **en attente d’un template Meta approuvé** | §7.6 |
 | Plafond d’agents de contrôle réellement appliqué (3 FREE / 6 PREMIUM) | ✅ Fait (2026-08-21) | §9.5 |
 | Trois types d’événements (RSVP / GUEST / ACCOUNT) | 🟡 Planifié — lots 0 à 3 | — |
 | Page « Mes événements » + contexte de travail visible dès un événement | ✅ Fait (2026-08-23) | §1.4 |
@@ -1112,6 +1176,8 @@ trouve « N’Guessan » (l’apostrophe typographique est elle aussi normalisé
 | Identifiants WhatsApp réglables depuis l’Admin | ✅ Fait (2026-08-19) | §10 |
 | Thème clair/sombre de la page publique + en-tête paramétrable | ✅ Fait (2026-08-20) | §11 |
 | Uploads : contenu vérifié, poids et dimensions plafonnés, images optimisées | ✅ Fait (2026-08-21) | §6 |
+| Récupération de mot de passe (demande + réinitialisation) | ✅ Fait (2026-08-23) | §7 |
+| Révocation des sessions après réinitialisation (`tokenVersion`) | 🟡 Limite connue | §7 |
 | Fournisseur de paiement configuré en production | 🔴 À faire (bloque tout encaissement réel) | §8 |
 | Déploiement production (VPS, TLS, cookies inter-sous-domaines) | ✅ Fait (2026-08-16, en service) | — |
 | Tunnel d’achat : récapitulatif détaillé + « Payer » | ✅ Fait (2026-08-16) | §8 |
@@ -1122,7 +1188,6 @@ trouve « N’Guessan » (l’apostrophe typographique est elle aussi normalisé
 
 ## 5. Hors périmètre actuel (backlog non scopé)
 
-- Multi-événements par manager (au-delà de la contrainte "1 Manager = 1 Event" de la V1)
 - Multi-devises (au-delà de XOF)
 - Gestion des commissions / remboursements (voir `BUSINESS.md` §12 — décisions produit à prendre avant implémentation)
 - Analytics avancées
