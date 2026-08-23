@@ -1137,13 +1137,56 @@ vrai jeton réinitialise ; le nouveau mot de passe ouvre la session et l’ancie
 ne l’ouvre plus ; le rejeu du même jeton est refusé. Puis à l’écran, du
 formulaire à l’email et de l’email au nouveau mot de passe.
 
-⚠️ **`refresh_token` n’est pas révoqué.** Les jetons sont des JWT sans état :
-une session ouverte avant la réinitialisation survit jusqu’à son expiration.
-Y remédier demande un numéro de version par compte, vérifié à chaque requête —
-un chantier à part entière, pas un ajout discret. À décider.
+> **Levé le jour même** : voir « Une session ne survit plus au changement de
+> mot de passe » ci-dessous.
 
 > **À faire au déploiement** : `npx prisma migrate deploy` (trois colonnes sur
 > `users`).
+
+### Une session ne survit plus au changement de mot de passe (2026-08-23)
+
+**On change son mot de passe parce qu’il est compromis.** Laisser vivre la
+session de celui qui l’avait rendait l’opération décorative.
+
+Et ce n’était pas une fenêtre théorique : `JWT_EXPIRES_IN` vaut **sept jours**
+par défaut, et le jeton d’un agent de contrôle court jusqu’à `event.endDate` —
+des mois pour un festival annoncé tôt. L’option paresseuse — ne vérifier qu’au
+rafraîchissement — ne coûtait rien et n’aurait rien réglé, puisque c’est
+justement l’access token qui dure longtemps ici.
+
+Un **numéro de version par compte** voyage dans le jeton (`tv`) et se compare à
+celui de la base. La réinitialisation l’incrémente, ce qui invalide d’un coup
+tous les jetons déjà émis, sans liste de révocation à tenir. `increment` et non
+une valeur relue puis écrite : deux réinitialisations concurrentes poseraient
+sinon le même nombre, et la seconde ne révoquerait rien.
+
+**Le refresh porte aussi la version.** C’est la porte de derrière : sans ce
+contrôle, un jeton de rafraîchissement volé rejouerait indéfiniment la session
+que la réinitialisation vient de couper.
+
+**Personne n’est déconnecté par le déploiement.** Un jeton émis avant
+l’introduction de `tv` n’en porte pas : il est lu comme la version 0, celle de
+tous les comptes au départ. Les rejeter aurait été une panne pour tout le monde
+afin de corriger un risque pour personne.
+
+`SESSION_REVOKED` plutôt que `TOKEN_EXPIRED` : le frontend n’a pas à tenter un
+rafraîchissement qui échouerait pareil, et l’utilisateur mérite de savoir
+POURQUOI il a été déconnecté — sinon il conclura à une panne.
+
+⚠️ **Le stateless de `JwtStrategy` tombe.** Une lecture par requête, par clé
+primaire, sur une seule colonne : **0,12 ms** mesurées côté Postgres. C’est le
+prix de la révocation, et il est payé sur chaque requête authentifiée.
+
+⚠️ **`isActive` n’est toujours pas vérifié** dans la stratégie, alors que la
+lecture est désormais faite : un compte désactivé garde sa session jusqu’à
+expiration, soit sept jours. Le corriger met des gens dehors sur-le-champ au
+déploiement — c’est une décision produit, pas un ajout technique. À trancher.
+
+**Vérifié contre l’API réelle** : une session ouverte AVANT la réinitialisation
+répond `401 SESSION_REVOKED` après, son refresh token aussi, et une nouvelle
+connexion fonctionne normalement.
+
+> **À faire au déploiement** : `npx prisma migrate deploy`.
 ## 4. Priorités immédiates (à date)
 
 | Module | Priorité | Référence CDC |
@@ -1177,7 +1220,7 @@ un chantier à part entière, pas un ajout discret. À décider.
 | Thème clair/sombre de la page publique + en-tête paramétrable | ✅ Fait (2026-08-20) | §11 |
 | Uploads : contenu vérifié, poids et dimensions plafonnés, images optimisées | ✅ Fait (2026-08-21) | §6 |
 | Récupération de mot de passe (demande + réinitialisation) | ✅ Fait (2026-08-23) | §7 |
-| Révocation des sessions après réinitialisation (`tokenVersion`) | 🟡 Limite connue | §7 |
+| Révocation des sessions après réinitialisation (`tokenVersion`) | ✅ Fait (2026-08-23) | §7 |
 | Fournisseur de paiement configuré en production | 🔴 À faire (bloque tout encaissement réel) | §8 |
 | Déploiement production (VPS, TLS, cookies inter-sous-domaines) | ✅ Fait (2026-08-16, en service) | — |
 | Tunnel d’achat : récapitulatif détaillé + « Payer » | ✅ Fait (2026-08-16) | §8 |
