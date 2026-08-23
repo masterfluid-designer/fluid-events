@@ -119,78 +119,183 @@ export class EmailService {
   }
 
   /**
-   * Email d'invitation Manager (Admin, décision produit 2026-07-14) —
-   * contrairement à `sendTicketReadyEmail`, l'échec est remonté à l'appelant
-   * (`AdminService.inviteManager`) plutôt qu'avalé : l'Admin doit savoir si
-   * l'invitation n'est pas partie, pour pouvoir partager le lien manuellement.
+   * Invitation d'un organisateur — refondue en briefing d'accueil
+   * (2026-08-23).
+   *
+   * La version précédente disait ce qu'il y avait à faire (choisir un mot de
+   * passe) et où aller ensuite. Elle ne disait pas CE QU’EST la plateforme :
+   * un organisateur découvrait les trois régimes d'événement, le plafond de
+   * son palier et le fait que l'encaissement se branche côté équipe en s'y
+   * heurtant, un par un.
+   *
+   * Cet email est souvent le seul document que l'organisateur garde. Il porte
+   * donc les quatre choses qu’on ne veut pas lui laisser découvrir seul :
+   * ce qu’il peut faire, ce que son palier autorise, ce que Premium ajoute,
+   * et l’ordre dans lequel s’y prendre.
    */
-  async sendManagerInviteEmail(params: { to: string; name: string; inviteUrl: string }): Promise<void> {
-    const { to, name, inviteUrl } = params;
+  async sendManagerInviteEmail(params: {
+    to: string;
+    name: string;
+    inviteUrl: string;
+    /** Palier du compte à sa création. Un compte invité démarre simple. */
+    plan?: 'FREE' | 'PREMIUM';
+  }): Promise<void> {
+    const { to, name, inviteUrl, plan = 'FREE' } = params;
     const app = APP_URL;
-    const subject = 'Votre espace organisateur Fluid Events est ouvert';
+    const premium = plan === 'PREMIUM';
+    const subject = `Bienvenue sur Fluid Events, ${name} — votre espace organisateur est ouvert`;
 
     /*
-     * Réécrit le 2026-08-20. L'ancien message tenait en trois lignes : « vous
-     * avez été invité », un lien, « expire dans 7 jours ». Un organisateur qui
-     * arrivait dessus ne savait NI ce qu'il pouvait faire, NI où retourner
-     * après avoir choisi son mot de passe, NI qui joindre en cas de doute —
-     * et l'email d'invitation est souvent le seul repère qu'il garde.
-     *
-     * On y met donc les trois choses qui manquaient : ce qui l'attend, les
-     * adresses pour y revenir, et une porte de sortie si le lien a expiré.
+     * Tables et styles en ligne : les clients mail ignorent flexbox, grid et
+     * les feuilles de style externes. Ce qui se lit ici se lit partout.
      */
+    const carte = (titre: string, texte: string) => `
+      <tr>
+        <td style="padding:0 0 14px">
+          <div style="font-weight:700;color:#1c1b1a">${titre}</div>
+          <div style="color:#6f645c;font-size:14px">${texte}</div>
+        </td>
+      </tr>`;
+
+    // La colonne du palier courant est mise en avant : l'organisateur doit
+    // reconnaître SA colonne avant de lire ce qui lui manque.
+    const ligne = (quoi: string, simple: string, plus: string) => `
+      <tr>
+        <td style="padding:10px 12px;border-top:1px solid #ece5df;font-size:14px;color:#1c1b1a">${quoi}</td>
+        <td style="padding:10px 12px;border-top:1px solid #ece5df;font-size:14px;text-align:center;color:${premium ? '#6f645c' : '#1c1b1a'};font-weight:${premium ? '400' : '700'}">${simple}</td>
+        <td style="padding:10px 12px;border-top:1px solid #ece5df;font-size:14px;text-align:center;background:#fdf6f1;color:${premium ? '#1c1b1a' : '#c0571e'};font-weight:700">${plus}</td>
+      </tr>`;
+
     const html = `
-      <div style="font-family:system-ui,-apple-system,'Segoe UI',sans-serif;font-size:15px;line-height:1.6;color:#14171a">
-        <p>Bonjour ${escapeHtml(name)},</p>
+      <div style="font-family:system-ui,-apple-system,'Segoe UI',sans-serif;background:#faf8f6;padding:28px 12px">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:600px;margin:0 auto;background:#fff;border:1px solid #ece5df;border-radius:16px">
+          <tr><td style="padding:32px 28px 0">
 
-        <p>Votre espace organisateur vient d'être ouvert sur <strong>Fluid Events</strong>.
-        Vous pouvez y créer votre événement, vendre vos billets en ligne et contrôler
-        les entrées le jour J.</p>
+            <p style="margin:0 0 6px;font-size:13px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#c0571e">Votre espace est ouvert</p>
+            <h1 style="margin:0 0 14px;font-size:24px;line-height:1.25;color:#1c1b1a">Bienvenue sur Fluid&nbsp;Events, ${escapeHtml(name)}</h1>
 
-        <p style="margin:28px 0">
-          <a href="${inviteUrl}"
-             style="display:inline-block;background:#14171a;color:#fff;text-decoration:none;
-                    padding:13px 26px;border-radius:999px;font-weight:600">
-            Choisir mon mot de passe
-          </a>
-        </p>
+            <p style="margin:0;font-size:15px;line-height:1.6;color:#3d3733">
+              Vous tenez désormais votre billetterie de bout en bout : la page de votre
+              événement, vos tarifs, l'encaissement, le contrôle des entrées le jour J
+              et le suivi de ce qui se vend. Il ne manque qu’un mot de passe.
+            </p>
 
-        <p style="color:#5f6b6b;font-size:13px">
-          Ce lien n'est valable que <strong>7 jours</strong>. Passé ce délai, demandez-en
-          un nouveau à l'équipe — votre compte, lui, reste en place.
-        </p>
+            <p style="margin:26px 0 8px">
+              <a href="${inviteUrl}" style="display:inline-block;background:#c0571e;color:#fff;text-decoration:none;padding:14px 28px;border-radius:999px;font-weight:700;font-size:15px">
+                Choisir mon mot de passe
+              </a>
+            </p>
+            <p style="margin:0;color:#6f645c;font-size:13px">
+              Ce lien n'est valable que <strong>7 jours</strong>. Passé ce délai, demandez-en
+              un nouveau à l’équipe — votre compte, lui, reste en place.
+            </p>
 
-        <p style="margin-top:28px"><strong>Une fois votre mot de passe choisi</strong>, votre
-        tableau de bord vous attend :</p>
-        <ul style="padding-left:18px;color:#3d4649">
-          <li><strong>Page publique</strong> — composez la page de votre événement, bloc par bloc.</li>
-          <li><strong>Billetterie</strong> — vos tarifs, vos stocks, vos dates de vente.</li>
-          <li><strong>Agents de contrôle</strong> — invitez qui scannera les billets à l'entrée.</li>
-          <li><strong>Participants et statistiques</strong> — qui a acheté, ce qui s'est vendu.</li>
-        </ul>
+          </td></tr>
 
-        <p style="margin-top:28px">Gardez ces adresses :</p>
-        <ul style="padding-left:18px;color:#3d4649">
-          <li>Votre tableau de bord : <a href="${app}/manager">${app}/manager</a></li>
-          <li>Vous reconnecter plus tard : <a href="${app}/auth/login">${app}/auth/login</a></li>
-          <li>Le guide : <a href="${app}/docs">${app}/docs</a></li>
-        </ul>
+          <tr><td style="padding:28px">
+            <div style="border-top:1px solid #ece5df;padding-top:24px">
+              <h2 style="margin:0 0 16px;font-size:17px;color:#1c1b1a">Ce que vous pouvez faire</h2>
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                ${carte(
+                  'Choisir la forme de votre événement',
+                  `Trois régimes, selon ce que vous organisez : <strong>inscription simple</strong>
+                   (un formulaire, ni compte ni billet — pour un séminaire ou une conférence gratuite),
+                   <strong>billetterie sans compte</strong> (on achète en trois champs, le billet arrive par email),
+                   ou <strong>billetterie avec compte client</strong> (chacun retrouve ses billets dans son espace).`,
+                )}
+                ${carte(
+                  'Composer votre page publique',
+                  `Un éditeur par blocs : affiche, présentation, programme, intervenants,
+                   galerie, plan d'accès, billetterie. Vous rangez, vous publiez, l'adresse est à vous.`,
+                )}
+                ${carte(
+                  'Tenir votre billetterie',
+                  `Autant de tarifs que nécessaire, avec stock, dates d'ouverture et de clôture.
+                   Les formules négociées — tables, groupes — s’affichent en <em>sur demande</em>
+                   et vous renvoient l’acheteur au lieu de passer au panier.`,
+                )}
+                ${carte(
+                  'Encaisser',
+                  `Mobile Money et carte bancaire. Le moyen d'encaissement est branché sur
+                   votre événement par l’équipe Fluid Events — <strong>dites-le-nous avant de publier</strong>,
+                   sinon votre page s’affiche sans pouvoir rien vendre.`,
+                )}
+                ${carte(
+                  'Contrôler les entrées',
+                  `Vous invitez vos agents ; ils scannent les QR depuis leur téléphone.
+                   Un billet déjà passé est refusé sur-le-champ.`,
+                )}
+                ${carte(
+                  'Suivre',
+                  `Qui a acheté, qui s’est inscrit, ce qui s’est vendu et quand — et
+                   la liste de vos participants, exportable.`,
+                )}
+              </table>
+            </div>
+          </td></tr>
 
-        <p style="margin-top:28px;color:#5f6b6b;font-size:13px">
-          Une question, un blocage ? Écrivez-nous depuis
-          <a href="${app}/support">${app}/support</a> — on répond vite.
-        </p>
+          <tr><td style="padding:0 28px 28px">
+            <div style="border-top:1px solid #ece5df;padding-top:24px">
+              <h2 style="margin:0 0 6px;font-size:17px;color:#1c1b1a">Compte simple ou Premium</h2>
+              <p style="margin:0 0 14px;color:#6f645c;font-size:14px">
+                Votre compte démarre en <strong style="color:#1c1b1a">${premium ? 'Premium' : 'compte simple'}</strong>.
+                ${premium ? 'Tout ce qui suit vous est ouvert.' : 'Voici ce que cela autorise, et ce que Premium ajoute.'}
+              </p>
 
-        <p style="color:#5f6b6b;font-size:13px">
-          Vous n'attendiez pas cette invitation ? Ignorez ce message, le compte restera
-          inutilisé.
-        </p>
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border:1px solid #ece5df;border-radius:12px;border-collapse:separate;overflow:hidden">
+                <tr>
+                  <td style="padding:10px 12px"></td>
+                  <td style="padding:10px 12px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:#6f645c;text-align:center">Compte simple</td>
+                  <td style="padding:10px 12px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:#c0571e;text-align:center;background:#fdf6f1;font-weight:700">Premium</td>
+                </tr>
+                ${ligne('Événements en cours', '1', 'jusqu’à 8')}
+                ${ligne('Types différents en parallèle', '—', 'oui')}
+                ${ligne('Agents de contrôle par événement', '3', '6')}
+                ${ligne('Événement sur plusieurs journées', '—', 'oui')}
+                ${ligne('Page publique, billetterie, paiements, statistiques', 'inclus', 'inclus')}
+              </table>
+
+              <p style="margin:14px 0 0;color:#6f645c;font-size:13px">
+                ${
+                  premium
+                    ? 'Vos huit places sont libres de forme : rien ne vous oblige à tenir le même régime d’un événement à l’autre.'
+                    : 'Rien à installer pour changer de palier : écrivez-nous, votre compte bascule sans que vous perdiez ce que vous avez déjà construit.'
+                }
+              </p>
+            </div>
+          </td></tr>
+
+          <tr><td style="padding:0 28px 28px">
+            <div style="border-top:1px solid #ece5df;padding-top:24px">
+              <h2 style="margin:0 0 14px;font-size:17px;color:#1c1b1a">Par où commencer</h2>
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="font-size:14px;color:#3d3733">
+                <tr><td style="padding:0 0 10px;width:26px;color:#c0571e;font-weight:700">1.</td><td style="padding:0 0 10px">Choisissez votre mot de passe avec le bouton ci-dessus.</td></tr>
+                <tr><td style="padding:0 0 10px;color:#c0571e;font-weight:700">2.</td><td style="padding:0 0 10px">Créez votre événement et fixez son <strong>régime</strong> — c’est lui qui décide des modules disponibles.</td></tr>
+                <tr><td style="padding:0 0 10px;color:#c0571e;font-weight:700">3.</td><td style="padding:0 0 10px">Posez vos tarifs, puis composez la page publique.</td></tr>
+                <tr><td style="padding:0 0 10px;color:#c0571e;font-weight:700">4.</td><td style="padding:0 0 10px">Demandez-nous le branchement de l’encaissement, <strong>avant</strong> de publier.</td></tr>
+                <tr><td style="padding:0;color:#c0571e;font-weight:700">5.</td><td style="padding:0">Publiez, puis invitez vos agents de contrôle.</td></tr>
+              </table>
+            </div>
+          </td></tr>
+
+          <tr><td style="padding:0 28px 32px">
+            <div style="border-top:1px solid #ece5df;padding-top:20px;font-size:13px;color:#6f645c;line-height:1.7">
+              <strong style="color:#1c1b1a">Gardez ces adresses</strong><br>
+              Tableau de bord : <a href="${app}/manager" style="color:#c0571e">${app}/manager</a><br>
+              Connexion : <a href="${app}/auth/login" style="color:#c0571e">${app}/auth/login</a><br>
+              Guide : <a href="${app}/docs" style="color:#c0571e">${app}/docs</a><br>
+              Une question, un blocage ? <a href="${app}/support" style="color:#c0571e">${app}/support</a> — on répond vite.
+              <br><br>
+              Vous n'attendiez pas cette invitation ? Ignorez ce message, le compte restera inutilisé.
+            </div>
+          </td></tr>
+        </table>
       </div>
     `;
+
     await this.send(to, subject, html);
     this.logger.log(`Email d'invitation manager envoyé à ${to}`);
   }
-
   /**
    * Invitation d'un agent de contrôle (2026-08-19). Même mécanique que
    * l'invitation Manager — un lien pour choisir son mot de passe — mais le

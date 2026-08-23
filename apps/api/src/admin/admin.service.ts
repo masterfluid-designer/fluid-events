@@ -761,7 +761,7 @@ export class AdminService {
         inviteToken,
         inviteTokenExpiresAt,
       },
-      select: { id: true, name: true, email: true },
+      select: { id: true, name: true, email: true, plan: true },
     });
 
     let emailSent = true;
@@ -770,6 +770,9 @@ export class AdminService {
         to: manager.email,
         name: manager.name ?? 'Manager',
         inviteUrl: `${FRONTEND_URL}/auth/set-password?token=${inviteToken}`,
+        // Le palier réel, et non une supposition : le briefing met en avant
+        // la colonne du compte qui le reçoit.
+        plan: manager.plan,
       });
     } catch {
       emailSent = false;
