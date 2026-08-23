@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { lienDashboard, useEvenementActif } from '@/lib/evenement-actif';
 import { SelecteurEvenement } from '@/components/dashboard/selecteur-evenement';
-import {
+import { CalendarDays,
   LayoutDashboard,
   Ticket,
   Users,
@@ -48,6 +48,8 @@ const navByRole: Record<Role, NavItem[]> = {
   ],
   [Role.MANAGER]: [
     { href: '/manager', label: 'Dashboard', icon: <LayoutDashboard className="size-4" /> },
+    // Le seul endroit où les événements se voient côte à côte (2026-08-23).
+    { href: '/manager/evenements', label: 'Mes événements', icon: <CalendarDays className="size-4" /> },
     { href: '/manager/builder', label: 'Page builder', icon: <Settings className="size-4" /> },
     { href: '/manager/tickets', label: 'Billets', icon: <Ticket className="size-4" /> },
     { href: '/manager/participants', label: 'Participants', icon: <Users className="size-4" /> },
@@ -244,8 +246,26 @@ export function DashboardSidebar() {
           )}
         </div>
 
-        {/* Ne s’affiche que si le manager porte plusieurs événements. */}
-        {!collapsed && (
+        {/*
+          Le contexte de travail : quel événement ces pages montrent.
+
+          Barre repliée, il ne disparaît pas — il se réduit à un bouton qui la
+          rouvre (2026-08-23). Sinon travailler en mode replié revenait à ne
+          plus savoir de quel événement on lit les chiffres.
+        */}
+        {collapsed ? (
+          <div className="flex justify-center pt-3">
+            <button
+              type="button"
+              onClick={() => setCollapsed(false)}
+              title="Voir l’événement affiché"
+              aria-label="Voir l’événement affiché"
+              className="flex size-8 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            >
+              <CalendarDays className="size-4" />
+            </button>
+          </div>
+        ) : (
           <div className="px-3 pt-3">
             <SelecteurEvenement />
           </div>

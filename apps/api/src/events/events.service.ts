@@ -342,8 +342,17 @@ export class EventsService {
    * quoi afficher une page — un manager Premium en a huit, et rapatrier huit
    * arbres complets à chaque chargement du dashboard ne servirait personne.
    */
+  /**
+   * Tous les événements du manager, avec de quoi les distinguer d'un coup
+   * d'œil (2026-08-23).
+   *
+   * Cette liste alimentait un simple sélecteur ; elle porte maintenant une
+   * PAGE. Un titre et une date ne suffisent plus à choisir entre huit
+   * événements : il faut savoir lequel vend, lequel se remplit, et lequel
+   * dort encore en brouillon.
+   */
   async listMyEvents(managerId: string) {
-    return this.prisma.event.findMany({
+    const evenements = await this.prisma.event.findMany({
       where: { managerId },
       orderBy: { createdAt: 'asc' },
       select: {
@@ -351,9 +360,76 @@ export class EventsService {
         slug: true,
         title: true,
         status: true,
+        accessMode: true,
         startDate: true,
+        endDate: true,
+        venueName: true,
+        city: true,
+        coverImageUrl: true,
+        _count: { select: { tickets: true, days: true } },
+        paymentProviderConfigs: {
+          where: { isActive: true },
+          select: { provider: true },
+        },
       },
     });
+
+    const ids = evenements.map((e) => e.id);
+    if (ids.length === 0) return [];
+
+    /*
+     * Deux agrégats en DEUX requêtes, pas en 2×N : une boucle de comptages
+     * par événement ferait seize allers-retours pour un manager Premium.
+     */
+    const [ventes, inscriptions] = await Promise.all([
+      this.prisma.orderItem.groupBy({
+        by: ['ticketId'],
+        where: { order: { eventId: { in: ids }, status: 'PAID' } },
+        _count: true,
+      }),
+      this.prisma.registration.groupBy({
+        by: ['eventId'],
+        where: { eventId: { in: ids } },
+        _count: true,
+      }),
+    ]);
+
+    // `groupBy` sur OrderItem donne des billets, pas des événements : on
+    // repasse par les types de billets pour rattacher chaque vente au sien.
+    const typesParEvenement = await this.prisma.ticket.findMany({
+      where: { eventId: { in: ids } },
+      select: { id: true, eventId: true },
+    });
+    const evenementDuType = new Map(typesParEvenement.map((t) => [t.id, t.eventId]));
+
+    const ventesParEvenement = new Map<string, number>();
+    for (const ligne of ventes) {
+      const eventId = evenementDuType.get(ligne.ticketId);
+      if (!eventId) continue;
+      ventesParEvenement.set(eventId, (ventesParEvenement.get(eventId) ?? 0) + ligne._count);
+    }
+
+    const inscriptionsParEvenement = new Map(
+      inscriptions.map((ligne) => [ligne.eventId, ligne._count]),
+    );
+
+    return evenements.map((e) => ({
+      id: e.id,
+      slug: e.slug,
+      title: e.title,
+      status: e.status,
+      accessMode: e.accessMode,
+      startDate: e.startDate,
+      endDate: e.endDate,
+      venueName: e.venueName,
+      city: e.city,
+      coverImageUrl: e.coverImageUrl,
+      typesDeBillets: e._count.tickets,
+      journees: e._count.days,
+      billetsVendus: ventesParEvenement.get(e.id) ?? 0,
+      inscriptions: inscriptionsParEvenement.get(e.id) ?? 0,
+      paiementActif: e.paymentProviderConfigs[0]?.provider ?? null,
+    }));
   }
   /**
    * Un événement du manager authentifié. Sans `eventId`, celui du manager
