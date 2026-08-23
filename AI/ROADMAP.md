@@ -870,6 +870,9 @@ Le sélecteur d’événement ne s’affiche qu’à partir de deux : un manager
 mono-événement retrouve exactement le tableau de bord qu’il avait — vérifié à
 l’écran, sans sélecteur, sans paramètre dans l’URL, liens de menu inchangés.
 
+> **Révisé le 2026-08-23** : il s’affiche désormais dès UN événement, inerte.
+> Voir « La vue d’ensemble des événements » ci-dessous.
+
 Plan complet et alternatives écartées : `AI/PLAN-TYPES-EVENEMENTS.md`.
 ### Le code de vérification passe au SMS (2026-08-21)
 
@@ -909,6 +912,59 @@ part bien jusqu’au bout.
 expéditeur. Tant que `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` et
 `TWILIO_SMS_FROM` sont absents de la production, le verrou de la Phase 5 tient
 toujours.
+
+### La vue d’ensemble des événements, et le contexte de travail (2026-08-23)
+
+Un manager Premium porte huit événements. **Aucune page ne les montrait côte à
+côte, et aucun écran ne disait sur lequel on travaillait.**
+
+Le sélecteur de la barre latérale ne s’affichait qu’à partir de deux
+événements, parce qu’on l’avait pensé comme un commutateur. Il est aussi — et
+surtout — l’étiquette qui NOMME le contexte : les pages Billets, Participants,
+Agents et Statistiques ne portaient nulle part le titre de l’événement dont
+elles affichaient les chiffres. On pouvait éditer la billetterie du mauvais
+sans qu’un seul écran vous détrompe.
+
+Il s’affiche donc dès un événement. Avec un seul, il reste **inerte** : un nom,
+pas un menu déroulant à une entrée — une liste d’un élément fait croire à une
+décision à prendre et fait douter qu’on soit au bon endroit. Barre repliée, il
+se réduit à un bouton qui la rouvre, au lieu de disparaître : travailler en mode
+replié revenait à ne plus savoir de quel événement on lisait les chiffres.
+
+**« Mes événements » liste ce qui permet de choisir**, pas seulement des titres :
+régime, statut, période, lieu, billets vendus ou inscrits, tarifs. Et une alerte
+qui manquait partout — *un événement publié qui vend sans moyen de paiement
+actif*. C’est le défaut le plus coûteux de la plateforme et il n’était visible
+nulle part côté organisateur ; c’est aussi exactement l’état de la production
+aujourd’hui (`payment_provider_configs` vide).
+
+Côté API, `listMyEvents` agrège en **deux `groupBy` plus une jointure en
+mémoire**, pas en 2×N requêtes : une boucle de comptages par événement ferait
+seize allers-retours pour un manager Premium. Vérifié contre l’API réelle et à
+l’écran.
+
+### L’invitation d’un manager devient un briefing (2026-08-23)
+
+L’email d’invitation disait quoi faire — choisir un mot de passe — et où aller
+ensuite. Il ne disait pas **ce qu’est la plateforme**. Un organisateur
+découvrait les trois régimes d’événement, le plafond de son palier et le fait
+que l’encaissement se branche côté équipe en s’y heurtant, un par un.
+
+Or cet email est souvent le seul document qu’il garde. Il porte maintenant les
+quatre choses qu’on ne veut pas lui laisser découvrir seul : ce qu’il peut
+faire, ce que son palier autorise, ce que Premium ajoute — tableau comparatif,
+sa colonne mise en avant — et l’ordre dans lequel s’y prendre.
+
+⚠️ **L’étape 4 dit « demandez-nous le branchement de l’encaissement, avant de
+publier »**. C’est une vérité d’exploitation, pas une politesse : les clés de
+paiement se posent depuis l’espace Admin uniquement, et un manager qui publie
+sans le savoir met en ligne une billetterie qui ne peut rien encaisser.
+
+`plan` est transmis depuis le compte réel plutôt que supposé — le jour où
+l’invitation ouvrira un compte Premium, l’email dira vrai sans être retouché.
+
+Rendu vérifié dans un vrai client mail (Mailpit), invitation envoyée puis compte
+de test supprimé par la suppression définitive Admin.
 ## 4. Priorités immédiates (à date)
 
 | Module | Priorité | Référence CDC |
@@ -934,6 +990,8 @@ toujours.
 | Code de vérification par SMS (remplace WhatsApp) | ✅ Fait (2026-08-21) — **en attente d’un compte Twilio** | §7.6 |
 | Plafond d’agents de contrôle réellement appliqué (3 FREE / 6 PREMIUM) | ✅ Fait (2026-08-21) | §9.5 |
 | Trois types d’événements (RSVP / GUEST / ACCOUNT) | 🟡 Planifié — lots 0 à 3 | — |
+| Page « Mes événements » + contexte de travail visible dès un événement | ✅ Fait (2026-08-23) | §1.4 |
+| Invitation Manager : briefing plateforme + paliers et leurs limites | ✅ Fait (2026-08-23) | §7.6 |
 | Identifiants WhatsApp réglables depuis l’Admin | ✅ Fait (2026-08-19) | §10 |
 | Thème clair/sombre de la page publique + en-tête paramétrable | ✅ Fait (2026-08-20) | §11 |
 | Uploads : contenu vérifié, poids et dimensions plafonnés, images optimisées | ✅ Fait (2026-08-21) | §6 |
