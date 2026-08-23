@@ -1,4 +1,5 @@
 import { NestFactory } from '@nestjs/core';
+import { verifierUrlsPubliques } from './common/constants';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
@@ -33,6 +34,10 @@ async function bootstrap(): Promise<void> {
       transform: true, // cast automatique des types (DTOs typés)
     }),
   );
+
+  // Rien au-delà si les URLs publiques sont fausses : un email parti avec un
+  // lien localhost ne se rattrape pas.
+  verifierUrlsPubliques();
 
   // CORS — restreint au frontend autorisé
   const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3000';

@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import nodemailer, { type Transporter } from 'nodemailer';
 import { Resend } from 'resend';
 import { AuditService } from '../common/audit.service';
+import { APP_URL } from '../common/constants';
 
 /**
  * EmailService — Notification email (CDC §7.6 / décision produit 2026-07-14,
@@ -30,8 +31,6 @@ export interface TicketEmailItem {
   qrCodeUrl: string;
 }
 
-/** Adresse publique de l'application — les emails y renvoient. */
-const APP_URL = process.env.APP_URL ?? 'http://localhost:3000';
 
 @Injectable()
 export class EmailService {

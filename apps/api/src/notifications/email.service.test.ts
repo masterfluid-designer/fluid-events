@@ -223,7 +223,7 @@ describe('EmailService.sendManagerInviteEmail()', () => {
     expect(sendMailMock).toHaveBeenCalledWith(
       expect.objectContaining({
         to: 'manager@example.com',
-        subject: 'Votre espace organisateur Fluid Events est ouvert',
+        subject: 'Bienvenue sur Fluid Events, Jean Dupont — votre espace organisateur est ouvert',
         html: expect.stringContaining('http://localhost:3000/auth/set-password?token=abc123'),
       }),
     );
@@ -255,6 +255,70 @@ describe('EmailService.sendManagerInviteEmail()', () => {
     }
     // L'expiration doit rester dite : c'est elle qui explique un lien mort.
     expect(html).toContain('7 jours');
+  });
+
+
+  /*
+   * Le briefing du 2026-08-23. Ces chiffres sont la seule source que
+   * l'organisateur a sous la main : s'ils s'effacent d'une retouche, il
+   * découvrira son plafond en s’y heurtant.
+   */
+  it('annonce les limites du palier et ce que Premium ajoute', async () => {
+    const { EmailService } = await import('./email.service');
+    const service = new EmailService(mockAudit);
+
+    await service.sendManagerInviteEmail({
+      to: 'manager@example.com',
+      name: 'Jean Dupont',
+      inviteUrl: 'https://fluidevent.online/auth/set-password?token=abc123',
+    });
+
+    const html = sendMailMock.mock.calls[0][0].html as string;
+    expect(html).toContain('compte simple');
+    expect(html).toContain('Premium');
+    // Les quatre plafonds : événements, types en parallèle, agents, multi-jours.
+    expect(html).toContain('Événements en cours');
+    expect(html).toContain('Agents de contrôle par événement');
+    expect(html).toContain('Événement sur plusieurs journées');
+    // Les trois régimes doivent être nommés, pas seulement suggérés.
+    expect(html).toContain('inscription simple');
+    expect(html).toContain('billetterie sans compte');
+    expect(html).toContain('billetterie avec compte client');
+  });
+
+  /*
+   * L'encaissement se branche côté Admin. Un manager qui publie sans le
+   * savoir met en ligne une billetterie incapable de vendre — le défaut le
+   * plus coûteux de la plateforme.
+   */
+  it('prévient que l’encaissement se branche avant la publication', async () => {
+    const { EmailService } = await import('./email.service');
+    const service = new EmailService(mockAudit);
+
+    await service.sendManagerInviteEmail({
+      to: 'manager@example.com',
+      name: 'Jean Dupont',
+      inviteUrl: 'https://fluidevent.online/auth/set-password?token=abc123',
+    });
+
+    const html = sendMailMock.mock.calls[0][0].html as string;
+    expect(html).toContain('avant de publier');
+  });
+
+  it('met en avant la colonne du palier réellement accordé', async () => {
+    const { EmailService } = await import('./email.service');
+    const service = new EmailService(mockAudit);
+
+    await service.sendManagerInviteEmail({
+      to: 'manager@example.com',
+      name: 'Jean Dupont',
+      inviteUrl: 'https://fluidevent.online/auth/set-password?token=abc123',
+      plan: 'PREMIUM',
+    });
+
+    const html = sendMailMock.mock.calls[0][0].html as string;
+    expect(html).toContain('Votre compte démarre en <strong style="color:#1c1b1a">Premium</strong>');
+    expect(html).not.toContain('Voici ce que cela autorise');
   });
 
   it("propage l'erreur à l'appelant si l'envoi échoue (contrairement à sendTicketReadyEmail)", async () => {
