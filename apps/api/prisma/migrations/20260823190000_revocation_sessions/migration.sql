@@ -1,0 +1,16 @@
+-- Revocation des sessions apres reinitialisation du mot de passe (2026-08-23)
+--
+-- Les jetons sont des JWT sans etat : une session ouverte avant une
+-- reinitialisation survivait jusqu'a son expiration. Ce n'etait pas une
+-- fenetre theorique -- un jeton d'acces vaut SEPT JOURS par defaut, et un
+-- jeton de scanner court jusqu'a la fin de l'evenement, soit des mois. Changer
+-- son mot de passe parce qu'il est compromis ne mettait donc personne dehors.
+--
+-- Le numero de version voyage dans le jeton et se compare a celui du compte.
+-- L'incrementer invalide d'un coup TOUS les jetons deja emis, sans avoir a
+-- tenir une liste de revocation.
+--
+-- Defaut a 0, et un jeton emis avant cette migration ne porte aucune version :
+-- il est lu comme la version 0, donc encore valable. Personne n'est deconnecte
+-- par le deploiement -- seulement par une reinitialisation.
+ALTER TABLE "users" ADD COLUMN "tokenVersion" INTEGER NOT NULL DEFAULT 0;

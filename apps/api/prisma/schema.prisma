@@ -62,6 +62,13 @@ model User {
   phoneVerificationCode          String?
   phoneVerificationCodeExpiresAt DateTime?
   passwordHash        String? // Scanners uniquement, et Managers invités par email (login email/password)
+  /// Numero de version des jetons (2026-08-23). Voyage dans le JWT et se
+  /// compare a celui du compte : l incrementer invalide d un coup tous les
+  /// jetons deja emis, sans liste de revocation a tenir.
+  ///
+  /// Un jeton emis avant cette colonne ne porte pas de version : il est lu
+  /// comme la version 0, donc encore valable.
+  tokenVersion        Int     @default(0)
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 

@@ -197,10 +197,22 @@ export class PasswordResetService {
          */
         inviteToken: null,
         inviteTokenExpiresAt: null,
+        /*
+         * Toutes les sessions ouvertes tombent (2026-08-23).
+         *
+         * C'est le geste qui donne son sens au reste : on change son mot de
+         * passe PARCE QU'il est compromis, et laisser vivre la session de
+         * celui qui l'avait rendrait l'opération décorative. Un jeton
+         * d'accès vaut sept jours ici, celui d'un agent des mois.
+         */
+        tokenVersion: { increment: 1 },
       },
     });
 
-    await this.audit.log('auth.password.reset', 'User', compte.id, { email: compte.email });
+    await this.audit.log('auth.password.reset', 'User', compte.id, {
+      email: compte.email,
+      sessionsRevoquees: true,
+    });
     this.logger.log(`Mot de passe réinitialisé pour ${compte.email}`);
 
     return { success: true };

@@ -42,6 +42,7 @@ export class AuthService {
     user: { id: string; email: string; role: Role },
     eventSlug?: string,
   ): Promise<TokenPair> {
+    const tv = await this.versionDesJetons(user.id);
     const fallbackExpiresIn = process.env.JWT_EXPIRES_IN ?? '7d';
     let expiresIn = fallbackExpiresIn;
     let sessionExpiresAt: number | undefined;
@@ -77,6 +78,7 @@ export class AuthService {
       email: user.email,
       role: user.role,
       ...(sessionExpiresAt ? { sessionExpiresAt } : {}),
+      tv,
       iat: now,
       exp: now + parsedSeconds,
     };
@@ -85,7 +87,9 @@ export class AuthService {
     // défaut (cf. auth.module.ts, RULES.md §13), donc aucun conflit ici.
     const accessToken = this.jwtService.sign(payload);
     const refreshToken = this.jwtService.sign(
-      { sub: user.id, type: 'refresh', ...(sessionExpiresAt ? { sessionExpiresAt } : {}) },
+      // Le refresh porte AUSSI la version : sans cela, il rejouerait
+      // indéfiniment une session que la réinitialisation a coupée.
+      { sub: user.id, type: 'refresh', tv, ...(sessionExpiresAt ? { sessionExpiresAt } : {}) },
       { secret: process.env.JWT_REFRESH_SECRET, expiresIn }, // pas d'exp dans ce payload → OK
     );
 
@@ -106,6 +110,12 @@ export class AuthService {
     eventId: string,
     eventEndDate: Date,
   ): Promise<{ accessToken: string; refreshToken?: string }> {
+    /*
+     * Le jeton d'un agent court jusqu'à la fin de l'événement — des mois
+     * pour un festival annoncé tôt. Sans version, une réinitialisation ne
+     * lui reprendrait rien du tout.
+     */
+    const tv = await this.versionDesJetons(user.id);
     const msUntilExpiry =
       eventEndDate.getTime() - Date.now() + SCANNER_GRACE_SECONDS * 1000;
     const seconds = Math.max(
@@ -119,6 +129,7 @@ export class AuthService {
       email: user.email,
       role: Role.SCANNER,
       eventId,
+      tv,
       iat: now,
       exp: now + seconds,
     };
@@ -133,5 +144,21 @@ export class AuthService {
 
     // Pas de refresh token pour le scanner (CDC §7.5)
     return { accessToken };
+  }
+
+  /**
+   * Version des jetons du compte, au moment de la signature.
+   *
+   * Une lecture de plus à la CONNEXION seulement — pas à chaque requête,
+   * où la comparaison se fait dans `JwtStrategy`. Un compte introuvable
+   * retombe sur 0 : l'appelant a déjà vérifié qu'il existe, et refuser ici
+   * masquerait la vraie erreur derrière une histoire de version.
+   */
+  private async versionDesJetons(userId: string): Promise<number> {
+    const compte = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { tokenVersion: true },
+    });
+    return compte?.tokenVersion ?? 0;
   }
 }

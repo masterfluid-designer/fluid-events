@@ -212,6 +212,14 @@ export interface JwtPayload {
   eventId?: string;
   /** Clients : timestamp Unix (event.endDate + 24h). Lisible côté frontend. */
   sessionExpiresAt?: number;
+  /**
+   * Version des jetons du compte (2026-08-23).
+   *
+   * Comparée à celle du compte à chaque requête : l'incrémenter invalide
+   * d'un coup tous les jetons déjà émis. Absente des jetons antérieurs à
+   * son introduction, qui valent alors la version 0.
+   */
+  tv?: number;
   iat: number;
   exp: number;
 }
@@ -622,6 +630,14 @@ export const ErrorCodes = {
   UNAUTHORIZED: 'UNAUTHORIZED',
   FORBIDDEN: 'FORBIDDEN',
   TOKEN_EXPIRED: 'TOKEN_EXPIRED',
+  /**
+   * Session invalidée par un changement de mot de passe (2026-08-23).
+   *
+   * Distinct de TOKEN_EXPIRED : le frontend n'a pas à tenter un refresh —
+   * il échouerait pareil — et l'utilisateur mérite de savoir POURQUOI il a
+   * été déconnecté, sinon il croira à une panne.
+   */
+  SESSION_REVOKED: 'SESSION_REVOKED',
   AUTH_REQUIRED_TO_PURCHASE: 'AUTH_REQUIRED_TO_PURCHASE',
   // Events
   EVENT_NOT_FOUND: 'EVENT_NOT_FOUND',

@@ -3,6 +3,7 @@ import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import type { Request } from 'express';
 import { JwtPayload, Role, ErrorCodes } from '@saas-events/types';
+import { PrismaService } from '../../prisma/prisma.service';
 
 /**
  * Extrait le JWT depuis le cookie httpOnly `access_token` (CDC §7.3).
@@ -19,9 +20,22 @@ function extractFromCookie(req: Request): string | null {
  * Le payload décodé est injecté dans `req.user` (CDC §7.6).
  * La vérification de signature + expiration est assurée par passport-jwt.
  *
- * ⚠️ Pas de fetch BDD ici : on fait confiance au JWT signé (stateless).
- * Si l'utilisateur a été désactivé en BDD, son token reste valide jusqu'à expiration —
- * c'est un compromis assumé du CDC (durées courtes, sessions événementielles).
+ * ⚠️ **Une lecture BDD par requête depuis le 2026-08-23**, et une seule :
+ * le numéro de version des jetons du compte, cherché par clé primaire.
+ *
+ * Le stateless était tenable tant qu'aucun jeton ne pouvait être révoqué.
+ * Il ne l'était plus une fois la réinitialisation de mot de passe en place :
+ * un jeton d’accès vaut SEPT JOURS par défaut, et celui d’un agent court
+ * jusqu'à la fin de l'événement — des mois. Changer son mot de passe parce
+ * qu'il est compromis ne mettait donc personne dehors.
+ *
+ * L'alternative — ne vérifier qu'au rafraîchissement — ne coûtait rien et
+ * ne servait à rien : c'est justement l'access token qui dure longtemps ici.
+ *
+ * ⚠️ `isActive` n'est TOUJOURS pas vérifié ici : un compte désactivé garde
+ * sa session jusqu’à expiration. La lecture est pourtant déjà faite — le
+ * corriger est une décision produit, pas un ajout technique, parce qu'elle
+ * met dehors des gens sur-le-champ au déploiement.
  */
 export interface RequestUser {
   id: string;
@@ -35,7 +49,7 @@ export interface RequestUser {
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
-  constructor() {
+  constructor(private readonly prisma: PrismaService) {
     super({
       // Header Authorization: Bearer <token> en priorité (clients API / scanner
       // PWA), sinon cookie httpOnly access_token (flux web par défaut)
@@ -61,6 +75,31 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
         message: 'Token JWT malformé.',
       });
     }
+    /*
+     * Un jeton émis avant l'introduction de `tv` n'en porte pas : il vaut
+     * la version 0, celle de tous les comptes au départ. Personne n’est
+     * déconnecté par le déploiement — seulement par une réinitialisation.
+     */
+    const compte = await this.prisma.user.findUnique({
+      where: { id: payload.sub },
+      select: { tokenVersion: true },
+    });
+
+    if (!compte) {
+      throw new UnauthorizedException({
+        code: ErrorCodes.UNAUTHORIZED,
+        message: 'Compte introuvable.',
+      });
+    }
+
+    if ((payload.tv ?? 0) !== compte.tokenVersion) {
+      throw new UnauthorizedException({
+        code: ErrorCodes.SESSION_REVOKED,
+        message:
+          'Votre session a été fermée : le mot de passe de ce compte a changé. Reconnectez-vous.',
+      });
+    }
+
     return {
       id: payload.sub,
       email: payload.email,

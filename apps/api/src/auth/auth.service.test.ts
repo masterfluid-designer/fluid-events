@@ -31,6 +31,11 @@ function makePrismaMock(event?: { endDate: Date; status: string } | null) {
           : null,
       ),
     },
+    // Version des jetons (2026-08-23) : lue à la signature, embarquée dans le
+    // payload. Le double la renvoie à 0, la valeur de départ de tout compte.
+    user: {
+      findUnique: vi.fn(async () => ({ tokenVersion: 0 })),
+    },
     // autres modèles non utilisés ici
   } as unknown as PrismaService;
 }

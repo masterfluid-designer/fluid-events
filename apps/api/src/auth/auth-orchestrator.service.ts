@@ -289,7 +289,7 @@ export class AuthOrchestratorService {
    * Le refresh token est signé avec JWT_REFRESH_SECRET (vérifié ici).
    */
   async refreshTokens(refreshToken: string): Promise<TokenPair> {
-    let payload: { sub: string; email?: string; role?: Role };
+    let payload: { sub: string; email?: string; role?: Role; tv?: number };
     try {
       payload = this.jwtService.verify(refreshToken, {
         secret: process.env.JWT_REFRESH_SECRET,
@@ -303,13 +303,28 @@ export class AuthOrchestratorService {
 
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
-      select: { id: true, email: true, role: true, isActive: true },
+      select: { id: true, email: true, role: true, isActive: true, tokenVersion: true },
     });
 
     if (!user || !user.isActive) {
       throw new UnauthorizedException({
         code: ErrorCodes.UNAUTHORIZED,
         message: 'Utilisateur introuvable ou désactivé.',
+      });
+    }
+
+    /*
+     * Le refresh est la porte de derrière : sans ce contrôle, un jeton de
+     * rafraîchissement volé rejouerait indéfiniment une session que la
+     * réinitialisation du mot de passe vient de couper.
+     *
+     * Un refresh émis avant l'introduction de `tv` vaut la version 0.
+     */
+    if ((payload.tv ?? 0) !== user.tokenVersion) {
+      throw new UnauthorizedException({
+        code: ErrorCodes.SESSION_REVOKED,
+        message:
+          'Votre session a été fermée : le mot de passe de ce compte a changé. Reconnectez-vous.',
       });
     }
 
