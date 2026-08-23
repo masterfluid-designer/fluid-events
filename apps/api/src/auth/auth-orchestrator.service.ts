@@ -344,7 +344,12 @@ export class AuthOrchestratorService {
         // Événement rattaché à un compte SCANNER (2026-08-17) : son interface
         // doit porter les couleurs de la page publique de cet événement, et
         // n’a aujourd’hui aucun moyen de savoir duquel il s’agit.
-        scannerProfile: { select: { event: { select: { slug: true } } } },
+        // Le RÉGIME s’y ajoute le 2026-08-23 : un événement sur inscription
+        // n’a aucun QR à lire, son agent a besoin d’une liste, pas d’une
+        // caméra. Sans cette information, l’interface ne peut pas choisir.
+        scannerProfile: {
+          select: { event: { select: { slug: true, title: true, accessMode: true } } },
+        },
       },
     });
     if (!user) {
@@ -359,6 +364,8 @@ export class AuthOrchestratorService {
     return {
       ...rest,
       eventSlug: scannerProfile?.event?.slug ?? null,
+      eventTitle: scannerProfile?.event?.title ?? null,
+      eventAccessMode: scannerProfile?.event?.accessMode ?? null,
       /*
        * Le canal d'envoi du code est-il configuré ? (2026-08-21)
        *

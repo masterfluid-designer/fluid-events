@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { Search, Users, Check, Trash2 } from 'lucide-react';
@@ -36,15 +36,36 @@ export function ListeInscriptions({ evenement }: { evenement?: string }) {
   const [limite, setLimite] = useState(PAR_PAGE);
   const queryClient = useQueryClient();
 
+  /*
+   * La recherche part au SERVEUR depuis le 2026-08-23.
+   *
+   * Elle filtrait la page chargée, c'est-à-dire cinquante lignes sur trois
+   * cents : chercher quelqu’un inscrit en deux-centième position ne
+   * renvoyait rien, et l’organisateur en concluait que la personne ne
+   * s’était pas inscrite. Un filtre qui ment est pire que pas de filtre.
+   *
+   * Retardée d'un quart de seconde : sans cela, « Konaté » lance six
+   * requêtes dont cinq déjà périmées en arrivant.
+   */
+  const [termeEnvoye, setTermeEnvoye] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setTermeEnvoye(recherche.trim()), 250);
+    return () => clearTimeout(t);
+  }, [recherche]);
+
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['manager-inscriptions', evenement, limite],
+    queryKey: ['manager-inscriptions', evenement, limite, termeEnvoye],
     queryFn: () => {
       const base = avecEvenement('/api/registrations', evenement);
       const separateur = base.includes('?') ? '&' : '?';
+      const q = termeEnvoye ? `&q=${encodeURIComponent(termeEnvoye)}` : '';
       return api<{ total: number; presents: number; items: Inscription[] }>(
-        `${base}${separateur}limit=${limite}`,
+        `${base}${separateur}limit=${limite}${q}`,
       );
     },
+    // La liste précédente reste affichée pendant la frappe : la faire
+    // clignoter à chaque lettre est illisible.
+    placeholderData: (precedent) => precedent,
   });
 
   const inscriptions = data?.items ?? [];
@@ -71,13 +92,8 @@ export function ListeInscriptions({ evenement }: { evenement?: string }) {
       toast.error(err instanceof ApiError ? err.message : 'Le retrait n’a pas abouti.'),
   });
 
-  const filtrees = useMemo(() => {
-    const q = recherche.trim().toLowerCase();
-    if (!q) return inscriptions;
-    return inscriptions.filter((i) =>
-      [i.firstName, i.lastName, i.email, i.phone ?? ''].some((v) => v.toLowerCase().includes(q)),
-    );
-  }, [inscriptions, recherche]);
+  // Le filtrage a lieu en base : ce que le serveur renvoie EST le résultat.
+  const filtrees = inscriptions;
 
   /**
    * L'export porte sur ce qui est AFFICHÉ, filtre compris : l'organisateur qui
@@ -137,14 +153,28 @@ export function ListeInscriptions({ evenement }: { evenement?: string }) {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold">Inscrits</h1>
+          {/*
+            Le compte porte sur ce que le SERVEUR a filtré. Pendant une
+            recherche, « 1 personne sur la liste » se lirait comme un total —
+            on dit donc « résultat », qui ne prétend rien sur le reste.
+          */}
           <p className="text-sm text-muted-foreground">
-            {data?.total ?? 0} personne{(data?.total ?? 0) > 1 ? 's' : ''} sur la liste
-            {(data?.presents ?? 0) > 0 && (
+            {termeEnvoye ? (
               <>
-                {' · '}
-                <span className="font-medium text-foreground">
-                  {data?.presents} arrivée{(data?.presents ?? 0) > 1 ? 's' : ''}
-                </span>
+                {data?.total ?? 0} résultat{(data?.total ?? 0) > 1 ? 's' : ''} pour « 
+                {termeEnvoye} »
+              </>
+            ) : (
+              <>
+                {data?.total ?? 0} personne{(data?.total ?? 0) > 1 ? 's' : ''} sur la liste
+                {(data?.presents ?? 0) > 0 && (
+                  <>
+                    {' · '}
+                    <span className="font-medium text-foreground">
+                      {data?.presents} arrivée{(data?.presents ?? 0) > 1 ? 's' : ''}
+                    </span>
+                  </>
+                )}
               </>
             )}
           </p>

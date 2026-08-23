@@ -18,6 +18,13 @@ import { CreateRegistrationDto } from './dto/create-registration.dto';
 const UNIQUE_VIOLATION = 'P2002';
 
 /**
+ * Plafond de la liste d'émargement chargée d'un coup sur le téléphone d'un
+ * agent. 2 000 lignes ≈ 250 Ko : tenable en 3G, et très au-delà de ce que
+ * le régime « inscription simple » a vocation à accueillir.
+ */
+const PLAFOND_LISTE_AGENT = 2000;
+
+/**
  * RegistrationsService — inscriptions sans billetterie (lot 2, 2026-08-22).
  *
  * Ni compte, ni commande, ni paiement : l'organisateur veut savoir qui vient.
@@ -144,7 +151,7 @@ export class RegistrationsService {
   async listerPourManager(
     managerId: string,
     eventId?: string,
-    options?: { limit?: number; offset?: number },
+    options?: { limit?: number; offset?: number; q?: string },
   ) {
     const id = await this.acces.resoudreEvenementDuManager(managerId, eventId);
 
@@ -157,11 +164,18 @@ export class RegistrationsService {
     const limit = Math.min(Math.max(options?.limit ?? 50, 1), 200);
     const offset = Math.max(options?.offset ?? 0, 0);
 
+    /*
+     * La recherche porte sur la BASE, pas sur la page rendue : chercher
+     * « Konaté » dans les cinquante lignes affichées ne le trouverait pas
+     * s'il s'est inscrit en trois centième position.
+     */
+    const filtre = this.filtreRecherche(id, options?.q);
+
     const [total, presents, inscriptions] = await Promise.all([
-      this.prisma.registration.count({ where: { eventId: id } }),
-      this.prisma.registration.count({ where: { eventId: id, checkedInAt: { not: null } } }),
+      this.prisma.registration.count({ where: filtre }),
+      this.prisma.registration.count({ where: { ...filtre, checkedInAt: { not: null } } }),
       this.prisma.registration.findMany({
-        where: { eventId: id },
+        where: filtre,
         orderBy: { createdAt: 'desc' },
         skip: offset,
         take: limit,
@@ -185,6 +199,120 @@ export class RegistrationsService {
      * les yeux. `presents` répond à la question du soir même.
      */
     return { total, presents, items: inscriptions, offset, limit };
+  }
+
+  /**
+   * Construit le filtre d'une recherche sur nom, prénom, email ou
+   * téléphone. Sans terme, il ne filtre que sur l’événement.
+   */
+  private filtreRecherche(eventId: string, q?: string): Prisma.RegistrationWhereInput {
+    const terme = q?.trim();
+    if (!terme) return { eventId };
+
+    /*
+     * `insensitive` parce qu'à l'accueil on tape en minuscules, et sur les
+     * quatre colonnes parce qu’on cherche indifféremment par un nom, une
+     * adresse lue sur un écran de téléphone ou les quatre derniers
+     * chiffres d’un numéro.
+     */
+    const contient = { contains: terme, mode: 'insensitive' as const };
+    return {
+      eventId,
+      OR: [
+        { firstName: contient },
+        { lastName: contient },
+        { email: contient },
+        { phone: contient },
+      ],
+    };
+  }
+
+  /**
+   * La liste d'émargement d'un agent de contrôle (2026-08-23).
+   *
+   * Renvoyée EN ENTIER, sans pagination et sans recherche serveur — le
+   * contraire de la liste du tableau de bord, et à dessein. À la porte, on
+   * cherche un nom pendant que quelqu’un attend devant soi : une recherche
+   * qui repasse par le réseau à chaque lettre est inutilisable sous une
+   * connexion de salle des fêtes. Chargée une fois, filtrée dans le
+   * téléphone, elle répond instantanément et survit à une coupure.
+   *
+   * Le plafond existe quand même : au-delà, il faudra une autre réponse
+   * que « tout charger », et mieux vaut le savoir par une erreur que par
+   * un téléphone figé un soir de première.
+   */
+  async listerPourAgent(userId: string) {
+    const { eventId, accessMode } = await this.acces.resoudreEvenementDeLAgent(userId);
+
+    if (accessMode !== EventAccessMode.RSVP) {
+      throw new BadRequestException({
+        code: ErrorCodes.EVENT_ACCESS_MODE_MISMATCH,
+        message:
+          'Cet événement fonctionne à la billetterie : les entrées se contrôlent au scan.',
+      });
+    }
+
+    const [total, presents, items] = await Promise.all([
+      this.prisma.registration.count({ where: { eventId } }),
+      this.prisma.registration.count({ where: { eventId, checkedInAt: { not: null } } }),
+      this.prisma.registration.findMany({
+        where: { eventId },
+        // Par NOM, pas par date d’inscription : on cherche quelqu’un, on
+        // ne consulte pas un journal.
+        orderBy: [{ lastName: 'asc' }, { firstName: 'asc' }],
+        take: PLAFOND_LISTE_AGENT,
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          phone: true,
+          extraLabel: true,
+          extraValue: true,
+          checkedInAt: true,
+        },
+      }),
+    ]);
+
+    return { total, presents, items, tronquee: total > PLAFOND_LISTE_AGENT };
+  }
+
+  /**
+   * Pointage par un agent de contrôle. Même geste que celui de
+   * l'organisateur, mais l'événement vient du compte, jamais de la requête.
+   */
+  async pointerParAgent(userId: string, registrationId: string, present: boolean) {
+    const { eventId } = await this.acces.resoudreEvenementDeLAgent(userId);
+
+    const inscription = await this.prisma.registration.findUnique({
+      where: { id: registrationId },
+      select: { id: true, eventId: true },
+    });
+
+    /*
+     * Même réponse pour « n'existe pas » et « pas sur votre événement » :
+     * une erreur distincte confirmerait à un agent curieux qu'un
+     * identifiant donné existe ailleurs sur la plateforme.
+     */
+    if (!inscription || inscription.eventId !== eventId) {
+      throw new NotFoundException({
+        code: 'REGISTRATION_NOT_FOUND',
+        message: 'Inscription introuvable pour cet événement.',
+      });
+    }
+
+    const misAJour = await this.prisma.registration.update({
+      where: { id: registrationId },
+      data: { checkedInAt: present ? new Date() : null },
+      select: { id: true, checkedInAt: true },
+    });
+
+    await this.audit.log('registration.checked_in', 'Registration', registrationId, {
+      present,
+      par: 'agent',
+    }, userId);
+
+    return misAJour;
   }
 
   /**

@@ -88,6 +88,42 @@ export class EventAccessService {
   }
 
   /**
+   * Résout l'événement d'un AGENT DE CONTRÔLE, et son régime (2026-08-23).
+   *
+   * Le pendant de `resoudreEvenementDuManager` pour l'autre métier de la
+   * plateforme. L'agent ne choisit rien : son compte est rattaché à un
+   * événement et à un seul, et cet identifiant ne vient JAMAIS de la
+   * requête — sinon un agent de la soirée A lirait la liste nominative des
+   * invités de la soirée B en changeant un paramètre.
+   *
+   * `isActive` est vérifié ici : révoquer un agent la veille doit lui fermer
+   * la liste, pas seulement le scan.
+   */
+  async resoudreEvenementDeLAgent(
+    userId: string,
+  ): Promise<{ eventId: string; accessMode: EventAccessMode }> {
+    const profil = await this.prisma.scanner.findUnique({
+      where: { userId },
+      select: {
+        isActive: true,
+        event: { select: { id: true, accessMode: true } },
+      },
+    });
+
+    if (!profil || !profil.isActive) {
+      throw new NotFoundException({
+        code: ErrorCodes.EVENT_NOT_FOUND,
+        message: 'Aucun événement actif associé à ce compte de contrôle.',
+      });
+    }
+
+    return {
+      eventId: profil.event.id,
+      accessMode: profil.event.accessMode as EventAccessMode,
+    };
+  }
+
+  /**
    * Refuse la création d'un événement de plus que le palier n'en autorise.
    *
    * Le contrôle vit ici et non dans le client : RULES.md §1. Il compte les

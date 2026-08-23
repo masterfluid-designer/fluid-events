@@ -227,6 +227,10 @@ describe('AuthOrchestratorService.getCurrentUser()', () => {
       avatarUrl: null,
       // Compte non-scanner : le slug est présent mais nul (2026-08-17).
       eventSlug: null,
+      // Titre et régime rejoignent le slug le 2026-08-23 : ils décident de
+      // l’écran que voit un agent de contrôle.
+      eventTitle: null,
+      eventAccessMode: null,
       // Le frontend n’exige la vérification que si le canal peut envoyer.
       phoneVerificationAvailable: true,
     });

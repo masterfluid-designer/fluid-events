@@ -37,11 +37,38 @@ export class RegistrationsController {
     @Query('eventId') eventId?: string,
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
+    @Query('q') q?: string,
   ) {
     return this.registrations.listerPourManager(user.id, eventId, {
       limit: limit ? Number(limit) : undefined,
       offset: offset ? Number(offset) : undefined,
+      q,
     });
+  }
+
+  /**
+   * GET /api/scan/registrations — la liste d'émargement de l'agent
+   * (2026-08-23).
+   *
+   * Sous `/scan` et non sous `/registrations` : c'est l'outil de terrain de
+   * l'agent de contrôle, au même titre que `/scan/validate`. Aucun
+   * paramètre d'événement — il vient du compte.
+   */
+  @Roles(Role.SCANNER)
+  @Get('scan/registrations')
+  async listerPourAgent(@CurrentUser() user: RequestUser) {
+    return this.registrations.listerPourAgent(user.id);
+  }
+
+  /** PATCH /api/scan/registrations/:id/check-in — pointage par un agent. */
+  @Roles(Role.SCANNER)
+  @Patch('scan/registrations/:id/check-in')
+  async pointerParAgent(
+    @CurrentUser() user: RequestUser,
+    @Param('id') id: string,
+    @Body() body: { present?: boolean },
+  ) {
+    return this.registrations.pointerParAgent(user.id, id, body.present !== false);
   }
 
   /**

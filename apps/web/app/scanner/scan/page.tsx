@@ -21,7 +21,8 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { useScannerStore } from '@/store/scannerStore';
-import { ScanResult } from '@saas-events/types';
+import { ListeEmargement } from './liste-emargement';
+import { EventAccessMode, ScanResult } from '@saas-events/types';
 import type { Html5Qrcode } from 'html5-qrcode';
 import type { BadgeProps } from '@/components/ui/badge';
 
@@ -36,12 +37,25 @@ import type { BadgeProps } from '@/components/ui/badge';
  * Cooldown de 2s après chaque scan pour éviter les doubles lectures physiques.
  */
 export default function ScannerPage() {
-  // `/api/auth/me` expose le slug de l’événement rattaché au compte scanner.
-  const { data: me } = useQuery({
+  /*
+   * `/api/auth/me` expose l’événement rattaché au compte scanner : son slug
+   * (pour les couleurs), son titre, et depuis le 2026-08-23 son RÉGIME.
+   *
+   * Ce dernier décide de l'écran : un événement sur inscription n'émet aucun
+   * billet, donc aucun QR. Ouvrir la caméra dessus, c’est la braquer sur
+   * rien — ce que faisait cette page pour tout le monde.
+   */
+  const { data: me, isLoading: chargeLeCompte } = useQuery({
     queryKey: ['auth-me'],
-    queryFn: () => api<{ eventSlug: string | null }>('/api/auth/me'),
+    queryFn: () =>
+      api<{
+        eventSlug: string | null;
+        eventTitle: string | null;
+        eventAccessMode: EventAccessMode | null;
+      }>('/api/auth/me'),
     retry: false,
   });
+  const surInscription = me?.eventAccessMode === EventAccessMode.RSVP;
   const router = useRouter();
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const isScanningRef = useRef(false);
@@ -51,6 +65,13 @@ export default function ScannerPage() {
     useScannerStore();
 
   useEffect(() => {
+    /*
+     * Tant que le régime est inconnu, on n'allume rien : demander la caméra
+     * puis la relâcher une seconde plus tard fait clignoter la demande
+     * d’autorisation du navigateur, et certains la refusent définitivement.
+     */
+    if (chargeLeCompte || surInscription) return;
+
     let mounted = true;
 
     async function startCamera() {
@@ -103,8 +124,7 @@ export default function ScannerPage() {
         scanner.stop().catch(() => {});
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // caméra ne redémarre pas — pas de dépendances
+  }, [chargeLeCompte, surInscription]); // ne démarre qu’une fois le régime connu
 
   function handleLogout() {
     const apiBase = process.env.NEXT_PUBLIC_API_URL ?? '';
@@ -116,6 +136,18 @@ export default function ScannerPage() {
 
   const validCount = history.filter((h) => h.result === ScanResult.VALID).length;
 
+  /*
+   * L'aiguillage se fait APRÈS tous les hooks : les appeler
+   * conditionnellement casserait leur ordre d’un rendu à l’autre.
+   */
+  if (surInscription) {
+    return (
+      <PublicSurface eventSlug={me?.eventSlug} bare>
+        <ListeEmargement eventTitle={me?.eventTitle ?? null} onLogout={handleLogout} />
+      </PublicSurface>
+    );
+  }
+
   return (
     // Couleurs de l’événement (2026-08-17) : l’écran reste noir — on scanne
     // dans des salles sombres — mais l’accent devient celui de l’organisateur.
@@ -125,7 +157,14 @@ export default function ScannerPage() {
         {/* Header */}
         <header className="flex items-center justify-between p-4">
           <div className="flex items-center gap-2">
-            <div className="text-sm font-bold">Entrée Nord</div>
+            {/*
+              Le vrai titre depuis le 2026-08-23. « Entrée Nord » était un
+              reliquat de maquette : le même libellé s’affichait pour tous les
+              événements et toutes les portes de la plateforme.
+            */}
+            <div className="max-w-[12rem] truncate text-sm font-bold">
+              {me?.eventTitle ?? 'Contrôle des billets'}
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <span className="rounded-full bg-white/10 px-2.5 py-1 text-xs font-semibold">

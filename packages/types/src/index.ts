@@ -631,6 +631,11 @@ export const ErrorCodes = {
   EVENT_QUOTA_REACHED: 'EVENT_QUOTA_REACHED',
   /** Bascule refusée : des places ont déjà été vendues. */
   EVENT_ACCESS_MODE_LOCKED: 'EVENT_ACCESS_MODE_LOCKED',
+  /**
+   * Régime inadapté à ce que la route propose : une liste d'émargement sur un
+   * événement qui vend des billets, un scan sur un événement sur inscription.
+   */
+  EVENT_ACCESS_MODE_MISMATCH: 'EVENT_ACCESS_MODE_MISMATCH',
   /** Cette adresse figure déjà sur la liste des inscrits.
    *
    * Dit franchement : la liste n’est pas secrète pour qui y figure, et
