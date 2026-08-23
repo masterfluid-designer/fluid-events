@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
@@ -895,6 +895,20 @@ export class AdminService {
    */
   async impersonateManager(adminId: string, managerId: string): Promise<TokenPair> {
     const manager = await this.getManagerOrThrow(managerId);
+
+    /*
+     * Un compte désactivé ne se visite plus (2026-08-23) : depuis que
+     * `JwtStrategy` vérifie `isActive`, le jeton produit ici serait refusé à
+     * la première requête. Mieux vaut refuser franchement, et dire quoi
+     * faire, qu'ouvrir une session qui échoue partout sans expliquer.
+     */
+    if (!manager.isActive) {
+      throw new ForbiddenException({
+        code: ErrorCodes.ACCOUNT_DISABLED,
+        message:
+          'Ce compte est désactivé : réactivez-le avant de prendre sa place.',
+      });
+    }
     const tokens = await this.authService.generateClientToken({
       id: manager.id,
       email: manager.email,

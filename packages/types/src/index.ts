@@ -638,6 +638,15 @@ export const ErrorCodes = {
    * été déconnecté, sinon il croira à une panne.
    */
   SESSION_REVOKED: 'SESSION_REVOKED',
+  /**
+   * Compte désactivé par un administrateur (2026-08-23).
+   *
+   * Distinct de FORBIDDEN, qui parle d'un droit manquant sur une
+   * ressource : ici le compte entier est fermé, et aucune autre page ne
+   * répondra mieux. Le frontend doit renvoyer vers la connexion, pas
+   * proposer de réessayer.
+   */
+  ACCOUNT_DISABLED: 'ACCOUNT_DISABLED',
   AUTH_REQUIRED_TO_PURCHASE: 'AUTH_REQUIRED_TO_PURCHASE',
   // Events
   EVENT_NOT_FOUND: 'EVENT_NOT_FOUND',

@@ -4,7 +4,7 @@
  * ÉVÉNEMENT (décision produit 2026-07-13, supersède BUSINESS.md §6).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { AdminService } from './admin.service';
 
 function makePrisma() {
@@ -918,7 +918,12 @@ describe('AdminService.impersonateManager()', () => {
   });
 
   it('émet un token MANAGER pour le compte ciblé et journalise avec l’id Admin', async () => {
-    prisma.user.findUnique.mockResolvedValue({ id: 'mgr-1', email: 'mgr1@x.com', role: 'MANAGER' });
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'mgr-1',
+      email: 'mgr1@x.com',
+      role: 'MANAGER',
+      isActive: true,
+    });
 
     const result = await service.impersonateManager('admin-1', 'mgr-1');
 
@@ -929,6 +934,28 @@ describe('AdminService.impersonateManager()', () => {
     });
     expect(audit.log).toHaveBeenCalledWith('admin.impersonate.start', 'User', 'mgr-1', { adminId: 'admin-1' });
     expect(result).toEqual({ accessToken: 'a', refreshToken: 'r' });
+  });
+
+
+  /*
+   * Depuis que `JwtStrategy` verifie `isActive` (2026-08-23), un jeton emis
+   * pour un compte desactive serait refuse a la premiere requete. Refuser
+   * franchement, et dire quoi faire, vaut mieux qu'une session qui echoue
+   * partout sans expliquer.
+   */
+  it('refuse de prendre la place d un compte desactive', async () => {
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'mgr-1',
+      email: 'mgr1@x.com',
+      role: 'MANAGER',
+      isActive: false,
+    });
+
+    const err = await service.impersonateManager('admin-1', 'mgr-1').catch((e) => e);
+
+    expect(err).toBeInstanceOf(ForbiddenException);
+    expect(authService.generateClientToken).not.toHaveBeenCalled();
+    expect(audit.log).not.toHaveBeenCalled();
   });
 
   it("404 si la cible n'existe pas ou n'est pas MANAGER (MANAGER_NOT_FOUND)", async () => {

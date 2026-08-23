@@ -32,10 +32,13 @@ function extractFromCookie(req: Request): string | null {
  * L'alternative — ne vérifier qu'au rafraîchissement — ne coûtait rien et
  * ne servait à rien : c'est justement l'access token qui dure longtemps ici.
  *
- * ⚠️ `isActive` n'est TOUJOURS pas vérifié ici : un compte désactivé garde
- * sa session jusqu’à expiration. La lecture est pourtant déjà faite — le
- * corriger est une décision produit, pas un ajout technique, parce qu'elle
- * met dehors des gens sur-le-champ au déploiement.
+ * **`isActive` est vérifié depuis le 2026-08-23**, dans la même lecture.
+ *
+ * Désactiver un compte ne le mettait pas dehors : il gardait sa session
+ * jusqu'à sept jours, et pour un agent de contrôle jusqu'à la fin de
+ * l'événement. Un Admin qui coupe l'accès à quelqu'un attend que ce soit
+ * fait maintenant, pas la semaine prochaine — sans quoi la seule mesure
+ * réellement efficace était la suppression, qui emporte tout.
  */
 export interface RequestUser {
   id: string;
@@ -82,13 +85,25 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
      */
     const compte = await this.prisma.user.findUnique({
       where: { id: payload.sub },
-      select: { tokenVersion: true },
+      select: { tokenVersion: true, isActive: true },
     });
 
     if (!compte) {
       throw new UnauthorizedException({
         code: ErrorCodes.UNAUTHORIZED,
         message: 'Compte introuvable.',
+      });
+    }
+
+    /*
+     * Contrôlé AVANT la version : un compte fermé l'est quelle que soit la
+     * fraîcheur de son jeton, et lui répondre « reconnectez-vous » quand la
+     * reconnexion est justement ce qui lui est refusé serait une impasse.
+     */
+    if (!compte.isActive) {
+      throw new UnauthorizedException({
+        code: ErrorCodes.ACCOUNT_DISABLED,
+        message: 'Ce compte a été désactivé. Contactez un administrateur.',
       });
     }
 
