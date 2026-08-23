@@ -4,6 +4,8 @@ import { PassportModule } from '@nestjs/passport';
 import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import { AuthOrchestratorService } from './auth-orchestrator.service';
+import { PasswordResetService } from './password-reset.service';
+import { EmailService } from '../notifications/email.service';
 import { AuthController } from './auth.controller';
 import { AuditService } from '../common/audit.service';
 import { PhoneService } from '../notifications/phone.service';
@@ -36,6 +38,10 @@ import { CryptoService } from '../common/crypto.service';
   providers: [
     AuthService,
     AuthOrchestratorService,
+    // Récupération de mot de passe (2026-08-23) : il n’en existait aucune,
+    // et un compte sans mot de passe n’avait aucun chemin de retour.
+    PasswordResetService,
+    EmailService,
     AuditService,
     PhoneService,
     // Le code de vérification repart par WhatsApp (2026-08-22) : le SMS

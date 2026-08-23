@@ -71,6 +71,20 @@ model User {
   inviteToken          String?   @unique
   inviteTokenExpiresAt DateTime?
 
+  /// Recuperation de mot de passe (2026-08-23).
+  ///
+  /// Stocke HACHE, contrairement a `inviteToken` : un jeton de
+  /// reinitialisation vaut un mot de passe, il se range comme un mot de
+  /// passe. Le jeton remis a l utilisateur porte l identifiant du compte en
+  /// prefixe, ce qui evite d avoir a chercher par le hachage.
+  passwordResetTokenHash      String?
+  /// Une heure. Sert aussi de garde-fou : tant qu un jeton valide existe, on
+  /// n en emet pas un second.
+  passwordResetTokenExpiresAt DateTime?
+  /// Date de la DEMANDE, distincte de l expiration : deduire l une de l autre
+  /// deviendrait faux le jour ou la duree de vie changerait.
+  passwordResetRequestedAt    DateTime?
+
   // Inscription self-service Manager via Google depuis la page d'accueil
   // (décision produit 2026-07-14) — distinct d'un Manager créé par
   // invitation Admin. Seuls ces comptes sont concernés par la suppression

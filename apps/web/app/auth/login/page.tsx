@@ -176,6 +176,19 @@ function LoginForm() {
                       className="w-full rounded-lg border border-stroke bg-white px-4 py-3 text-sm focus:border-black focus-visible:outline-hidden dark:border-strokedark dark:bg-blackho dark:text-white dark:focus:border-manatee"
                       required
                     />
+                    {/*
+                      Le lien de récupération (2026-08-23). Il n’existait pas,
+                      et il n’y avait aucun autre chemin : un compte sans mot
+                      de passe restait dehors pour toujours.
+                    */}
+                    <div className="-mt-1 text-right">
+                      <Link
+                        href="/auth/mot-de-passe-oublie"
+                        className="text-sm font-medium text-waterloo hover:text-black dark:text-manatee dark:hover:text-white"
+                      >
+                        Mot de passe oublié ?
+                      </Link>
+                    </div>
                     <button
                       type="submit"
                       disabled={loading}
@@ -229,6 +242,16 @@ function LoginForm() {
                     className="w-full rounded-lg border border-stroke bg-white px-4 py-3 text-sm focus:border-black focus-visible:outline-hidden dark:border-strokedark dark:bg-blackho dark:text-white dark:focus:border-manatee"
                     required
                   />
+                  {/* Un agent de contrôle oublie son mot de passe comme
+                      n’importe qui — et la veille d’une soirée. */}
+                  <div className="-mt-1 text-right">
+                    <Link
+                      href="/auth/mot-de-passe-oublie"
+                      className="text-sm font-medium text-waterloo hover:text-black dark:text-manatee dark:hover:text-white"
+                    >
+                      Mot de passe oublié ?
+                    </Link>
+                  </div>
 
                   <div className="mt-2 flex flex-wrap items-center justify-between gap-4">
                     <button

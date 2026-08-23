@@ -296,6 +296,73 @@ export class EmailService {
     this.logger.log(`Email d'invitation manager envoyé à ${to}`);
   }
   /**
+   * Lien de réinitialisation de mot de passe (2026-08-23).
+   *
+   * Court et sans ornement, à l'inverse de l'invitation : la personne est
+   * bloquée dehors, elle veut un bouton, pas une brochure.
+   *
+   * Il dit deux choses qu'un email de ce type doit dire : combien de temps le
+   * lien vaut, et quoi faire si la demande ne vient pas de vous. La seconde
+   * n'est pas de la politesse — c'est le seul signal qu'a quelqu'un dont
+   * l'adresse est visée.
+   *
+   * ⚠️ Contrairement aux autres, cette méthode PROPAGE l'erreur d'envoi :
+   * l'appelant doit pouvoir la journaliser. Il ne la remonte pas au visiteur
+   * pour autant — voir `PasswordResetService.demander`.
+   */
+  async sendPasswordResetEmail(params: {
+    to: string;
+    name: string;
+    resetUrl: string;
+    validiteMinutes: number;
+  }): Promise<void> {
+    const { to, name, resetUrl, validiteMinutes } = params;
+    const app = APP_URL;
+    const subject = 'Réinitialisez votre mot de passe Fluid Events';
+
+    const html = `
+      <div style="font-family:system-ui,-apple-system,'Segoe UI',sans-serif;background:#faf8f6;padding:28px 12px">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:600px;margin:0 auto;background:#fff;border:1px solid #ece5df;border-radius:16px">
+          <tr><td style="padding:32px 28px">
+
+            <p style="margin:0 0 6px;font-size:13px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#c0571e">Mot de passe oublié</p>
+            <h1 style="margin:0 0 14px;font-size:22px;line-height:1.3;color:#1c1b1a">Reprenons la main, ${escapeHtml(name)}</h1>
+
+            <p style="margin:0;font-size:15px;line-height:1.6;color:#3d3733">
+              Choisissez un nouveau mot de passe, et vous retrouverez votre espace
+              exactement comme vous l’avez laissé.
+            </p>
+
+            <p style="margin:26px 0 8px">
+              <a href="${resetUrl}" style="display:inline-block;background:#c0571e;color:#fff;text-decoration:none;padding:14px 28px;border-radius:999px;font-weight:700;font-size:15px">
+                Choisir un nouveau mot de passe
+              </a>
+            </p>
+
+            <p style="margin:0;color:#6f645c;font-size:13px">
+              Ce lien n’est valable que <strong>${validiteMinutes} minutes</strong> et ne
+              fonctionne qu’une seule fois.
+            </p>
+
+            <div style="margin-top:28px;border-top:1px solid #ece5df;padding-top:20px;font-size:13px;line-height:1.7;color:#6f645c">
+              <strong style="color:#1c1b1a">Vous n’avez rien demandé ?</strong><br>
+              Ignorez ce message : votre mot de passe actuel reste valable et rien
+              n’a changé sur votre compte. Si cela se répète, écrivez-nous depuis
+              <a href="${app}/support" style="color:#c0571e">${app}/support</a>.
+              <br><br>
+              Le bouton ne fonctionne pas ? Copiez cette adresse dans votre navigateur :<br>
+              <span style="word-break:break-all;color:#3d3733">${resetUrl}</span>
+            </div>
+
+          </td></tr>
+        </table>
+      </div>
+    `;
+
+    await this.send(to, subject, html);
+    this.logger.log(`Email de réinitialisation envoyé à ${to}`);
+  }
+  /**
    * Invitation d'un agent de contrôle (2026-08-19). Même mécanique que
    * l'invitation Manager — un lien pour choisir son mot de passe — mais le
    * message nomme l'événement : un agent peut travailler pour plusieurs
