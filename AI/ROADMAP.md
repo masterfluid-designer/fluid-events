@@ -1205,6 +1205,76 @@ répond `401 SESSION_REVOKED` après, son refresh token aussi, et une nouvelle
 connexion fonctionne normalement.
 
 > **À faire au déploiement** : `npx prisma migrate deploy`.
+
+### L'encaissement rendu à l'organisateur (2026-08-24)
+
+**Seul un Admin pouvait poser les clés de paiement d’un événement.** C’était
+le goulot d’étranglement de toute la plateforme : `payment_provider_configs`
+est resté VIDE en production depuis la mise en ligne du 16 août, et pas un
+billet n’a jamais pu être encaissé. Chaque organisateur devait attendre qu’un
+humain colle ses clés à sa place.
+
+La responsabilité passe au Manager, avec les garde-fous inchangés :
+l’événement vient du contrôle d’appartenance et jamais de la requête, les
+secrets sont chiffrés (AES-256-GCM) avant la base, un seul fournisseur
+encaisse à la fois — et la désactivation des autres vit DANS la transaction,
+sans quoi une coupure en laisserait deux actifs.
+
+**Rien ne se relit.** Aucune clé ne ressort d’une lecture, pas même la
+publique. L’écran dit qu’un fournisseur est configuré et depuis quand, rien de
+plus. Un « ••••abcd » aiderait à reconnaître un compte, mais chaque caractère
+rendu traîne ensuite dans un cache de navigateur, un journal de proxy ou une
+capture d’écran de support. Le remplacement est donc complet ou nul : une mise
+à jour partielle demanderait de deviner ce qui est encore en place.
+
+**Rien ne part sans confirmation**, et chaque boîte NOMME ce qui va se
+produire : le fournisseur qui sera désactivé au passage, le nombre
+d’événements touchés, le mode bac à sable qui n’encaisse rien. Un « Êtes-vous
+sûr ? » n’apprend rien à personne.
+
+**« Appliquer à tous mes événements »** recopie les identifiants sur chaque
+événement du manager ET sur ceux qu’il créera ensuite — sans ce second volet,
+« hériter » ne vaudrait que pour l’instant du clic, et le neuvième événement
+d’un organisateur Premium naîtrait muet. Une config héritée est une VRAIE
+ligne portée par l’événement, pas un repli calculé à chaque encaissement : la
+lecture du paiement continue de chercher par `eventId` et n’a rien appris de
+l’héritage. L’héritage à la création est best-effort — refuser une soirée
+pour une histoire de clés recopiées serait absurde.
+
+**La documentation vit sur la page de configuration**, pas dans un guide à
+part : on la lit d’une main pendant qu’on remplit de l’autre. Un sélecteur
+couvre les sept moyens, et pour chacun : la couverture, les moyens acceptés,
+ce que vit l’acheteur du clic au billet, **le nom de chaque identifiant CHEZ
+le fournisseur en face du nôtre** — c’est là que se perdent la plupart des
+gens —, la marche à suivre, l’URL de notification à déclarer et les liens vers
+les tableaux de bord officiels.
+
+⚠️ **Google Pay et Apple Pay figurent au catalogue sans être configurables**,
+et c’est le renseignement le plus utile de la page : ce sont des portefeuilles
+qui présentent une carte, ils n’encaissent rien et n’ont aucune clé à donner.
+Stripe Checkout les affiche de lui-même. Les taire aurait laissé chacun les
+chercher en vain dans la liste.
+
+⚠️ **Stripe et PayPal manquaient à `SUPPORTED_PAYMENT_PROVIDERS`** alors que
+leur exécution est branchée depuis le 2026-08-22 — `init` les traite tous deux
+et leurs webhooks existent. Leurs clés s’enregistraient et refusaient de
+s’activer, sans que rien ne dise pourquoi. La liste doit suivre le code, pas
+le précéder.
+
+Les routes Admin restent en place : un superutilisateur peut encore dépanner
+un organisateur bloqué.
+
+**Vérifié contre l’API réelle** : aucune clé dans les réponses (ni privée, ni
+webhook, ni publique) ; clés chiffrées en base ; Stripe s’active et désactive
+KkiaPay ; un organisateur reçoit 404 sur l’événement d’un autre, en lecture
+comme en écriture ; un CLIENT reçoit 403 ; le drapeau global recopie sur les
+deux événements existants et un TROISIÈME créé après coup hérite tout seul,
+actif dès sa naissance. Puis à l’écran : les cinq cartes, les boîtes de
+confirmation nommant « KkiaPay sera désactivé », et la case « tous mes
+événements » masquée pour un organisateur mono-événement.
+
+> **À faire au déploiement** : `npx prisma migrate deploy` (une colonne sur
+> `payment_provider_configs`).
 ## 4. Priorités immédiates (à date)
 
 | Module | Priorité | Référence CDC |
@@ -1240,7 +1310,8 @@ connexion fonctionne normalement.
 | Récupération de mot de passe (demande + réinitialisation) | ✅ Fait (2026-08-23) | §7 |
 | Révocation des sessions après réinitialisation (`tokenVersion`) | ✅ Fait (2026-08-23) | §7 |
 | Compte désactivé mis dehors immédiatement (`isActive` dans le JWT guard) | ✅ Fait (2026-08-23) | §7 |
-| Fournisseur de paiement configuré en production | 🔴 À faire (bloque tout encaissement réel) | §8 |
+| Configuration du paiement par le Manager (clés, portée globale, doc intégrée) | ✅ Fait (2026-08-24) | §8 |
+| Fournisseur de paiement configuré en production | 🟡 Chaque organisateur pose désormais ses propres clés depuis `/manager/paiements` | §8 |
 | Déploiement production (VPS, TLS, cookies inter-sous-domaines) | ✅ Fait (2026-08-16, en service) | — |
 | Tunnel d’achat : récapitulatif détaillé + « Payer » | ✅ Fait (2026-08-16) | §8 |
 | Tunnel d’achat : numéro collecté sans vérification + pré-remplissage prestataire | ✅ Fait (2026-08-16) | §8 |
