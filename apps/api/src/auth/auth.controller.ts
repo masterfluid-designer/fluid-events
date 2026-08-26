@@ -83,13 +83,31 @@ export class AuthController {
    * On émet les tokens puis on redirige vers le frontend — soit vers `redirect`
    * (repris du `state`, ex : reprise d'achat sur `/e/[slug]?resume=1`) si son
    * origine correspond bien à FRONTEND_URL, soit vers `/auth/callback` par défaut.
+   *
+   * ⚠️ **`@Res()` SANS `passthrough`** (corrigé le 2026-08-26), et c’est tout
+   * le sujet de cette route.
+   *
+   * Avec `passthrough: true`, Nest reprend la main après le handler et écrit
+   * lui aussi dans la réponse. Comme `res.redirect()` l’a déjà envoyée, son
+   * `res.json()` levait `ERR_HTTP_HEADERS_SENT` ; le filtre d'exception
+   * essayait alors de répondre à son tour, levait la même erreur — cette
+   * fois hors de toute portée de capture — et **le processus mourait**.
+   *
+   * Le navigateur, lui, avait déjà reçu sa redirection : la connexion
+   * paraissait fonctionner, et l'API redémarrait dans le dos de tout le
+   * monde. Chaque acheteur qui se connectait tuait le serveur, et le tunnel
+   * d’achat mourait avec lui — aucune commande n’a jamais pu aboutir en
+   * production.
+   *
+   * Sans `passthrough`, Nest laisse la réponse entièrement au handler : c'est
+   * exactement ce que veut une route qui redirige.
    */
   @Public()
   @Get('google/callback')
   @UseGuards(GoogleAuthGuard)
   async googleCallback(
     @Req() req: Request & { user?: GoogleProfile },
-    @Res({ passthrough: true }) res: Response,
+    @Res() res: Response,
     @Query('state') state?: string,
   ): Promise<void> {
     const profile = req.user!;
