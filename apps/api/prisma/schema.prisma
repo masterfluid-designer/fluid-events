@@ -466,6 +466,11 @@ model PaymentProviderConfig {
   // Au plus une ligne isActive=true par événement (contrainte applicative,
   // PaymentsAdminService désactive les autres à l'activation d'une nouvelle).
   isActive      Boolean             @default(false)
+  /// « Appliquer a tous mes evenements » (2026-08-24). Une config marquee
+  /// globale est recopiee sur les evenements existants du manager et sur ceux
+  /// qu il creera ensuite. La ligne reste portee par l evenement : la lecture
+  /// du paiement cherche par eventId et n a pas a connaitre l heritage.
+  isGlobal      Boolean             @default(false)
   publicKey     String?
   privateKey    String // Chiffré AES-256-GCM avant stockage
   webhookSecret String? // Chiffré AES-256-GCM avant stockage

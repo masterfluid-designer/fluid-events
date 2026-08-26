@@ -52,13 +52,21 @@ function makeAcces() {
   };
 }
 
+/**
+ * Double du service qui recopie les configs de paiement « globales » sur un
+ * événement neuf (2026-08-24). Il avale ses propres échecs — la création ne
+ * doit jamais échouer pour une histoire de clés recopiées.
+ */
+function makePaiements() {
+  return { heriterDesConfigsGlobales: vi.fn().mockResolvedValue(0) };
+}
 describe('EventsService.createEvent()', () => {
   let prisma: ReturnType<typeof makePrisma>;
   let service: EventsService;
 
   beforeEach(() => {
     prisma = makePrisma();
-    service = new EventsService(prisma as any, { log: vi.fn().mockResolvedValue(undefined) } as any, makeAcces() as any);
+    service = new EventsService(prisma as any, { log: vi.fn().mockResolvedValue(undefined) } as any, makeAcces() as any, makePaiements() as any);
   });
 
   const dto = {
@@ -101,7 +109,7 @@ describe('EventsService.updateMyEvent()', () => {
 
   beforeEach(() => {
     prisma = makePrisma();
-    service = new EventsService(prisma as any, { log: vi.fn().mockResolvedValue(undefined) } as any, makeAcces() as any);
+    service = new EventsService(prisma as any, { log: vi.fn().mockResolvedValue(undefined) } as any, makeAcces() as any, makePaiements() as any);
   });
 
   it("met à jour l'événement du manager authentifié", async () => {
@@ -127,6 +135,7 @@ describe('EventsService.updateMyEvent()', () => {
       prisma as any,
       { log: vi.fn().mockResolvedValue(undefined) } as any,
       acces as any,
+      makePaiements() as any,
     );
 
     await expect(isole.updateMyEvent('mgr-1', { title: 'X' } as any)).rejects.toThrow(NotFoundException);
@@ -220,7 +229,7 @@ describe('EventsService.getMyEvent()', () => {
 
   beforeEach(() => {
     prisma = makePrisma();
-    service = new EventsService(prisma as any, { log: vi.fn().mockResolvedValue(undefined) } as any, makeAcces() as any);
+    service = new EventsService(prisma as any, { log: vi.fn().mockResolvedValue(undefined) } as any, makeAcces() as any, makePaiements() as any);
   });
 
   it("retourne l'événement du manager avec ses tickets", async () => {
@@ -253,7 +262,7 @@ describe('EventsService.getMyEventOverview()', () => {
 
   beforeEach(() => {
     prisma = makePrisma();
-    service = new EventsService(prisma as any, { log: vi.fn().mockResolvedValue(undefined) } as any, makeAcces() as any);
+    service = new EventsService(prisma as any, { log: vi.fn().mockResolvedValue(undefined) } as any, makeAcces() as any, makePaiements() as any);
   });
 
   it('agrège revenus, ventes et scans depuis les vraies commandes payées', async () => {
@@ -368,7 +377,7 @@ describe('EventsService.getParticipants()', () => {
 
   beforeEach(() => {
     prisma = makePrisma();
-    service = new EventsService(prisma as any, { log: vi.fn().mockResolvedValue(undefined) } as any, makeAcces() as any);
+    service = new EventsService(prisma as any, { log: vi.fn().mockResolvedValue(undefined) } as any, makeAcces() as any, makePaiements() as any);
   });
 
   it('liste les participants des commandes payées uniquement', async () => {
@@ -416,7 +425,7 @@ describe('EventsService.getPublicEventBySlug()', () => {
 
   beforeEach(() => {
     prisma = makePrisma();
-    service = new EventsService(prisma as any, { log: vi.fn().mockResolvedValue(undefined) } as any, makeAcces() as any);
+    service = new EventsService(prisma as any, { log: vi.fn().mockResolvedValue(undefined) } as any, makeAcces() as any, makePaiements() as any);
   });
 
   it('retourne l’événement publié avec ses billets et les blocs Builder', async () => {
@@ -467,7 +476,7 @@ describe('EventsService.updateMyEvent() — journées et régime', () => {
 
   beforeEach(() => {
     prisma = makePrisma();
-    service = new EventsService(prisma as any, { log: vi.fn().mockResolvedValue(undefined) } as any, makeAcces() as any);
+    service = new EventsService(prisma as any, { log: vi.fn().mockResolvedValue(undefined) } as any, makeAcces() as any, makePaiements() as any);
     prisma.event.findUnique.mockResolvedValue({ id: 'ev-1', ticketPolicy: 'SINGLE_DAY' });
     prisma.event.update.mockResolvedValue({ id: 'ev-1' });
     prisma.eventDay.findMany.mockResolvedValue([]);
@@ -581,7 +590,7 @@ describe('EventsService.updateMyEvent() — changement de régime', () => {
 
   beforeEach(() => {
     prisma = makePrisma();
-    service = new EventsService(prisma as any, { log: vi.fn().mockResolvedValue(undefined) } as any, makeAcces() as any);
+    service = new EventsService(prisma as any, { log: vi.fn().mockResolvedValue(undefined) } as any, makeAcces() as any, makePaiements() as any);
     prisma.event.findUnique.mockResolvedValue({ id: 'ev-1', ticketPolicy: 'SINGLE_DAY' });
     prisma.event.update.mockResolvedValue({ id: 'ev-1' });
     prisma.eventDay.findMany.mockResolvedValue([]);

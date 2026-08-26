@@ -1,0 +1,13 @@
+-- Le paiement passe de l'Admin au Manager (2026-08-24)
+--
+-- Chaque organisateur configure desormais son propre encaissement, evenement
+-- par evenement. Le drapeau ci-dessous porte le « appliquer a tous mes
+-- evenements » : une config marquee globale est recopiee sur les evenements
+-- existants du manager, ET sur ceux qu'il creera ensuite.
+--
+-- Un drapeau plutot qu'une table de config au niveau du manager : la lecture
+-- du paiement (PaymentsService, webhooks) cherche par eventId et ne doit pas
+-- changer. Une config heritee est une VRAIE ligne sur l'evenement, pas un
+-- repli calcule a chaque encaissement -- moins de chemins, moins de surprises
+-- le jour ou un manager desolidarise un evenement du lot.
+ALTER TABLE "payment_provider_configs" ADD COLUMN "isGlobal" BOOLEAN NOT NULL DEFAULT false;

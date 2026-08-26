@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { PaymentConfigService } from '../payments/payment-config.service';
 import { Prisma } from '@prisma/client';
 import { InputJsonValue } from '@prisma/client/runtime/library';
 import { PrismaService } from '../prisma/prisma.service';
@@ -23,6 +24,7 @@ export class EventsService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly acces: EventAccessService,
+      private readonly paiements: PaymentConfigService,
   ) {}
 
   /**
@@ -46,6 +48,20 @@ export class EventsService {
         },
       });
       await this.audit.log('event.created', 'Event', event.id, { slug: event.slug }, managerId);
+
+      /*
+       * L'événement hérite des moyens d'encaissement marqués « à tous mes
+       * événements » (2026-08-24). Sans cela, « appliquer à tous » ne
+       * vaudrait que pour ceux existant à l'instant du clic, et le
+       * neuvième événement d’un organisateur Premium naîtrait muet.
+       *
+       * Best-effort : le service avale ses propres échecs. Refuser une
+       * soirée pour une histoire de clés recopiées serait absurde, et
+       * « Mes événements » signale déjà un événement publié sans
+       * encaissement.
+       */
+      await this.paiements.heriterDesConfigsGlobales(managerId, event.id);
+
       return event;
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === UNIQUE_VIOLATION) {

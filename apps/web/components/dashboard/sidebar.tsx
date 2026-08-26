@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { lienDashboard, useEvenementActif } from '@/lib/evenement-actif';
 import { SelecteurEvenement } from '@/components/dashboard/selecteur-evenement';
-import { CalendarDays,
+import { CreditCard, CalendarDays,
   LayoutDashboard,
   Ticket,
   Users,
@@ -52,6 +52,10 @@ const navByRole: Record<Role, NavItem[]> = {
     { href: '/manager/evenements', label: 'Mes événements', icon: <CalendarDays className="size-4" /> },
     { href: '/manager/builder', label: 'Page builder', icon: <Settings className="size-4" /> },
     { href: '/manager/tickets', label: 'Billets', icon: <Ticket className="size-4" /> },
+    // L'encaissement est passé de l'Admin au Manager (2026-08-24) : sans
+    // cette entrée, la page existerait sans chemin pour y arriver. Placée
+    // juste après Billets — on règle l'encaissement quand on pose ses tarifs.
+    { href: '/manager/paiements', label: 'Encaissement', icon: <CreditCard className="size-4" /> },
     { href: '/manager/participants', label: 'Participants', icon: <Users className="size-4" /> },
     { href: '/manager/scanners', label: 'Agents de contrôle', icon: <ScanLine className="size-4" /> },
     { href: '/manager/analytics', label: 'Statistiques', icon: <BarChart3 className="size-4" /> },

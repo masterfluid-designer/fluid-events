@@ -13,4 +13,15 @@ export const SUPPORTED_PAYMENT_PROVIDERS: PaymentProviderType[] = [
   PaymentProviderType.KKIAPAY,
   PaymentProviderType.CINETPAY,
   PaymentProviderType.FEDAPAY,
+  /*
+   * Stripe et PayPal manquaient à cette liste (corrigé le 2026-08-24).
+   *
+   * Leur exécution est branchée depuis le 2026-08-22 — `init` les traite
+   * tous deux et leurs webhooks existent — mais la liste, elle, était
+   * restée à trois. Conséquence : des identifiants Stripe s'enregistraient
+   * et refusaient de s’activer, sans que rien ne dise pourquoi. La liste
+   * doit suivre le code, pas le précéder.
+   */
+  PaymentProviderType.STRIPE,
+  PaymentProviderType.PAYPAL,
 ];

@@ -17,6 +17,9 @@ import { PaymentsService } from './payments.service';
 import { GuestCheckoutService } from './guest-checkout.service';
 import { TicketAccessModule } from './ticket-access.module';
 import { PaymentsController } from './payments.controller';
+import { PaymentConfigController } from './payment-config.controller';
+import { PaymentConfigService } from './payment-config.service';
+import { EventAccessService } from '../common/event-access.service';
 
 @Module({
   imports: [
@@ -40,7 +43,10 @@ import { PaymentsController } from './payments.controller';
     StripeService,
     PayPalService,
     PaymentsService,
+    // L'encaissement se règle désormais côté organisateur (2026-08-24).
+    PaymentConfigService,
+    EventAccessService,
   ],
-  controllers: [PaymentsController],
+  controllers: [PaymentsController, PaymentConfigController],
 })
 export class PaymentsModule {}
