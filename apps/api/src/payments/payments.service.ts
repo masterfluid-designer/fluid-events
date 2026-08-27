@@ -194,9 +194,16 @@ export class PaymentsService {
       where: { eventId: event.id, isActive: true },
     });
     if (!providerConfig || !SUPPORTED_PAYMENT_PROVIDERS.includes(providerConfig.provider)) {
+      /*
+       * Message destiné à l'ACHETEUR : lui dire de contacter « l'administrateur
+       * de la plateforme » ne rimait à rien — il ne le connaît pas, et depuis
+       * le 2026-08-24 ce n'est plus lui qui règle l'encaissement. Le seul
+       * interlocuteur utile, c'est l'organisateur de la soirée.
+       */
       throw new ServiceUnavailableException({
         code: ErrorCodes.PROVIDER_NOT_ACTIVE,
-        message: "Le paiement n'est pas configuré pour cet événement — contactez l'administrateur.",
+        message:
+          "La billetterie de cet événement n'accepte pas encore de paiement — contactez l'organisateur.",
       });
     }
 
@@ -275,7 +282,8 @@ export class PaymentsService {
       if (!providerConfig.publicKey) {
         throw new ServiceUnavailableException({
           code: ErrorCodes.PROVIDER_NOT_ACTIVE,
-          message: "Le paiement n'est pas configuré pour cet événement — contactez l'administrateur.",
+          message:
+            "La billetterie de cet événement n'accepte pas encore de paiement — contactez l'organisateur.",
         });
       }
       return {
@@ -459,7 +467,8 @@ export class PaymentsService {
     await this.audit.log('payment.init.failed', 'Order', orderId, { provider, reason: err.message });
     throw new ServiceUnavailableException({
       code: ErrorCodes.PAYMENT_INIT_FAILED,
-      message: "Impossible d'initier le paiement — réessayez dans un instant ou contactez l'administrateur.",
+      message:
+        "Impossible d'initier le paiement — réessayez dans un instant ou contactez l'organisateur.",
     });
   }
 

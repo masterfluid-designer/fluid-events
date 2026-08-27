@@ -6,7 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { EventDayDto } from './dto/event-config.dto';
-import { ErrorCodes, TicketPolicy, limitesDuPlan } from '@saas-events/types';
+import { EventAccessMode, ErrorCodes, TicketPolicy, limitesDuPlan } from '@saas-events/types';
 import { isAllowedImageUrl } from '../storage/image-whitelist.util';
 import { bucketSalesByDay } from '../common/analytics.util';
 import { AuditService } from '../common/audit.service';
@@ -616,6 +616,80 @@ export class EventsService {
   }
 
   /** Liste des participants (billets payés) de l'événement — ownership Manager vérifiée. */
+
+  /**
+   * État de prise en main d'un événement (2026-08-27).
+   *
+   * Calculé EN BASE, jamais deviné côté navigateur : une liste qui coche
+   * « billetterie prête » alors que la table est vide vaut moins que pas de
+   * liste du tout. Chaque étape répond à une question factuelle, et la
+   * réponse vient de la donnée qui la porte.
+   *
+   * Les étapes dépendent du RÉGIME : un événement sur inscription n'a ni
+   * tarifs ni encaissement, les lui réclamer serait lui promettre un travail
+   * qui n'existe pas.
+   */
+  async getOnboarding(managerId: string, eventId?: string) {
+    const id = await this.acces.resoudreEvenementDuManager(managerId, eventId);
+
+    const evenement = await this.prisma.event.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        accessMode: true,
+        _count: { select: { tickets: true, scanners: true } },
+        eventPage: { select: { blocks: true } },
+        paymentProviderConfigs: { where: { isActive: true }, select: { provider: true } },
+      },
+    });
+
+    if (!evenement) {
+      throw new NotFoundException({
+        code: ErrorCodes.EVENT_NOT_FOUND,
+        message: 'Événement introuvable.',
+      });
+    }
+
+    const surInscription = evenement.accessMode === EventAccessMode.RSVP;
+
+    /*
+     * `blocks` est un JSON : un tableau vide veut dire « page jamais
+     * composée », et le rendu public retombe alors sur le gabarit statique.
+     */
+    const blocs = Array.isArray(evenement.eventPage?.blocks)
+      ? (evenement.eventPage!.blocks as unknown[]).length
+      : 0;
+
+    const etapes = [
+      {
+        cle: 'page',
+        faite: blocs > 0,
+      },
+      ...(surInscription
+        ? []
+        : [
+            { cle: 'billets', faite: evenement._count.tickets > 0 },
+            { cle: 'encaissement', faite: evenement.paymentProviderConfigs.length > 0 },
+          ]),
+      { cle: 'agents', faite: evenement._count.scanners > 0 },
+      {
+        cle: 'publication',
+        faite: evenement.status === 'PUBLISHED',
+      },
+    ];
+
+    return {
+      eventId: evenement.id,
+      eventTitle: evenement.title,
+      accessMode: evenement.accessMode,
+      etapes,
+      faites: etapes.filter((e) => e.faite).length,
+      total: etapes.length,
+    };
+  }
+
   async getParticipants(eventId: string, managerId: string) {
     const event = await this.prisma.event.findUnique({
       where: { id: eventId },

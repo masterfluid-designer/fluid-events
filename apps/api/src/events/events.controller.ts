@@ -49,6 +49,18 @@ export class EventsController {
    * bord. Déclarée AVANT `mine` : `mine/list` serait sinon capturée par une
    * route paramétrée, comme `public/:slug` avant elle.
    */
+  /**
+   * GET /api/events/mine/onboarding — où en est la prise en main.
+   *
+   * Déclarée avant `mine` et `:id`, comme ses voisines : une route
+   * paramétrée capturerait le segment.
+   */
+  @Roles(Role.MANAGER)
+  @Get('mine/onboarding')
+  async getOnboarding(@CurrentUser() user: RequestUser, @Query('eventId') eventId?: string) {
+    return this.eventsService.getOnboarding(user.id, eventId);
+  }
+
   @Roles(Role.MANAGER)
   @Get('mine/list')
   async listMyEvents(@CurrentUser() user: RequestUser) {

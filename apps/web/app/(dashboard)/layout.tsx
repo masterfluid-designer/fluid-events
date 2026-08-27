@@ -2,6 +2,7 @@ import { Suspense } from 'react';
 import { DashboardSidebar } from '@/components/dashboard/sidebar';
 import { ImpersonationBanner } from '@/components/dashboard/impersonation-banner';
 import { PhoneVerificationGate } from '@/components/dashboard/phone-verification-gate';
+import { GuidePriseEnMain } from '@/components/dashboard/guide-prise-en-main';
 
 /**
  * Layout partagé des dashboards (CDC §14.1 — routes protégées).
@@ -33,6 +34,13 @@ export default function DashboardLayout({
             <ImpersonationBanner />
             <main className="flex-1 overflow-y-auto">{children}</main>
           </div>
+          {/*
+            Le guide de prise en main (2026-08-27). Posé dans le layout et non
+            page par page : il suit l'organisateur pendant qu'il travaille, et
+            c'est justement en passant d'un écran à l'autre que ses étapes se
+            cochent. Il se réserve lui-même aux routes /manager.
+          */}
+          <GuidePriseEnMain />
         </div>
       </Suspense>
     </PhoneVerificationGate>

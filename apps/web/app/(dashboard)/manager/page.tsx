@@ -1,6 +1,7 @@
 'use client';
 
 import { StatGrid } from '@/components/dashboard/stat-grid';
+import Link from 'next/link';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
@@ -19,7 +20,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { SalesTrendChart, type DailySalesPoint } from '@/components/ui/sales-trend-chart';
 import { api, apiPatch, apiPost, ApiError } from '@/lib/api';
 import { PublicLink } from '@/components/dashboard/public-link';
-import { avecEvenement, useEvenementActif, useMesEvenements } from '@/lib/evenement-actif';
+import { avecEvenement, lienDashboard, useEvenementActif, useMesEvenements } from '@/lib/evenement-actif';
 import { EventAccessMode } from '@saas-events/types';
 
 /**
@@ -289,12 +290,24 @@ export default function ManagerDashboardPage() {
           Paiement actif : <span className="font-semibold">{overview.paymentStatus.provider}</span>
         </div>
       ) : (
-        <div className="flex items-center gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-400">
-          <AlertTriangle className="size-4 shrink-0" />
+        /*
+          Depuis le 2026-08-24, l'organisateur pose ses clés lui-même : ce
+          message lui disait encore d’attendre après quelqu’un. Il l’envoyait
+          patienter pour un réglage qui lui prend deux minutes — et c’est
+          exactement ce qui a laissé la plateforme sans un seul encaissement.
+        */
+        <div className="flex items-start gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-400">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0" />
           <span>
             Aucun moyen de paiement n&apos;est configuré pour votre événement — vos clients ne peuvent pas encore
-            acheter de billets. <span className="font-semibold">Contactez l&apos;administrateur de la plateforme</span> pour
-            activer les paiements.
+            acheter de billets.{' '}
+            <Link
+              href={lienDashboard('/manager/paiements', evenement)}
+              className="font-semibold underline underline-offset-2 hover:no-underline"
+            >
+              Configurez votre encaissement
+            </Link>{' '}
+            — vos clés, votre compte marchand, deux minutes.
           </span>
         </div>
       ))}
