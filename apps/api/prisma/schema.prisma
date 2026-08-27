@@ -226,6 +226,7 @@ model Event {
   registrations Registration[]
   analytics EventAnalytics?
   paymentProviderConfigs PaymentProviderConfig[]
+  registrationForm       RegistrationForm?
 
   @@map("events")
 }
@@ -535,6 +536,13 @@ model Registration {
   /// ligne sur un téléphone, debout, dans le bruit.
   checkedInAt DateTime?
 
+  /// Reponses au questionnaire compose par l organisateur (2026-08-27).
+  ///
+  /// Chaque reponse embarque le libelle et le type de sa question, figes au
+  /// moment ou elle est donnee : reformuler une question ne doit pas reecrire
+  /// le sens des reponses deja recueillies.
+  answers Json?
+
   /// Une adresse ne s'inscrit qu'une fois par événement. C'est le garde-fou
   /// principal contre le remplissage automatique du formulaire public.
   @@unique([eventId, email])
@@ -545,6 +553,23 @@ model Registration {
 // ─────────────────────────────────────────────────────────────────────────────
 // ANALYTICS
 // ─────────────────────────────────────────────────────────────────────────────
+
+model RegistrationForm {
+  id          String  @id @default(cuid())
+  eventId     String  @unique
+  event       Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  /// Un questionnaire desactive garde sa definition ET ses reponses : on le
+  /// remet en service sans rien ressaisir.
+  isActive    Boolean @default(false)
+  title       String?
+  description String?
+  /// ChampQuestionnaire[] -- voir packages/types/src/questionnaire.ts.
+  fields      Json    @default("[]")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("registration_forms")
+}
 
 model EventAnalytics {
   id              String   @id @default(cuid())

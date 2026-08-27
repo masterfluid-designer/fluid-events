@@ -8,9 +8,11 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "dev": "rm -f tsconfig.build.tsbuildinfo && tsc -p tsconfig.build.json --watch --preserveWatchOutput --watchFile PriorityPollingInterval --watchDirectory DynamicPriorityPolling",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "devDependencies": {
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
   }
 }

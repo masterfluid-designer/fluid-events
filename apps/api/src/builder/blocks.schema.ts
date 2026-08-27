@@ -45,6 +45,15 @@ const BlockSchema = z.object({
     'countdown', 'tickets', 'faq', 'schedule',
     'testimonials', 'sponsors', 'speakers', 'html',
     'timeline', 'location',
+    /*
+     * `registration` manquait (corrigé le 2026-08-27) alors que la palette
+     * le proposait, que le rendu public le traitait et que `BlockType` le
+     * listait depuis le 2026-08-22. Conséquence : ajouter le formulaire
+     * d'inscription — le bloc PROPRE au régime « inscription simple » —
+     * faisait échouer l'enregistrement de TOUTE la page, sur un « Structure
+     * de blocs invalide » qui ne disait pas lequel.
+     */
+    'registration',
   ]),
   order: z.number().int().min(0),
   // props est un record libre (validé plus finement par bloc au rendu si besoin)
@@ -56,6 +65,8 @@ const BlockSchema = z.object({
 const SINGLETON_TYPES = new Set<string>([
   'hero', 'tickets', 'countdown', 'faq', 'schedule',
   'speakers', 'gallery', 'sponsors', 'location',
+  // Un seul formulaire par page : deux enverraient deux inscriptions.
+  'registration',
 ]);
 
 /**

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { lienDashboard, useEvenementActif } from '@/lib/evenement-actif';
 import { SelecteurEvenement } from '@/components/dashboard/selecteur-evenement';
-import { CreditCard, CalendarDays,
+import { ClipboardList, CreditCard, CalendarDays,
   LayoutDashboard,
   Ticket,
   Users,
@@ -56,6 +56,9 @@ const navByRole: Record<Role, NavItem[]> = {
     // cette entrée, la page existerait sans chemin pour y arriver. Placée
     // juste après Billets — on règle l'encaissement quand on pose ses tarifs.
     { href: '/manager/paiements', label: 'Encaissement', icon: <CreditCard className="size-4" /> },
+    // Le questionnaire compose par l organisateur (2026-08-27), juste avant
+    // la liste qui en montre les reponses.
+    { href: '/manager/formulaire', label: 'Questionnaire', icon: <ClipboardList className="size-4" /> },
     { href: '/manager/participants', label: 'Participants', icon: <Users className="size-4" /> },
     { href: '/manager/scanners', label: 'Agents de contrôle', icon: <ScanLine className="size-4" /> },
     { href: '/manager/analytics', label: 'Statistiques', icon: <BarChart3 className="size-4" /> },

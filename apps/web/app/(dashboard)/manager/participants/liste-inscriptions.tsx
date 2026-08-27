@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { reponseEnTexte, type ReponseQuestionnaire } from '@saas-events/types';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { Search, Users, Check, Trash2 } from 'lucide-react';
@@ -27,6 +28,8 @@ interface Inscription {
   extraValue: string | null;
   createdAt: string;
   checkedInAt: string | null;
+  /** Réponses au questionnaire, libellé et type figés (2026-08-27). */
+  answers?: ReponseQuestionnaire[] | null;
 }
 
 const PAR_PAGE = 50;
@@ -105,6 +108,24 @@ export function ListeInscriptions({ evenement }: { evenement?: string }) {
     const entete = ['Prénom', 'Nom', 'Email', 'Téléphone', 'Inscrit le', 'Présent'];
     if (colonneLibre) entete.push(colonneLibre);
 
+    /*
+     * Les colonnes du questionnaire (2026-08-27).
+     *
+     * Elles se déduisent des RÉPONSES, pas de la définition courante : une
+     * question retirée depuis laisserait sinon ses réponses hors du fichier,
+     * et un export qui perd des données en route ne vaut rien. L'ordre
+     * suit la première apparition, ce qui reproduit celui du formulaire.
+     */
+    const colonnes: Array<{ champId: string; libelle: string }> = [];
+    for (const inscrit of filtrees) {
+      for (const r of inscrit.answers ?? []) {
+        if (!colonnes.some((c) => c.champId === r.champId)) {
+          colonnes.push({ champId: r.champId, libelle: r.libelle });
+        }
+      }
+    }
+    entete.push(...colonnes.map((c) => c.libelle));
+
     const lignes = filtrees.map((i) => {
       const ligne = [
         i.firstName,
@@ -115,6 +136,10 @@ export function ListeInscriptions({ evenement }: { evenement?: string }) {
         i.checkedInAt ? new Date(i.checkedInAt).toLocaleString('fr-FR') : '',
       ];
       if (colonneLibre) ligne.push(i.extraValue ?? '');
+      for (const colonne of colonnes) {
+        const r = (i.answers ?? []).find((a) => a.champId === colonne.champId);
+        ligne.push(r ? reponseEnTexte(r) : '');
+      }
       return ligne;
     });
 
@@ -230,7 +255,21 @@ export function ListeInscriptions({ evenement }: { evenement?: string }) {
                   <td className="px-4 py-3 text-muted-foreground">
                     {new Date(i.createdAt).toLocaleDateString('fr-FR')}
                   </td>
-                  <td className="px-4 py-3 text-muted-foreground">{i.extraValue ?? '—'}</td>
+                  <td className="px-4 py-3 text-muted-foreground">
+                    {i.extraValue && <div>{i.extraValue}</div>}
+                    {(i.answers ?? []).length > 0 ? (
+                      <dl className="flex flex-col gap-1">
+                        {(i.answers ?? []).map((r) => (
+                          <div key={r.champId} className="text-xs">
+                            <dt className="inline font-medium text-foreground">{r.libelle} : </dt>
+                            <dd className="inline">{reponseEnTexte(r)}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    ) : !i.extraValue ? (
+                      '—'
+                    ) : null}
+                  </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1.5">
                       {/*

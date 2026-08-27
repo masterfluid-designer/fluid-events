@@ -667,6 +667,14 @@ export const ErrorCodes = {
    * laisser croire à une seconde inscription ferait douter la personne de sa
    * présence le soir venu. */
   ALREADY_REGISTERED: 'ALREADY_REGISTERED',
+  /**
+   * Donnée refusée par la validation (2026-08-27).
+   *
+   * Introduit pour le questionnaire d’inscription, dont la forme change d’un
+   * événement à l’autre : le détail de ce qui cloche voyage dans `details`,
+   * champ par champ, là où un code figé ne dirait rien.
+   */
+  VALIDATION_ERROR: 'VALIDATION_ERROR',
   /** Confirmation attendue non fournie ou incorrecte — rien n a été fait. */
   CONFIRMATION_MISMATCH: 'CONFIRMATION_MISMATCH',
   EVENT_NOT_ACTIVE: 'EVENT_NOT_ACTIVE',
@@ -756,3 +764,9 @@ export const ErrorCodes = {
 } as const;
 
 export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// QUESTIONNAIRE D'INSCRIPTION (2026-08-27)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export * from './questionnaire';

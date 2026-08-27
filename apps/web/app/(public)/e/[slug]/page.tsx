@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import type { ChampQuestionnaire } from '@saas-events/types';
 import type { Metadata } from 'next';
 import type {  Block, EventTheme, FaqEntry, MediaEntry, ScheduleEntry, SpeakerEntry } from '@saas-events/types';
 import { EventAccessMode } from '@saas-events/types';
@@ -23,6 +24,16 @@ import { EventFooter } from './event-footer';
  */
 
 interface EventDetail {
+  /**
+   * Questionnaire composé par l'organisateur (2026-08-27). Le serveur ne
+   * l'envoie qu'ACTIF : un questionnaire en préparation n'a rien à faire
+   * dans la charge publique.
+   */
+  registrationForm?: {
+    title?: string | null;
+    description?: string | null;
+    fields?: ChampQuestionnaire[];
+  } | null;
   id: string;
   /**
    * Régime d'accès (2026-08-21) : commande les blocs rendus et le parcours
@@ -254,6 +265,7 @@ export default async function EventPage({
           navItems={navItems}
           eventDays={event.days}
           accessMode={event.accessMode}
+          registrationForm={event.registrationForm}
         />
       ) : (
         <>

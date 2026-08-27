@@ -342,6 +342,15 @@ export class EventsService {
         // statique si `blocks` est vide (page jamais construite). `theme`
         // porte la personnalisation (police/couleurs) de l'organisateur.
         eventPage: { select: { blocks: true, theme: true } },
+        /*
+         * Le questionnaire composé par l'organisateur (2026-08-27). Envoyé
+         * ACTIF SEULEMENT : un questionnaire en préparation n'a rien à faire
+         * dans la charge publique, où n'importe qui lirait les questions
+         * avant leur mise en service.
+         */
+        registrationForm: {
+          select: { isActive: true, title: true, description: true, fields: true },
+        },
       },
     });
 
@@ -349,7 +358,17 @@ export class EventsService {
       throw new NotFoundException('Event not found');
     }
 
-    return event;
+    /*
+     * Un questionnaire en préparation ne part PAS (2026-08-27). `where` sur
+     * une relation un-à-un est silencieusement ignoré par Prisma : le filtre
+     * doit vivre ici, sans quoi n'importe qui lirait les questions avant leur
+     * mise en service.
+     */
+    const { registrationForm, ...reste } = event;
+    return {
+      ...reste,
+      registrationForm: registrationForm?.isActive ? registrationForm : null,
+    };
   }
 
   /**

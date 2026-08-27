@@ -1,5 +1,5 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
-import { Role } from '@saas-events/types';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query } from '@nestjs/common';
+import { Role, type Questionnaire } from '@saas-events/types';
 import { Public } from '../common/decorators/public.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -22,6 +22,33 @@ export class RegistrationsController {
   @Post('events/:slug/registrations')
   async inscrire(@Param('slug') slug: string, @Body() dto: CreateRegistrationDto) {
     return this.registrations.inscrire(slug, dto);
+  }
+
+  /**
+   * GET /api/registrations/form — le questionnaire de l'organisateur
+   * (2026-08-27).
+   *
+   * Déclarée AVANT `registrations` tout court n'a pas d'importance ici — les
+   * deux chemins sont distincts — mais elle reste voisine par cohérence.
+   */
+  @Roles(Role.MANAGER)
+  @Get('registrations/form')
+  async lireQuestionnaire(
+    @CurrentUser() user: RequestUser,
+    @Query('eventId') eventId?: string,
+  ) {
+    return this.registrations.lireQuestionnaire(user.id, eventId);
+  }
+
+  /** PUT /api/registrations/form — enregistre le questionnaire. */
+  @Roles(Role.MANAGER)
+  @Put('registrations/form')
+  async enregistrerQuestionnaire(
+    @CurrentUser() user: RequestUser,
+    @Body() questionnaire: Questionnaire,
+    @Query('eventId') eventId?: string,
+  ) {
+    return this.registrations.enregistrerQuestionnaire(user.id, questionnaire, eventId);
   }
 
   /**

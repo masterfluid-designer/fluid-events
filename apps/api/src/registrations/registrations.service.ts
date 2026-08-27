@@ -6,7 +6,14 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { ErrorCodes, EventAccessMode } from '@saas-events/types';
+import {
+  ErrorCodes,
+  EventAccessMode,
+  validerQuestionnaire,
+  validerReponses,
+  type ChampQuestionnaire,
+  type Questionnaire,
+} from '@saas-events/types';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../common/audit.service';
 import { EventAccessService } from '../common/event-access.service';
@@ -60,6 +67,10 @@ export class RegistrationsService {
         startDate: true,
         venueName: true,
         city: true,
+        // Le questionnaire est RELU EN BASE, jamais pris du client : sans
+        // cela, n'importe qui répondrait à des questions inventées, et le
+        // dépouillement d'un sondage compterait des réponses jamais posées.
+        registrationForm: { select: { isActive: true, fields: true } },
       },
     });
 
@@ -86,6 +97,26 @@ export class RegistrationsService {
 
     const email = dto.email.trim().toLowerCase();
 
+    /*
+     * Questionnaire désactivé : on ignore ce qui a pu être envoyé plutôt que
+     * de refuser. Entre le moment où un visiteur ouvre la page et celui où il
+     * envoie, l'organisateur a pu le couper — perdre ces réponses-là vaut
+     * mieux que perdre l'inscription.
+     */
+    const questionnaireActif = event.registrationForm?.isActive === true;
+    const champs = questionnaireActif
+      ? ((event.registrationForm!.fields as unknown as ChampQuestionnaire[]) ?? [])
+      : [];
+
+    const controle = validerReponses(champs, dto.answers);
+    if (!controle.ok) {
+      throw new BadRequestException({
+        code: ErrorCodes.VALIDATION_ERROR,
+        message: controle.erreurs[0]?.message ?? 'Réponses invalides.',
+        details: { erreurs: controle.erreurs },
+      });
+    }
+
     try {
       const inscription = await this.prisma.registration.create({
         data: {
@@ -98,6 +129,13 @@ export class RegistrationsService {
           phone: dto.phone ? this.phoneService.normalizeToE164(dto.phone) : null,
           extraLabel: dto.extraLabel?.trim() || null,
           extraValue: dto.extraValue?.trim() || null,
+          // Un questionnaire sans réponse ne laisse pas un tableau vide :
+          // `null` distingue « pas de questionnaire » de « questionnaire
+          // affiché, tout laissé en blanc ».
+          answers:
+            controle.reponses.length > 0
+              ? (controle.reponses as unknown as Prisma.InputJsonValue)
+              : Prisma.JsonNull,
         },
         select: { id: true, firstName: true, createdAt: true },
       });
@@ -141,6 +179,86 @@ export class RegistrationsService {
       }
       throw err;
     }
+  }
+
+
+  /**
+   * Le questionnaire d'un événement, tel que l'organisateur l'a composé
+   * (2026-08-27).
+   *
+   * Rend un questionnaire VIDE plutôt qu'une erreur quand il n'en existe pas
+   * encore : l'éditeur s'ouvre alors sur une page blanche, ce qui est
+   * exactement l'état des choses.
+   */
+  async lireQuestionnaire(managerId: string, eventId?: string): Promise<Questionnaire> {
+    const id = await this.acces.resoudreEvenementDuManager(managerId, eventId);
+
+    const forme = await this.prisma.registrationForm.findUnique({
+      where: { eventId: id },
+      select: { isActive: true, title: true, description: true, fields: true },
+    });
+
+    return {
+      actif: forme?.isActive ?? false,
+      titre: forme?.title ?? undefined,
+      description: forme?.description ?? undefined,
+      champs: ((forme?.fields as unknown as ChampQuestionnaire[]) ?? []),
+    };
+  }
+
+  /**
+   * Enregistre le questionnaire.
+   *
+   * ⚠️ **Les réponses déjà recueillies ne sont jamais touchées.** Elles
+   * portent leur propre libellé et leur propre type : remanier le
+   * questionnaire ne réécrit pas le passé, il change ce qu'on demandera
+   * ensuite. Un sondage dont les questions changent après coup ne vaut rien.
+   */
+  async enregistrerQuestionnaire(
+    managerId: string,
+    questionnaire: Questionnaire,
+    eventId?: string,
+  ): Promise<Questionnaire> {
+    const id = await this.acces.resoudreEvenementDuManager(managerId, eventId);
+
+    const erreurs = validerQuestionnaire(questionnaire);
+    if (erreurs.length > 0) {
+      throw new BadRequestException({
+        code: ErrorCodes.VALIDATION_ERROR,
+        message: erreurs[0],
+        details: { erreurs },
+      });
+    }
+
+    const champs = questionnaire.champs.map((c) => ({
+      ...c,
+      libelle: c.libelle.trim(),
+      aide: c.aide?.trim() || undefined,
+      options: c.options?.map((o) => o.trim()).filter(Boolean),
+    })) as unknown as Prisma.InputJsonValue;
+
+    const donnees = {
+      isActive: questionnaire.actif,
+      title: questionnaire.titre?.trim() || null,
+      description: questionnaire.description?.trim() || null,
+      fields: champs,
+    };
+
+    await this.prisma.registrationForm.upsert({
+      where: { eventId: id },
+      create: { eventId: id, ...donnees },
+      update: donnees,
+    });
+
+    await this.audit.log(
+      'registration.form.updated',
+      'RegistrationForm',
+      id,
+      { actif: questionnaire.actif, questions: questionnaire.champs.length },
+      managerId,
+    );
+
+    return this.lireQuestionnaire(managerId, id);
   }
 
   /**
@@ -192,6 +310,7 @@ export class RegistrationsService {
           phone: true,
           extraLabel: true,
           extraValue: true,
+          answers: true,
           createdAt: true,
           checkedInAt: true,
         },

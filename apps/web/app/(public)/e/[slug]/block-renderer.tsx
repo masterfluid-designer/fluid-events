@@ -5,7 +5,7 @@ import { formatEventAddress } from '@saas-events/utils';
 import { EventLocation } from './event-location';
 import { EventFaq } from './event-faq';
 import type { Block, FaqEntry, MediaEntry, ScheduleEntry, SpeakerEntry, TestimonialEntry, TimelineEntry } from '@saas-events/types';
-import { blocAutorise, type EventAccessMode } from '@saas-events/types';
+import { blocAutorise, type ChampQuestionnaire, type EventAccessMode } from '@saas-events/types';
 import { Countdown } from './countdown';
 import { SponsorsCarousel } from './sponsors-carousel';
 import { ScheduleTimeline } from './schedule-timeline';
@@ -144,12 +144,23 @@ export function BlockRenderer({
   navItems,
   eventDays = [],
   accessMode,
+  /*
+   * Le questionnaire vient de l'ÉVÉNEMENT, pas des props du bloc : c'est un
+   * objet à part, qui survit à la suppression du bloc et se remanie sans
+   * toucher à la page.
+   */
+  registrationForm,
 }: {
   blocks: Block[];
   tickets: PublicTicket[];
   isPublished: boolean;
   slug: string;
   eventConfig: EventConfigData;
+  registrationForm?: {
+    title?: string | null;
+    description?: string | null;
+    fields?: ChampQuestionnaire[];
+  } | null;
   navItems: NavItem[];
   eventDays?: PublicEventDay[];
   /**
@@ -187,6 +198,7 @@ export function BlockRenderer({
             navItems={navItems}
             eventDays={eventDays}
             accessMode={accessMode}
+            registrationForm={registrationForm}
           />
         </div>
       ))}
@@ -203,6 +215,7 @@ function BlockItem({
   navItems,
   eventDays,
   accessMode,
+  registrationForm,
 }: {
   block: Block;
   tickets: PublicTicket[];
@@ -212,6 +225,11 @@ function BlockItem({
   eventConfig: EventConfigData;
   navItems: NavItem[];
   accessMode?: EventAccessMode;
+  registrationForm?: {
+    title?: string | null;
+    description?: string | null;
+    fields?: ChampQuestionnaire[];
+  } | null;
 }) {
   const textAlign = block.styles?.textAlign;
 
@@ -291,6 +309,7 @@ function BlockItem({
         formTitle={block.props.formTitle as string | undefined}
         formIntro={block.props.formIntro as string | undefined}
         extraLabel={block.props.extraLabel as string | undefined}
+        questionnaire={registrationForm}
       />
     );
   }

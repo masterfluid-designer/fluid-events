@@ -3,6 +3,11 @@
 import { useState } from 'react';
 import { CheckCircle2, Loader2 } from 'lucide-react';
 import { apiPost, ApiError } from '@/lib/api';
+import { validerReponses, type ChampQuestionnaire } from '@saas-events/types';
+import {
+  ChampsQuestionnaire,
+  type Reponses,
+} from '@/components/questionnaire/champs-questionnaire';
 import { SectionShell, SectionHeading } from './section-shell';
 
 /**
@@ -24,6 +29,7 @@ export function RegistrationBlock({
   formTitle,
   formIntro,
   extraLabel,
+  questionnaire,
   isPublished,
 }: {
   slug: string;
@@ -35,6 +41,15 @@ export function RegistrationBlock({
   formIntro?: string;
   /** Champ libre optionnel, nommé par l'organisateur. */
   extraLabel?: string;
+  /**
+   * Questionnaire composé par l'organisateur (2026-08-27). Absent quand il
+   * n'en a pas fait, ou qu'il l'a masqué — le serveur ne l'envoie qu'actif.
+   */
+  questionnaire?: {
+    title?: string | null;
+    description?: string | null;
+    fields?: ChampQuestionnaire[];
+  } | null;
   isPublished: boolean;
 }) {
   const [firstName, setFirstName] = useState('');
@@ -42,16 +57,31 @@ export function RegistrationBlock({
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [extraValue, setExtraValue] = useState('');
+  const [reponses, setReponses] = useState<Reponses>({});
   const [envoi, setEnvoi] = useState(false);
   const [inscrit, setInscrit] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
 
   const puces = (bullets ?? []).filter((b) => b.trim());
+  const champsQuestionnaire = questionnaire?.fields ?? [];
   const complet = firstName.trim() && lastName.trim() && email.trim();
 
   async function soumettre(e: React.FormEvent) {
     e.preventDefault();
     if (!complet || envoi) return;
+
+    /*
+     * Le MÊME contrôle que le serveur, joué ici d'abord (2026-08-27) : dire
+     * ce qui manque tout de suite vaut mieux qu’un aller-retour réseau pour
+     * apprendre qu’une case n’était pas cochée. Le serveur reste seul juge —
+     * mais tous deux jugent selon la même règle, sinon l’un promet ce que
+     * l’autre refuse.
+     */
+    const controle = validerReponses(champsQuestionnaire, reponses);
+    if (!controle.ok) {
+      setErreur(controle.erreurs[0].message);
+      return;
+    }
 
     setEnvoi(true);
     setErreur(null);
@@ -63,6 +93,7 @@ export function RegistrationBlock({
         phone: phone.trim() || undefined,
         extraLabel: extraLabel?.trim() || undefined,
         extraValue: extraValue.trim() || undefined,
+        answers: champsQuestionnaire.length > 0 ? reponses : undefined,
       });
       setInscrit(true);
     } catch (err) {
@@ -194,6 +225,29 @@ export function RegistrationBlock({
                     className={`${champ} font-normal normal-case tracking-normal text-black dark:text-white`}
                   />
                 </label>
+              )}
+
+              {/*
+                Les questions de l'organisateur, sous les champs d'identité
+                (2026-08-27). Le MÊME composant de rendu que son aperçu :
+                il voit exactement ce que voit l'inscrit.
+              */}
+              {champsQuestionnaire.length > 0 && (
+                <div className="flex flex-col gap-4 border-t border-stroke pt-5 dark:border-strokedark">
+                  {questionnaire?.title && (
+                    <h4 className="font-event text-base">{questionnaire.title}</h4>
+                  )}
+                  {questionnaire?.description && (
+                    <p className="-mt-2 text-sm text-waterloo dark:text-manatee">
+                      {questionnaire.description}
+                    </p>
+                  )}
+                  <ChampsQuestionnaire
+                    champs={champsQuestionnaire}
+                    reponses={reponses}
+                    onChange={(id, v) => setReponses((r) => ({ ...r, [id]: v }))}
+                  />
+                </div>
               )}
 
               {erreur && (
