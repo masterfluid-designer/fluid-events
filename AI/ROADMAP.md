@@ -1275,6 +1275,108 @@ confirmation nommant « KkiaPay sera désactivé », et la case « tous mes
 
 > **À faire au déploiement** : `npx prisma migrate deploy` (une colonne sur
 > `payment_provider_configs`).
+
+### Le paiement ne partait jamais : le callback Google tuait l’API (2026-08-26)
+
+**Chaque acheteur qui se connectait faisait redémarrer le serveur.** Le tunnel
+d’achat mourait avec lui : `orders` est resté VIDE depuis la mise en ligne,
+alors que deux organisateurs avaient bien posé leurs clés.
+
+`@Res({ passthrough: true })` demande à Nest de reprendre la main après le
+handler et d’écrire lui aussi dans la réponse. Comme `res.redirect()` l’a déjà
+envoyée, son `res.json()` levait `ERR_HTTP_HEADERS_SENT` ; le filtre
+d’exception essayait alors de répondre à son tour, levait la même erreur —
+hors de toute portée de capture cette fois — et le processus s’arrêtait.
+
+**Rien ne le laissait voir.** Le navigateur avait déjà reçu sa redirection, la
+connexion « marchait », et l’API redémarrait dans le dos de tout le monde.
+Seuls les logs le disaient, une ligne `GET /api/auth/google/callback … → 500`
+après chaque « Token client généré » — et, côté nginx, un
+`OPTIONS /api/payments/init → 502 Connection refused` à la MÊME seconde.
+
+⚠️ **Le test lit le drapeau là où Nest le pose vraiment** : sur le
+CONSTRUCTEUR, indexé par le nom de méthode. Le chercher dans les options de
+l’argument ou sur la méthode du prototype rend toujours `undefined` — deux
+écritures de ce test sont tombées dans ce piège et passaient au vert quoi
+qu’on fasse. Vérifié en réintroduisant le bogue : rouge, puis vert.
+
+### Un questionnaire d’inscription composable (2026-08-27)
+
+Le régime « inscription simple » ne recueillait qu’un nom, un email, un
+téléphone et UN champ libre. Une ONG qui veut connaître la tranche d’âge, la
+commune et les disponibilités de ses participants n’avait aucun moyen de le
+demander. La note du DTO l’annonçait dès le 2026-08-22 : « un formulaire
+entièrement configurable a été écarté — c’est un chantier à part, avec sa
+validation dynamique, son stockage variable et son export à colonnes
+changeantes ». Les trois bouts sont tenus.
+
+**Un module à part, pas des props de bloc.** `RegistrationForm` a sa propre
+vie — on l’active, on le désactive, on le remanie entre deux éditions — et il
+survit à la suppression du bloc. Les champs en JSON parce que leur nombre et
+leur type changent à chaque questionnaire : personne ne requête un champ
+isolément, on lit toujours le formulaire entier.
+
+**Les réponses figent leur question.** Chaque réponse embarque le libellé ET
+le type de sa question au moment où elle est donnée, comme `extraLabel` avant
+elle. Reformuler une question ne réécrit pas le passé — un sondage dont les
+questions changent après coup ne vaut rien.
+
+**Une seule fonction de validation**, dans les types partagés, jouée par le
+formulaire public ET par le serveur. Le serveur reste seul juge, mais tous
+deux jugent selon la même règle, sinon l’un promet ce que l’autre refuse. Il
+relit la définition EN BASE, jamais ce que le client prétend : sans quoi le
+dépouillement compterait des réponses jamais posées. Les champs inconnus sont
+ignorés et non rejetés — entre l’ouverture de la page et l’envoi,
+l’organisateur a pu retirer une question, et perdre cette réponse-là vaut
+mieux que perdre l’inscription.
+
+Huit types de champ, un éditeur avec **aperçu à côté** (un aperçu qu’il faut
+aller chercher n’est jamais consulté) utilisant le MÊME composant de rendu que
+le formulaire public. Les réponses apparaissent dans la liste des inscrits et
+dans l’export CSV, dont les colonnes se déduisent des RÉPONSES présentes et
+non de la définition courante : une question retirée depuis laisserait sinon
+ses réponses hors du fichier.
+
+⚠️ **Le bloc « Formulaire d’inscription » ne pouvait pas être enregistré.**
+`registration` manquait à l’enum Zod du builder alors que la palette le
+proposait, que le rendu public le traitait et que `BlockType` le listait
+depuis le 2026-08-22 : l’ajouter faisait échouer l’enregistrement de TOUTE la
+page, sur un « Structure de blocs invalide » qui ne disait pas lequel. C’est
+probablement pourquoi aucun événement RSVP n’avait de formulaire sur sa page.
+Corrigé, et ajouté aux blocs uniques — deux formulaires enverraient deux
+inscriptions.
+
+### Une boîte de prise en main pour les nouveaux organisateurs (2026-08-27)
+
+Un organisateur qui arrive découvre neuf entrées de menu et aucune idée de
+l’ordre dans lequel s’y prendre. Il compose sa page, publie, et s’aperçoit
+trois jours plus tard que personne n’a pu acheter.
+
+**Chaque case est calculée en base**, jamais devinée : blocs de la page,
+tarifs, moyen d’encaissement actif, agents, publication. Une liste qui coche
+« billetterie prête » sur une table vide vaut moins que pas de liste. Les
+étapes suivent le RÉGIME — trois au lieu de cinq sur un événement sur
+inscription, à qui réclamer des tarifs promettrait un travail qui n’existe
+pas.
+
+Repliée en pastille avec anneau de progression, elle ne masque jamais le
+travail ; elle disparaît d’elle-même une fois tout coché, et se ferme pour de
+bon si on le demande — mémorisé PAR ÉVÉNEMENT, pour qu’un organisateur aguerri
+ne refuse pas le tutoriel à sa huitième soirée.
+
+⚠️ **Le message du tableau de bord était périmé** : « Contactez
+l’administrateur de la plateforme pour activer les paiements », vrai jusqu’au
+2026-08-24 et faux depuis. Il envoyait l’organisateur patienter pour un
+réglage de deux minutes — exactement ce qui a laissé la plateforme sans un
+seul encaissement. Côté acheteur, les erreurs de paiement renvoyaient elles
+aussi vers « l’administrateur », qu’un acheteur ne connaît pas : le seul
+interlocuteur utile est l’organisateur.
+
+> **Piège d’environnement, rencontré deux fois** : le conteneur web de dev ne
+> voit pas les écritures faites depuis l’hôte, et son cache `.next` fige les
+> modules déjà compilés. Un composant tout neuf peut alors sembler « ne pas
+> rendre » alors que le code est juste. Le remède est toujours le même :
+> `docker stop`, `rm -rf apps/web/.next`, `docker start`.
 ## 4. Priorités immédiates (à date)
 
 | Module | Priorité | Référence CDC |
@@ -1299,6 +1401,10 @@ confirmation nommant « KkiaPay sera désactivé », et la case « tous mes
 | Code de vérification du téléphone | 🔴 Revenu sur WhatsApp (2026-08-22, Twilio retiré pour son coût) — **en attente d’un template Meta approuvé** | §7.6 |
 | Plafond d’agents de contrôle réellement appliqué (3 FREE / 6 PREMIUM) | ✅ Fait (2026-08-21) | §9.5 |
 | Trois types d’événements (RSVP / GUEST / ACCOUNT) | 🟡 Planifié — lots 0 à 3 | — |
+| Callback Google : plus de crash serveur à chaque connexion d’acheteur | ✅ Fait (2026-08-26) | §7 |
+| Questionnaire d’inscription composable (8 types de champ, export CSV) | ✅ Fait (2026-08-27) | §6 |
+| Bloc « Formulaire d’inscription » réellement enregistrable | ✅ Fait (2026-08-27) | §11 |
+| Boîte de prise en main avec liste à cocher | ✅ Fait (2026-08-27) | — |
 | Page « Mes événements » + contexte de travail visible dès un événement | ✅ Fait (2026-08-23) | §1.4 |
 | Invitation Manager : briefing plateforme + paliers et leurs limites | ✅ Fait (2026-08-23) | §7.6 |
 | Contrôle d’accès des événements sur inscription (liste d’émargement) | ✅ Fait (2026-08-23) | §9.5 |
