@@ -21,6 +21,7 @@ import { GoogleProfile } from './strategies/google.strategy';
 import { RequestUser } from './strategies/jwt.strategy';
 import { GoogleAuthGuard } from './guards/google-auth.guard';
 import { Public } from '../common/decorators/public.decorator';
+import { Throttle } from '@nestjs/throttler';
 import { AuditService } from '../common/audit.service';
 import { FRONTEND_URL } from '../common/constants';
 import { PasswordResetService } from './password-reset.service';
@@ -119,6 +120,8 @@ export class AuthController {
   }
 
   /** Connexion email/password générique (CLIENT/MANAGER/SUPER_ADMIN — test/dev). */
+  /* Force brute : cinq essais par minute suffisent à un humain qui se trompe. */
+  @Throttle({ court: { ttl: 60_000, limit: 5 } })
   @Public()
   @Post('login')
   async login(
@@ -131,6 +134,8 @@ export class AuthController {
   }
 
   /** Connexion scanner (email + password). */
+  /* Même raison — un agent qui tâtonne, pas un script. */
+  @Throttle({ court: { ttl: 60_000, limit: 5 } })
   @Public()
   @Post('login/scanner')
   async loginScanner(
@@ -155,6 +160,8 @@ export class AuthController {
   }
 
   /** Pose le mot de passe initial via le token d'invitation Manager (CDC §14.3). */
+  /* Même raison que la réinitialisation. */
+  @Throttle({ court: { ttl: 60_000, limit: 10 } })
   @Public()
   @Post('set-password')
   async setPassword(@Body() dto: SetPasswordDto) {
@@ -171,6 +178,8 @@ export class AuthController {
    * l'adresse ou non — sinon ce formulaire devient l'annuaire des
    * organisateurs de la plateforme.
    */
+  /* Le délai d'une minute par ADRESSE ne protège pas d'une rafale sur mille adresses : ce plafond-ci est par IP. */
+  @Throttle({ court: { ttl: 60_000, limit: 5 } })
   @Public()
   @Post('forgot-password')
   async forgotPassword(@Body() dto: ForgotPasswordDto) {
@@ -183,6 +192,8 @@ export class AuthController {
    * `@Public` de la même façon : la preuve n'est pas une session, c'est le
    * jeton reçu par email — dont seul le HACHAGE est en base.
    */
+  /* Un jeton se devine par force brute comme un mot de passe. */
+  @Throttle({ court: { ttl: 60_000, limit: 10 } })
   @Public()
   @Post('reset-password')
   async resetPassword(@Body() dto: ResetPasswordDto) {

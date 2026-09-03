@@ -163,6 +163,13 @@ export const OrderStatus = {
   FAILED: 'FAILED',
   REFUNDED: 'REFUNDED',
   CANCELLED: 'CANCELLED',
+  /**
+   * Abandonnée avant paiement (2026-09-02) — le stock réservé a été rendu.
+   *
+   * Distinct de CANCELLED, qui suppose un geste : ici personne n’a rien
+   * fait, et c’est précisément ce qu’il faut pouvoir dire.
+   */
+  EXPIRED: 'EXPIRED',
 } as const;
 
 export type OrderStatus = (typeof OrderStatus)[keyof typeof OrderStatus];

@@ -368,6 +368,11 @@ enum OrderStatus {
   FAILED
   REFUNDED
   CANCELLED
+  /// Abandonnee avant paiement (2026-09-02) : le stock reserve a ete rendu.
+  ///
+  /// Distinct de CANCELLED, qui suppose un geste. Ici personne n a rien
+  /// fait -- et le tableau de bord doit pouvoir le dire.
+  EXPIRED
 }
 
 model OrderItem {

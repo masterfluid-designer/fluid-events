@@ -1,4 +1,5 @@
 import { Body, Controller, Post, ServiceUnavailableException } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { ErrorCodes } from '@saas-events/types';
 import { Public } from '../common/decorators/public.decorator';
 import { EmailService } from '../notifications/email.service';
@@ -10,6 +11,8 @@ export class ContactController {
   constructor(private readonly emailService: EmailService) {}
 
   @Public()
+  /* Formulaire public qui envoie un email : trois par minute, pas plus. */
+  @Throttle({ court: { ttl: 60_000, limit: 3 } })
   @Post()
   async sendMessage(@Body() dto: SendContactMessageDto) {
     try {

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { BullModule } from '@nestjs/bull';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { PrismaModule } from './prisma/prisma.module';
@@ -44,6 +45,24 @@ import { ResponseInterceptor } from './common/interceptors/response.interceptor'
     ConfigModule.forRoot({ isGlobal: true }),
     // Cron de rétention des comptes (décision produit 2026-07-14, RetentionModule).
     ScheduleModule.forRoot(),
+    /*
+     * Limitation de débit (2026-09-02) — il n'y en avait AUCUNE.
+     *
+     * Six routes publiques en écriture acceptaient un nombre illimité
+     * d'appels : force brute sur les mots de passe, inondation d'une boîte
+     * par `forgot-password`, remplissage d'une liste d'inscrits, et surtout
+     * `init-guest` qui réserve du stock sans compte — de quoi vider un
+     * événement sans jamais payer.
+     *
+     * Deux fenêtres plutôt qu’une : la courte arrête une rafale, la longue
+     * arrête le pilonnage lent qui passerait sous la première. Les plafonds
+     * sont larges pour un humain — trente actions par minute — et étroits
+     * pour un script.
+     */
+    ThrottlerModule.forRoot([
+      { name: 'court', ttl: 60_000, limit: 30 },
+      { name: 'long', ttl: 900_000, limit: 300 },
+    ]),
     // Connexion Redis partagée par toutes les queues BullMQ (CDC ADR §3 —
     // génération PDF asynchrone, hors chemin critique webhook).
     BullModule.forRoot(parseRedisUrl(process.env.REDIS_URL)),
@@ -67,6 +86,12 @@ import { ResponseInterceptor } from './common/interceptors/response.interceptor'
   ],
   providers: [
     // Sécurité transverse globale
+    /*
+     * Le débit est contrôlé AVANT l'authentification : une force brute sur
+     * `/auth/login` ne présente précisément aucun jeton valide, et un garde
+     * placé après ne la verrait jamais s'arrêter.
+     */
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
     { provide: APP_FILTER, useClass: HttpExceptionFilter },

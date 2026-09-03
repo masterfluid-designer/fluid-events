@@ -602,6 +602,37 @@ export class PaymentsService {
     }
   }
 
+  /**
+   * Un webhook arrive sur une commande qui n'est plus en attente (2026-09-02).
+   *
+   * Le cas ordinaire est bénin : un fournisseur qui renvoie deux fois la même
+   * confirmation. Le cas grave l'est beaucoup moins — une commande EXPIRÉE
+   * dont le paiement finit par aboutir a pris l'argent de quelqu'un sans lui
+   * donner de billet.
+   *
+   * On ne la ressuscite pas : la place a pu être revendue entre-temps, et
+   * fabriquer un billet sur un stock épuisé serait pire que le problème. Mais
+   * on ne l'ignore plus en silence : le no-op d'origine rendait ce cas
+   * invisible, alors que quelqu’un attend son billet.
+   */
+  private signalerWebhookTardif(orderId: string, statut: string, paiementAbouti: boolean): void {
+    if (!paiementAbouti) {
+      // Un échec annoncé sur une commande déjà close ne demande rien.
+      return;
+    }
+
+    if (statut === 'PAID') {
+      // Confirmation renvoyée deux fois : le billet existe déjà.
+      this.logger.log(`Webhook déjà traité pour la commande ${orderId} — ignoré.`);
+      return;
+    }
+
+    this.logger.error(
+      `PAIEMENT ORPHELIN — commande ${orderId} (${statut}) confirmée après coup. ` +
+        'Un acheteur a probablement payé sans recevoir de billet : vérifier et rembourser.',
+    );
+    void this.audit.log('payment.webhook.orphan', 'Order', orderId, { statut });
+  }
   /** Marque la commande FAILED et relâche le stock — commun aux 3 providers. */
   private async finalizeOrderFailed(order: OrderForFinalize, rawPayload: unknown): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
@@ -672,7 +703,7 @@ export class PaymentsService {
     }
 
     if (order.status !== 'PENDING') {
-      // Déjà traité par un webhook précédent (hors idempotence stricte transactionId) — no-op.
+      this.signalerWebhookTardif(order.id, order.status, payload.isPaymentSucces === true);
       return;
     }
 
@@ -765,6 +796,7 @@ export class PaymentsService {
       return;
     }
     if (order.status !== 'PENDING') {
+      this.signalerWebhookTardif(order.id, order.status, true);
       return;
     }
 
@@ -872,6 +904,7 @@ export class PaymentsService {
       return;
     }
     if (order.status !== 'PENDING') {
+      this.signalerWebhookTardif(order.id, order.status, true);
       return;
     }
 
@@ -995,7 +1028,10 @@ export class PaymentsService {
       reference,
     );
     if (idempotency === ALREADY_PROCESSED) return;
-    if (order.status !== 'PENDING') return;
+    if (order.status !== 'PENDING') {
+      this.signalerWebhookTardif(order.id, order.status, true);
+      return;
+    }
 
     /*
      * Anti-fraude : le montant annoncé doit correspondre au dû. Stripe le
@@ -1117,7 +1153,10 @@ export class PaymentsService {
       reference,
     );
     if (idempotency === ALREADY_PROCESSED) return;
-    if (order.status !== 'PENDING') return;
+    if (order.status !== 'PENDING') {
+      this.signalerWebhookTardif(order.id, order.status, true);
+      return;
+    }
 
     const valeur =
       ressource.amount?.value ?? ressource.purchase_units?.[0]?.amount?.value;

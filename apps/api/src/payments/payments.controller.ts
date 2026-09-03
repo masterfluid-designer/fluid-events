@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Headers, HttpCode, HttpStatus, Param, Post, Query, Req, RawBodyRequest } from '@nestjs/common';
+import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import type { Request } from 'express';
 import { Role } from '@saas-events/types';
 import { Public } from '../common/decorators/public.decorator';
@@ -41,6 +42,8 @@ export class PaymentsController {
    * pour confirmer un paiement.
    */
   @Public()
+  /* Crée un compte ET réserve du stock, sans authentification : cinq par minute. */
+  @Throttle({ court: { ttl: 60_000, limit: 5 } })
   @Post('init-guest')
   async initGuest(@Body() dto: InitGuestPaymentDto) {
     const acheteur = await this.guestCheckout.resoudreAcheteur({
@@ -116,6 +119,7 @@ export class PaymentsController {
    */
   @Public()
   @HttpCode(HttpStatus.OK)
+  @SkipThrottle()
   @Post('webhook/kkiapay')
   async webhookKkiapay(
     @Body() dto: KkiapayWebhookDto,
@@ -131,6 +135,7 @@ export class PaymentsController {
    */
   @Public()
   @HttpCode(HttpStatus.OK)
+  @SkipThrottle()
   @Post('webhook/cinetpay')
   async webhookCinetPay(
     @Body() dto: CinetPayNotificationDto,
@@ -148,6 +153,7 @@ export class PaymentsController {
    */
   @Public()
   @HttpCode(HttpStatus.OK)
+  @SkipThrottle()
   @Post('webhook/fedapay')
   async webhookFedaPay(
     @Req() req: RawBodyRequest<Request>,
@@ -166,6 +172,7 @@ export class PaymentsController {
    */
   @Public()
   @HttpCode(HttpStatus.OK)
+  @SkipThrottle()
   @Post('webhook/stripe')
   async webhookStripe(
     @Req() req: RawBodyRequest<Request>,
@@ -184,6 +191,7 @@ export class PaymentsController {
    */
   @Public()
   @HttpCode(HttpStatus.OK)
+  @SkipThrottle()
   @Post('webhook/paypal')
   async webhookPayPal(@Req() req: Request, @Body() corps: Record<string, unknown>) {
     const entetes = req.headers as Record<string, string | undefined>;

@@ -1,0 +1,12 @@
+-- Expiration des commandes abandonnees (2026-09-02)
+--
+-- Une commande reserve son stock des l'initiation du paiement, et rien ne le
+-- rendait jamais. Trois commandes PENDING du 27 aout immobilisaient 3 places
+-- sur 70 -- indefiniment. Sur une vraie soiree, quelques dizaines
+-- d'hesitations suffisent a afficher « complet » sur une salle vide, sans que
+-- l'organisateur puisse comprendre pourquoi.
+--
+-- EXPIRED plutot que CANCELLED : « annule » laisse entendre que quelqu'un a
+-- annule. Personne n'a rien fait -- c'est justement le probleme, et le
+-- tableau de bord doit pouvoir le dire.
+ALTER TYPE "OrderStatus" ADD VALUE IF NOT EXISTS 'EXPIRED';

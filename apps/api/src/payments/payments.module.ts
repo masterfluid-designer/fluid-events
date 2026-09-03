@@ -19,6 +19,7 @@ import { TicketAccessModule } from './ticket-access.module';
 import { PaymentsController } from './payments.controller';
 import { PaymentConfigController } from './payment-config.controller';
 import { PaymentConfigService } from './payment-config.service';
+import { OrderExpiryService } from './order-expiry.service';
 import { EventAccessService } from '../common/event-access.service';
 
 @Module({
@@ -45,6 +46,8 @@ import { EventAccessService } from '../common/event-access.service';
     PaymentsService,
     // L'encaissement se règle désormais côté organisateur (2026-08-24).
     PaymentConfigService,
+    // Rend au stock les places que personne n’achètera (2026-09-02).
+    OrderExpiryService,
     EventAccessService,
   ],
   controllers: [PaymentsController, PaymentConfigController],
