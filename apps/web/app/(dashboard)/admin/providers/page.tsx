@@ -70,7 +70,7 @@ export default function AdminProvidersPage() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Paiements</h1>
         <p className="text-sm text-muted-foreground">
-          Configurez les identifiants Kkiapay, CinetPay ou FedaPay pour l'événement de chaque
+          Configurez les identifiants Kkiapay, CinetPay ou FedaPay pour l’événement de chaque
           manager.
         </p>
       </div>
@@ -92,7 +92,7 @@ export default function AdminProvidersPage() {
           </div>
         ) : managersWithEvent.length === 0 ? (
           <div className="p-6 text-center text-sm text-muted-foreground">
-            Aucun manager n'a encore d'événement à configurer.
+            Aucun manager n’a encore d’événement à configurer.
           </div>
         ) : (
           managersWithEvent.map((m, i) => {

@@ -1377,6 +1377,56 @@ interlocuteur utile est l’organisateur.
 > modules déjà compilés. Un composant tout neuf peut alors sembler « ne pas
 > rendre » alors que le code est juste. Le remède est toujours le même :
 > `docker stop`, `rm -rf apps/web/.next`, `docker start`.
+### Ce qui dort, et ce que la base raconte de travers (2026-09-09)
+
+Second passage d'audit, six jours après le premier. Trois constats, tous
+vérifiés en production avant d'être corrigés.
+
+**Next.js 15.1.3 portait une exécution de code à distance** dans le protocole
+React flight (corrigée en 15.1.9) et un contournement d'autorisation du
+middleware (15.2.3). Montée en **15.5.25** : 3 vulnérabilités critiques → 0 sur
+les dépendances d'exécution. Les 143 autres remontées par l'audit vivent dans
+l'outillage de compilation — elles comptent dans le total et pas dans le
+risque. Le contournement de middleware nous concernait peu (le nôtre ne fait
+que rediriger, la sécurité est dans les gardes NestJS) ; l'exécution de code à
+distance, elle, ne dépendait d'aucun choix d'architecture.
+
+**Un questionnaire composé le 2 septembre n'a jamais été affiché.** Son auteur
+ne l'a plus jamais rouvert — `createdAt` et `updatedAt` identiques — et cinq
+personnes se sont inscrites derrière sans voir sa question. Rien n'était en
+panne : c'est ce qui rend l'affaire coûteuse. L'aperçu affichait bien
+« Questionnaire masqué », mais une mention qui n'arrête personne n'est pas un
+avertissement. Deux gardes, à deux moments distincts :
+
+- **Un bandeau sur le tableau de bord**, calculé côté serveur, qui ne se ferme
+  pas et qui dit le chiffre : « 8 personnes se sont inscrites sans y répondre ».
+  Il vit HORS du guide de prise en main, qui disparaît une fois terminé — or le
+  travail dormant ne commence à coûter qu'une fois l'événement en ligne, c'est
+  -à-dire précisément quand le guide n'est plus là. Trois conditions, toutes
+  nécessaires : des questions écrites, la case décochée, l'événement PUBLIÉ. Sur
+  un brouillon, un questionnaire éteint est un travail en cours et non un oubli.
+- **Une confirmation à l'enregistrement**, seul moment où l'oubli est encore
+  rattrapable en un clic.
+
+**`Prisma.JsonNull` au lieu de `Prisma.DbNull`** — mon erreur du 27 août. La
+première écrit la VALEUR JSON `null`, qui n'est pas SQL NULL :
+`answers IS NOT NULL` était vrai pour TOUTES les inscriptions, y compris celles
+qui n'avaient jamais rien répondu. L'application ne s'en apercevait pas
+(`answers ?? []` passe la garde) ; toute requête, tout export, tout compteur,
+si. Je suis tombé dans le piège pendant l'audit lui-même — ma première mesure
+annonçait « 5 inscriptions avec réponses » alors qu'il n'y en avait aucune.
+Corrigé aux quatre endroits (`registrations`, `payment_provider_configs`) plus
+une migration qui rattrape les lignes déjà écrites.
+
+> **Trouvaille de bord de route** : `pnpm lint` n'avait JAMAIS rien vérifié sur
+> le front. `eslint.config.mjs` importait `eslint-config-next` comme une
+> configuration plate alors que le paquet est encore publié au format eslintrc —
+> ESLint échouait au chargement, et l'échec passait pour un échec de lint. Ce
+> n'est pas la montée de Next qui l'a cassé : 15.1.3 livrait exactement les
+> mêmes fichiers. Réparé via `FlatCompat`, puis les 16 erreurs enfin visibles
+> traitées (apostrophes typographiques, deux fichiers de types morts hérités du
+> gabarit, un `<a>` interne devenu `<Link>`).
+
 ## 4. Priorités immédiates (à date)
 
 | Module | Priorité | Référence CDC |
@@ -1424,6 +1474,10 @@ interlocuteur utile est l’organisateur.
 | Suppression des comptes clients sans commande (24 h) | ✅ Fait (2026-08-16) | — |
 | **WhatsApp Meta : identifiants + template AUTHENTICATION approuvé** | 🔴 **Bloquant** — sans lui aucun Manager ne peut se vérifier | — |
 | Paiement réellement abouti (clés marchand sandbox) | 🔴 Jamais testé, les 3 providers | §8 |
+| Next.js monté en 15.5.25 (RCE flight + contournement middleware) | ✅ Fait (2026-09-09) — 3 critiques → 0 sur les dépendances d'exécution | — |
+| Alerte « questionnaire enregistré mais masqué » (bandeau + confirmation) | ✅ Fait (2026-09-09) | §6 |
+| `Prisma.DbNull` : les réponses vides enfin en SQL NULL (+ migration) | ✅ Fait (2026-09-09) | §6 |
+| `pnpm lint` réparé sur le front — il n'avait jamais rien vérifié | ✅ Fait (2026-09-09) | — |
 
 ## 5. Hors périmètre actuel (backlog non scopé)
 

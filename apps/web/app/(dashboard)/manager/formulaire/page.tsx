@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Spinner } from '@/components/ui/spinner';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { ApercuQuestionnaire } from './apercu';
 
 /**
@@ -64,6 +65,20 @@ export default function PageQuestionnaire() {
 
   const [brouillon, setBrouillon] = useState<Questionnaire>(VIDE);
   const [charge, setCharge] = useState(false);
+
+  /*
+   * Garde du questionnaire masqué (2026-09-09).
+   *
+   * Le premier organisateur à composer un questionnaire ne l'a jamais coché.
+   * Cinq personnes se sont inscrites derrière sans voir ses questions, et il
+   * ne l'a jamais su. L'aperçu affichait pourtant « Questionnaire masqué » —
+   * une mention qui n'arrête personne n'est pas un avertissement.
+   *
+   * On demande donc confirmation À L'ENREGISTREMENT, seul moment où l'oubli
+   * est encore rattrapable en un clic. Uniquement quand il y a quelque chose
+   * à perdre : des questions écrites et la case décochée.
+   */
+  const [gardeMasque, setGardeMasque] = useState(false);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['questionnaire', evenement],
@@ -176,12 +191,45 @@ export default function PageQuestionnaire() {
           </p>
         </div>
         <Button
-          onClick={() => enregistrer.mutate(brouillon)}
+          onClick={() => {
+            if (!brouillon.actif && brouillon.champs.length > 0) {
+              setGardeMasque(true);
+              return;
+            }
+            enregistrer.mutate(brouillon);
+          }}
           disabled={erreurs.length > 0 || enregistrer.isPending}
         >
           {enregistrer.isPending ? 'Enregistrement…' : 'Enregistrer'}
         </Button>
       </div>
+
+      <ConfirmDialog
+        open={gardeMasque}
+        title="Enregistrer sans afficher ce questionnaire ?"
+        confirmLabel="Enregistrer masqué"
+        cancelLabel="Revenir"
+        pending={enregistrer.isPending}
+        description={
+          <>
+            <p>
+              Vos {brouillon.champs.length} question
+              {brouillon.champs.length > 1 ? 's sont enregistrées' : ' est enregistrée'}, mais la
+              case <strong>« Afficher ce questionnaire aux inscrits »</strong> est décochée : les
+              visiteurs ne les verront pas.
+            </p>
+            <p className="mt-2">
+              Les personnes qui s’inscriront d’ici là n’y répondront pas, et ces réponses ne se
+              rattrapent pas après coup.
+            </p>
+          </>
+        }
+        onCancel={() => setGardeMasque(false)}
+        onConfirm={() => {
+          setGardeMasque(false);
+          enregistrer.mutate(brouillon);
+        }}
+      />
 
       {erreurs.length > 0 && (
         <div className="flex items-start gap-2.5 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-800 dark:text-amber-300">

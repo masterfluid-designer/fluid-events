@@ -129,13 +129,22 @@ export class RegistrationsService {
           phone: dto.phone ? this.phoneService.normalizeToE164(dto.phone) : null,
           extraLabel: dto.extraLabel?.trim() || null,
           extraValue: dto.extraValue?.trim() || null,
-          // Un questionnaire sans réponse ne laisse pas un tableau vide :
-          // `null` distingue « pas de questionnaire » de « questionnaire
-          // affiché, tout laissé en blanc ».
+          /*
+           * Un questionnaire sans réponse ne laisse pas un tableau vide :
+           * l'absence distingue « pas de questionnaire » de « questionnaire
+           * affiché, tout laissé en blanc ».
+           *
+           * `DbNull` et non `JsonNull` — le piège est réel, et il a mordu.
+           * `JsonNull` écrit la VALEUR JSON `null` dans la colonne, ce qui
+           * n'est pas SQL NULL : `answers IS NOT NULL` devient alors vrai
+           * pour toute inscription, et le moindre compteur bâti là-dessus
+           * ment. C'est exactement ce qui est arrivé aux cinq premières
+           * inscriptions (rattrapées par la migration du 9 septembre).
+           */
           answers:
             controle.reponses.length > 0
               ? (controle.reponses as unknown as Prisma.InputJsonValue)
-              : Prisma.JsonNull,
+              : Prisma.DbNull,
         },
         select: { id: true, firstName: true, createdAt: true },
       });

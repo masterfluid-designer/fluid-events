@@ -1,6 +1,7 @@
 'use client';
 
 import { Suspense, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import QRCode from 'qrcode';
@@ -103,7 +104,7 @@ function ClientTicketsContent() {
             <QrCode className="size-10 text-muted-foreground" />
             <p className="text-muted-foreground">Aucun billet pour le moment</p>
             <Button asChild>
-              <a href="/">Découvrir des événements</a>
+              <Link href="/">Découvrir des événements</Link>
             </Button>
           </CardContent>
         </Card>

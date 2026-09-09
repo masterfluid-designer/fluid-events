@@ -658,9 +658,10 @@ export class EventsService {
         title: true,
         status: true,
         accessMode: true,
-        _count: { select: { tickets: true, scanners: true } },
+        _count: { select: { tickets: true, scanners: true, registrations: true } },
         eventPage: { select: { blocks: true } },
         paymentProviderConfigs: { where: { isActive: true }, select: { provider: true } },
+        registrationForm: { select: { isActive: true, fields: true } },
       },
     });
 
@@ -706,7 +707,50 @@ export class EventsService {
       etapes,
       faites: etapes.filter((e) => e.faite).length,
       total: etapes.length,
+      alertes: this.alertesEvenement(evenement),
     };
+  }
+
+  /**
+   * Ce qui est en place mais ne sert à rien — l'angle mort de la liste de
+   * prise en main (2026-09-09).
+   *
+   * La liste coche ce qui a été FAIT. Elle est muette sur ce qui a été fait à
+   * moitié, et c'est là que se perdent les données : un questionnaire composé
+   * puis jamais affiché a coûté cinq séries de réponses à un organisateur qui
+   * n'a jamais su qu'il les perdait. Rien n'était en panne — l'écran ne le lui
+   * a simplement jamais dit.
+   *
+   * Ces alertes vivent donc SÉPARÉMENT de la liste : celle-ci disparaît une
+   * fois terminée, or c'est justement une fois l'événement en ligne que le
+   * travail dormant commence à coûter.
+   */
+  private alertesEvenement(evenement: {
+    status: string;
+    registrationForm: { isActive: boolean; fields: unknown } | null;
+    _count: { registrations: number };
+  }): Array<{ cle: string; questions?: number; inscrits?: number }> {
+    const alertes: Array<{ cle: string; questions?: number; inscrits?: number }> = [];
+
+    const questions = Array.isArray(evenement.registrationForm?.fields)
+      ? (evenement.registrationForm.fields as unknown[]).length
+      : 0;
+
+    /*
+     * Trois conditions, toutes nécessaires : des questions écrites (sinon il
+     * n'y a rien à perdre), le questionnaire décoché (l'oubli), et
+     * l'événement EN LIGNE — sur un brouillon, un questionnaire éteint est un
+     * travail en cours, pas une erreur.
+     */
+    if (evenement.status === 'PUBLISHED' && questions > 0 && !evenement.registrationForm?.isActive) {
+      alertes.push({
+        cle: 'questionnaire-dormant',
+        questions,
+        inscrits: evenement._count.registrations,
+      });
+    }
+
+    return alertes;
   }
 
   async getParticipants(eventId: string, managerId: string) {

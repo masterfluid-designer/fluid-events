@@ -633,7 +633,7 @@ export class AdminService {
           publicKey: dto.publicKey ?? null,
           privateKey: encryptedPrivateKey,
           webhookSecret: encryptedWebhookSecret,
-          config: Object.keys(config).length > 0 ? (config as Prisma.InputJsonValue) : Prisma.JsonNull,
+          config: Object.keys(config).length > 0 ? (config as Prisma.InputJsonValue) : Prisma.DbNull,
         },
         select: SAFE_CONFIG_SELECT,
       });

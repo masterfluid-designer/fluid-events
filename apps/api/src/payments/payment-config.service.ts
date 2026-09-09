@@ -244,7 +244,7 @@ export class PaymentConfigService {
           publicKey: g.publicKey,
           privateKey: g.privateKey,
           webhookSecret: g.webhookSecret,
-          config: (g.config ?? Prisma.JsonNull) as Prisma.InputJsonValue,
+          config: (g.config ?? Prisma.DbNull) as Prisma.InputJsonValue,
         })),
         skipDuplicates: true,
       });
@@ -278,7 +278,7 @@ export class PaymentConfigService {
       config:
         Object.keys(options).length > 0
           ? (options as Prisma.InputJsonValue)
-          : Prisma.JsonNull,
+          : Prisma.DbNull,
     };
   }
 

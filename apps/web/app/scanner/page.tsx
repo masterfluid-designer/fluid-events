@@ -42,7 +42,7 @@ export default function ScannerLanding() {
           </div>
           <CardTitle className="text-2xl text-white">EventScan</CardTitle>
           <CardDescription className="text-white/50">
-            Contrôle d'accès aux événements
+            Contrôle d’accès aux événements
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">

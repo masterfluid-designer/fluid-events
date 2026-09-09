@@ -20,6 +20,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { SalesTrendChart, type DailySalesPoint } from '@/components/ui/sales-trend-chart';
 import { api, apiPatch, apiPost, ApiError } from '@/lib/api';
 import { PublicLink } from '@/components/dashboard/public-link';
+import { AlertesEvenement } from '@/components/dashboard/alertes-evenement';
 import { avecEvenement, lienDashboard, useEvenementActif, useMesEvenements } from '@/lib/evenement-actif';
 import { EventAccessMode } from '@saas-events/types';
 
@@ -311,6 +312,13 @@ export default function ManagerDashboardPage() {
           </span>
         </div>
       ))}
+
+      {/*
+        Ce qui est en place mais dort — un questionnaire composé et jamais
+        affiché, par exemple. Le composant ne rend rien quand il n'y a rien à
+        dire, et se tait de lui-même dès que c'est réglé.
+      */}
+      <AlertesEvenement />
 
       <StatGrid stats={stats} />
 

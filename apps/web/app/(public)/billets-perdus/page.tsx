@@ -48,9 +48,9 @@ export default function LostTicketsPage() {
             </div>
           ) : (
             <>
-              <h1 className="font-serif text-xl font-semibold">J'ai perdu mes billets</h1>
+              <h1 className="font-serif text-xl font-semibold">J’ai perdu mes billets</h1>
               <p className="mt-1.5 text-sm text-waterloo dark:text-manatee">
-                Renseignez votre numéro de commande et l'email utilisé à l'achat — vos billets vous
+                Renseignez votre numéro de commande et l’email utilisé à l’achat — vos billets vous
                 seront renvoyés par email.
               </p>
 
@@ -66,7 +66,7 @@ export default function LostTicketsPage() {
                   />
                 </label>
                 <label className="flex flex-col gap-1.5 text-sm">
-                  Email utilisé à l'achat
+                  Email utilisé à l’achat
                   <input
                     required
                     type="email"

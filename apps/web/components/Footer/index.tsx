@@ -300,7 +300,7 @@ const Footer = () => {
             >
               <p>
                 &copy; {new Date().getFullYear()} Fluid Events. Tous droits
-                réservés. Développé en Côte d'Ivoire 🇨🇮
+                réservés. Développé en Côte d’Ivoire 🇨🇮
               </p>
             </motion.div>
 

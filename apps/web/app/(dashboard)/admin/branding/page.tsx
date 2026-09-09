@@ -58,9 +58,9 @@ export default function AdminBrandingPage() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Branding</h1>
         <p className="text-sm text-muted-foreground">
-          Logo et icône SVG de la plateforme — remplacent le texte "Fluid Events" partout où un
+          Logo et icône SVG de la plateforme — remplacent le texte « Fluid Events » partout où un
           logo devrait apparaître (sidebar, en-tête public, page de connexion, favicon). Rendus en
-          blanc automatiquement en mode sombre, quelle que soit leur couleur d'origine.
+          blanc automatiquement en mode sombre, quelle que soit leur couleur d’origine.
         </p>
       </div>
 
