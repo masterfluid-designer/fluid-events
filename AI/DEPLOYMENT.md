@@ -212,8 +212,80 @@ Tous ont été corrigés dans le dépôt ; ils sont listés pour éviter leur r�
 | Une modification de `nginx.conf` n’a aucun effet après `git pull` | Le montage porte sur **un fichier**, pas un dossier. `git pull` remplace le fichier (nouvel inode) et le conteneur reste accroché à l’ancien : `nginx -t` et `nginx -s reload` valident et rechargent l’**ancien** contenu, sans erreur. Il faut `up -d --force-recreate nginx` |
 | L’aperçu du Builder affiche « Ce contenu est bloqué » | CSP : `frame-src` listait la seule origine Kkiapay, sans `'self'` — l’iframe de la page publique, pourtant de même origine, était refusée. `frame-ancestors` ne joue aucun rôle ici (il règle qui nous embarque, pas ce que nous embarquons) |
 
+## 13. Migrer vers un autre VPS
+
+> Écrit le 2026-09-10, après l'expiration de l'abonnement du premier VPS : base,
+> images et secrets se sont retrouvés enfermés sur une machine éteinte, sans
+> aucune copie ailleurs. Voir §9 — c'est exactement le risque qui y était noté.
+
+`scripts/migrer-vps.sh` fait le transport. Il ne dispense pas du reste de ce
+document : la nouvelle machine se prépare normalement (§3 à §6), on **restaure**
+simplement au lieu de partir d'une base vide.
+
+### Ce qui doit voyager
+
+| Quoi | Où | Sans lui |
+|---|---|---|
+| Base PostgreSQL | volume `postgres_data` | plus d'événements, d'inscriptions ni de comptes |
+| Images | volume `minio_data` | le site est complet mais **toutes les images sont mortes** : la base garde des URLs qui pointent dedans |
+| `.env` | `/opt/fluid-events/.env` | voir l'avertissement ci-dessous |
+| Crons | `crontab -l` | plus de sauvegarde ni de supervision |
+
+Redis ne se migre pas (file d'attente PDF, jetable) ; les certificats TLS non
+plus, ils se réémettent. Google OAuth et Resend sont attachés au **domaine** :
+rien à changer chez eux tant qu'il ne bouge pas.
+
+> ⚠️ **Le `.env` se recopie, il ne se régénère pas.** Deux valeurs sont
+> irremplaçables, et une installation « propre » les détruit sans prévenir :
+> `QR_SECRET` signe les QR codes déjà distribués — le changer fait **refuser à
+> l'entrée tous les billets déjà émis** ; `ENCRYPTION_KEY` déchiffre les clés de
+> paiement des organisateurs — le changer les oblige tous à les ressaisir.
+> `JWT_SECRET` peut changer sans casse : il déconnecte tout le monde une fois.
+> Le script refuse d'importer si les deux premières diffèrent.
+
+### L'ordre, et le piège qu'il évite
+
+Certbot valide par HTTP sur le port 80 : **le DNS doit déjà pointer vers la
+nouvelle IP** avant d'émettre le certificat. D'où cet enchaînement, qui n'est
+pas négociable.
+
+```bash
+# 1) ANCIEN VPS — tout sortir
+cd /opt/fluid-events && ./scripts/migrer-vps.sh exporter
+#    → /root/migration-fluid-AAAAMMJJ-HHMMSS/
+
+# 2) VOTRE MACHINE — relais (les deux VPS n'ont pas à se connaître)
+scp -i ~/.ssh/<ancienne_cle> -r root@<ANCIENNE_IP>:/root/migration-fluid-* .
+scp -i ~/.ssh/<nouvelle_cle> -r ./migration-fluid-* root@<NOUVELLE_IP>:/root/
+
+# 3) NOUVEAU VPS — préparation (§3), PUIS bascule DNS, PUIS TLS (§4)
+git clone --branch main <dépôt> /opt/fluid-events
+cp /root/migration-fluid-*/env /opt/fluid-events/.env && chmod 600 /opt/fluid-events/.env
+#    ... bascule des enregistrements A (@, api, storage) vers la nouvelle IP ...
+#    ... certbot (§4), puis copie des certificats dans docker/nginx/ssl (§5) ...
+
+# 4) NOUVEAU VPS — restaurer et démarrer
+cd /opt/fluid-events && ./scripts/migrer-vps.sh importer /root/migration-fluid-AAAAMMJJ-HHMMSS
+```
+
+L'import démarre Postgres et MinIO seuls, restaure, puis monte la stack
+complète et applique les migrations. Le dump porte déjà `_prisma_migrations` :
+seules les migrations postérieures à l'export s'appliquent.
+
+### À vérifier avant de considérer la migration faite
+
+- une page publique d'événement, **images comprises** — c'est le contrôle qui
+  attrape un volume MinIO oublié ;
+- une connexion organisateur et son tableau de bord ;
+- **un billet déjà émis, scanné** : c'est le seul contrôle qui prouve que
+  `QR_SECRET` a bien suivi ;
+- les crons remis en place (`cat migration-fluid-*/crontab.txt`, puis `crontab -e`).
+
+> Le dossier de migration contient **tous les secrets de production**.
+> Supprimez-le des trois machines une fois la bascule vérifiée.
+
 ## 12. Points ouverts
 
 - **Pare-feu** — non installé. La surface réelle est déjà limitée à 22/80/443, et Docker manipule directement iptables (UFW ne contrôlerait pas les ports publiés). L'authentification SSH par mot de passe est en revanche à désactiver.
-- **Sauvegardes hors-site** — voir §9.
+- **Sauvegardes hors-site** — voir §9. ⚠️ Le 2026-09-10, l'expiration de l'abonnement du VPS a rendu la base, les images et les secrets inaccessibles d'un coup : le risque noté ici s'est réalisé. Une copie externe n'est plus une amélioration, c'est la prochaine tâche.
 - **Supervision** — aucune. Suivi manuel par `docker compose logs`.
