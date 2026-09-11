@@ -170,8 +170,10 @@ importer() {
     exit 1
   fi
 
-  vert "Démarrage de la base et du stockage seuls…"
-  $COMPOSE up -d postgres minio
+  # PostgreSQL seul : surtout PAS MinIO. Voir la restauration des images
+  # ci-dessous — c'est l'ordre qui compte.
+  vert "Démarrage de la base seule…"
+  $COMPOSE up -d postgres
   # Postgres accepte les connexions quelques secondes après le conteneur.
   for _ in $(seq 1 60); do
     if $COMPOSE exec -T postgres pg_isready -U "$user" -d "$db" >/dev/null 2>&1; then break; fi
@@ -192,7 +194,17 @@ importer() {
   vert "Restauration de la base…"
   gunzip -c "$source/base.sql.gz" | $COMPOSE exec -T postgres psql -U "$user" -d "$db" -q
 
-  vert "Restauration des images…"
+  # MinIO doit être À L'ARRÊT pendant qu'on garnit son volume, et relire le
+  # disque ensuite.
+  #
+  # Le piège s'est refermé sur moi le 2026-09-11 : le volume avait été
+  # restauré sous un MinIO déjà démarré, qui avait donc initialisé un espace
+  # VIDE et gardait cet état en mémoire. Les fichiers étaient bien sur le
+  # disque, les pages publiques les référençaient correctement, et chaque
+  # image répondait `500 InternalError` — une panne qui ne ressemble pas du
+  # tout à sa cause. Un simple redémarrage l'a levée.
+  vert "Restauration des images (MinIO à l'arrêt)…"
+  $COMPOSE stop minio 2>/dev/null || true
   docker run --rm \
     -v "$VOLUME_MINIO":/donnees \
     -v "$source":/entree:ro \
@@ -205,6 +217,18 @@ importer() {
   # Le dump porte déjà `_prisma_migrations` : seules les migrations postérieures
   # à l'export s'appliquent, les autres sont ignorées.
   $COMPOSE exec -T api sh -c "cd /app/apps/api && npx prisma migrate deploy"
+
+  # Contrôle automatique : une image qui répond prouve que le volume a été
+  # relu. Sans lui, l'échec ne se voit qu'en ouvrant une page publique.
+  echo
+  vert "Contrôle du stockage…"
+  objets=$($COMPOSE exec -T minio sh -c "ls /data/* 2>/dev/null | wc -l" 2>/dev/null | tr -d '\r')
+  if [ "${objets:-0}" -gt 0 ]; then
+    info "MinIO voit $objets entrée(s) dans son bucket."
+  else
+    rouge "MinIO ne voit RIEN dans son bucket — les images ne s'afficheront pas."
+    rouge "Relancez : $COMPOSE restart minio"
+  fi
 
   echo
   vert "Import terminé. À vérifier maintenant :"
