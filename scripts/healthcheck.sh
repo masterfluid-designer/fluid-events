@@ -68,6 +68,28 @@ code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 \
         --resolve "${API_HOTE}:443:127.0.0.1" "$API_URL/api/admin/overview" 2>/dev/null)
 [ "$code" = "401" ] || PROBLEMES+=("API injoignable (HTTP ${code:-timeout})")
 
+# ── Sauvegarde hors-site ──────────────────────────────────────────────────
+# Une sauvegarde qui échoue en silence est pire que pas de sauvegarde : on se
+# croit couvert. C'est la seule chose qui distingue les deux, et c'est
+# exactement ce qui manquait quand le premier VPS a emporté sa base et ses
+# sauvegardes ensemble le 2026-09-10.
+#
+# Le contrôle ne s'applique QUE si la sauvegarde hors-site est configurée :
+# réclamer une sauvegarde que personne n'a demandée transformerait l'alerte en
+# bruit de fond.
+RESTIC_REPOSITORY=$(grep -E '^RESTIC_REPOSITORY=' .env 2>/dev/null | cut -d= -f2-)
+if [ -n "${RESTIC_REPOSITORY:-}" ]; then
+  MARQUEUR=/var/lib/fluid-events/dernier-backup-externe
+  if [ ! -f "$MARQUEUR" ]; then
+    PROBLEMES+=("Sauvegarde hors-site : jamais réussie")
+  else
+    age=$(( ( $(date +%s) - $(date -r "$MARQUEUR" +%s) ) / 3600 ))
+    # 48 h et non 24 : un passage manqué arrive (redémarrage, réseau). Deux,
+    # c'est une panne.
+    [ "$age" -lt 48 ] || PROBLEMES+=("Sauvegarde hors-site : ${age} h sans succès")
+  fi
+fi
+
 # ── Disque ────────────────────────────────────────────────────────────────
 use=$(df / | awk 'NR==2{gsub("%","",$5); print $5}')
 [ "${use:-0}" -lt "$SEUIL_DISQUE" ] || PROBLEMES+=("Disque à ${use}%")
