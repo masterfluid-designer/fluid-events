@@ -3,8 +3,21 @@
 # Surveillance de la production — conçu pour tourner en cron toutes les 5 min.
 #
 # Vérifie ce qui rend le service réellement vendable : les conteneurs tournent,
-# le site et l'API répondent depuis l'extérieur, le disque n'est pas plein, et
-# le certificat n'est pas sur le point d'expirer.
+# le site et l'API répondent à travers Nginx et TLS, le disque n'est pas plein,
+# et le certificat n'est pas sur le point d'expirer.
+#
+# ⚠️ Les requêtes passent par la pile publique mais NE SORTENT PAS de la
+# machine (`--resolve` vers 127.0.0.1). Ce n'est pas un raccourci : sur un VPS
+# dont le routeur ne fait pas de hairpin NAT — celui de septembre 2026, par
+# exemple — une requête vers sa propre IP publique n'aboutit jamais. Le script
+# annonçait alors « Site injoignable » toutes les dix minutes sur un site
+# parfaitement en ligne, et une alerte qui se déclenche à tort est pire que
+# pas d'alerte du tout.
+#
+# Contrepartie assumée : ce contrôle prouve que l'application sert
+# correctement, pas qu'elle est joignable depuis Internet. Une panne DNS ou un
+# blocage de pare-feu en amont lui échapperait — c'est le rôle d'une sonde
+# externe, qui reste à mettre en place.
 #
 # Anti-spam : une alerte n'est envoyée qu'au CHANGEMENT d'état (OK → panne, et
 # retour à la normale), plus un rappel quotidien tant que la panne dure. Sans
@@ -36,15 +49,23 @@ for svc in postgres redis minio api web nginx; do
   [ "$etat" = "running" ] || PROBLEMES+=("Conteneur $svc : $etat")
 done
 
-# ── Accessibilité publique ────────────────────────────────────────────────
+# ── Le service répond-il, à travers Nginx et TLS ? ────────────────────────
+# On garde le nom d'hôte public — donc le bon SNI et le bon en-tête Host, donc
+# le bon bloc serveur Nginx — mais on force la connexion sur la boucle locale.
+# Voir l'avertissement en tête de fichier.
+APP_HOTE="${APP_URL#https://}"; APP_HOTE="${APP_HOTE%%/*}"
+API_HOTE="${API_URL#https://}"; API_HOTE="${API_HOTE%%/*}"
+
 # --max-time : sans borne, un serveur qui accepte la connexion sans jamais
 # répondre bloquerait le cron indéfiniment et empilerait les exécutions.
-code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$APP_URL/health" 2>/dev/null)
+code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 \
+        --resolve "${APP_HOTE}:443:127.0.0.1" "$APP_URL/health" 2>/dev/null)
 [ "$code" = "200" ] || PROBLEMES+=("Site injoignable (HTTP ${code:-timeout})")
 
 # 401 attendu : la route est protégée. Tout autre code (000, 502, 500) signale
 # une API réellement en panne, pas une simple protection.
-code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$API_URL/api/admin/overview" 2>/dev/null)
+code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 \
+        --resolve "${API_HOTE}:443:127.0.0.1" "$API_URL/api/admin/overview" 2>/dev/null)
 [ "$code" = "401" ] || PROBLEMES+=("API injoignable (HTTP ${code:-timeout})")
 
 # ── Disque ────────────────────────────────────────────────────────────────
@@ -52,8 +73,9 @@ use=$(df / | awk 'NR==2{gsub("%","",$5); print $5}')
 [ "${use:-0}" -lt "$SEUIL_DISQUE" ] || PROBLEMES+=("Disque à ${use}%")
 
 # ── Certificat TLS ────────────────────────────────────────────────────────
-fin=$(echo | timeout 15 openssl s_client -connect "${APP_URL#https://}:443" \
-        -servername "${APP_URL#https://}" 2>/dev/null \
+# Même raison : on présente le bon SNI à Nginx, en local.
+fin=$(echo | timeout 15 openssl s_client -connect "127.0.0.1:443" \
+        -servername "$APP_HOTE" 2>/dev/null \
       | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2)
 if [ -n "$fin" ]; then
   jours=$(( ( $(date -d "$fin" +%s) - $(date +%s) ) / 86400 ))
