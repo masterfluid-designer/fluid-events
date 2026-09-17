@@ -1,6 +1,7 @@
 'use client';
 
 import type { FaqEntry, MediaEntry, ScheduleEntry, SpeakerEntry } from '@saas-events/types';
+import { soupconsAmPm } from '@saas-events/types';
 import { Plus, Trash2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -409,6 +410,9 @@ export function ConfigPanel({
         )}
         {config.schedule.map((entry) => {
           const jour = dayOfEntry(entry.startsAt, days);
+          // Horaire probablement saisi en AM au lieu de PM — voir
+          // packages/types/src/programme.ts pour l'incident qui l'a motivé.
+          const soupcon = soupconsAmPm(config.schedule).find((x) => x.id === entry.id);
           return (
           <div key={entry.id} className="flex flex-col gap-1.5 rounded-lg border border-border p-3">
             {days.length > 0 && (
@@ -436,6 +440,33 @@ export function ConfigPanel({
                   }
                   className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 />
+                {/*
+                  Le champ horaire suit la langue du navigateur : en format
+                  12 h, « 12:00 AM » veut dire minuit. On le dit en clair, avec
+                  la correction à portée de clic, plutôt que de laisser la page
+                  publique afficher une pause déjeuner à 00:35.
+                */}
+                {soupcon && (
+                  <div className="flex flex-wrap items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-2.5 py-2 text-[11px] text-amber-800 dark:text-amber-400">
+                    <span>
+                      <strong>{soupcon.saisie}</strong> tombe avant l&apos;entrée précédente. Vouliez-vous
+                      dire <strong>{soupcon.propositionHeure}</strong> (PM et non AM) ?
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onChange({
+                          schedule: config.schedule.map((s) =>
+                            s.id === entry.id ? { ...s, startsAt: soupcon.proposition } : s,
+                          ),
+                        })
+                      }
+                      className="rounded border border-amber-600/40 px-2 py-0.5 font-semibold hover:bg-amber-500/20"
+                    >
+                      Passer à {soupcon.propositionHeure}
+                    </button>
+                  </div>
+                )}
                 <Input
                   placeholder="Titre (ex : Ouverture des portes)"
                   value={entry.title}

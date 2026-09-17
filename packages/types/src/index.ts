@@ -777,3 +777,4 @@ export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes];
 // ─────────────────────────────────────────────────────────────────────────────
 
 export * from './questionnaire';
+export * from './programme';
